@@ -1,55 +1,87 @@
 const { Telegraf } = require('telegraf');
 const { initDB } = require('./database');
+const express = require('express');
 require('dotenv').config();
 
+// === 1. تشغيل بوت التيلغرام ===
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// تحميل الأوامر
+// تحميل الأوامر (كما في مشروعك)
 const startCommand = require('./commands/start');
 const balanceCommand = require('./commands/balance');
 const offersCommand = require('./commands/offers');
 const withdrawCommand = require('./commands/withdraw');
 const { adminCommand, handleAdminActions } = require('./commands/admin');
 
-// أوامر البوت
 bot.start(startCommand);
 bot.hears('💰 رصيدك', balanceCommand);
 bot.hears('🎁 مصادر الربح', offersCommand);
 bot.hears('📤 طلب سحب', withdrawCommand);
 bot.command('admin', adminCommand);
 
-// معالجة الرسائل في وضع الأدمن
-bot.on('text', async (ctx) => {
-  if (ctx.session?.isAdmin) {
-    await handleAdminActions(ctx);
+// ... باقي الأوامر كما هي
+
+// === 2. تشغيل سيرفر Express داخل نفس الملف ===
+const app = express();
+app.use(express.json());
+
+// Postback من TimeWall / cpalead
+app.get('/callback', async (req, res) => {
+  const { user_id, amount, offer, secret } = req.query;
+
+  if (secret !== process.env.CALLBACK_SECRET) {
+    return res.status(403).send('Forbidden');
   }
 
-  // معالجة طلب السحب
-  if (ctx.session?.awaiting_withdraw) {
-    const wallet = ctx.message.text.trim();
-    if (!wallet.startsWith('P') || wallet.length < 9) {
-      return ctx.reply('❌ رقم محفظة Payeer غير صالح. يجب أن يكون مثل P12345678');
-    }
+  const parsedAmount = parseFloat(amount);
+  if (isNaN(parsedAmount)) return res.status(400).send('Invalid amount');
 
-    const userId = ctx.from.id;
-    const userRes = await bot.telegram.db.client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-    const balance = userRes.rows[0].balance;
+  try {
+    await bot.telegram.db.client.query('BEGIN');
 
     await bot.telegram.db.client.query(
-      'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
-      [userId, balance, wallet]
+      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+      [parsedAmount, user_id]
     );
 
-    await bot.telegram.db.client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
+    await bot.telegram.db.client.query(
+      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+      [user_id, 'cpa_offer', parsedAmount, offer || 'Offer Completed']
+    );
 
-    ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${balance.toFixed(2)}$.`);
-    ctx.session.awaiting_withdraw = false;
+    await bot.telegram.db.client.query('COMMIT');
+
+    // (اختياري) إرسال إشعار للمستخدم
+    try {
+      await bot.telegram.sendMessage(user_id, `🎉 حصلت على ${parsedAmount}$ من مهمة!`);
+    } catch (err) {
+      console.log(`مستخدم ${user_id} قد يكون قد حظر البوت`);
+    }
+
+    res.status(200).send('OK');
+  } catch (err) {
+    await bot.telegram.db.client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).send('Error');
   }
 });
 
-// تشغيل البوت
+// صفحة رئيسية للتحقق
+app.get('/', (req, res) => {
+  res.send('✅ البوت + السيرفر يعملان بنجاح!');
+});
+
+// === 3. التشغيل ===
 (async () => {
   await initDB();
+
+  // تشغيل البوت
   await bot.launch();
   console.log('✅ البوت يعمل الآن');
+
+  // تشغيل السيرفر على المنفذ الصحيح
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 السيرفر يستمع على المنفذ ${PORT}`);
+  });
 })();
