@@ -4,7 +4,6 @@
   "description": "Bot for CPA earnings with admin panel and withdrawal system",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js",
     "server": "node server.js"    
   },
   "dependencies": {
