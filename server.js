@@ -1,16 +1,21 @@
 const express = require('express');
-const callbackRouter = require('./handlers/callback');
+const callbackRouter = require('./handlers/callback'); // أو الكود الداخلي
+require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 8080;
-
 app.use(express.json());
-app.use('/callback', callbackRouter);
 
+// === مسار اختبار ===
 app.get('/', (req, res) => {
-  res.send('Bot Server Running');
+  res.send('✅ السيرفر يعمل! استقبلت طلبك بنجاح.');
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ السيرفر يعمل على المنفذ ${PORT}`);
+// === استقبال Postback ===
+app.use('/callback', callbackRouter);
+
+// === الاستماع على المنفذ الصحيح ===
+const PORT = process.env.PORT || 8080;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`);
 });
