@@ -3,18 +3,19 @@ require('dotenv').config();
 
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 client.connect();
 
-// إنشاء الجداول إذا لم تكن موجودة
 const initDB = async () => {
   const query = `
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
-      balance DECIMAL DEFAULT 0,
+      balance DECIMAL(10,2) DEFAULT 0,
       payeer_wallet VARCHAR,
       created_at TIMESTAMP DEFAULT NOW()
     );
@@ -23,7 +24,7 @@ const initDB = async () => {
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
       source VARCHAR(50),
-      amount DECIMAL,
+      amount DECIMAL(10,2),
       description TEXT,
       timestamp TIMESTAMP DEFAULT NOW()
     );
@@ -31,7 +32,7 @@ const initDB = async () => {
     CREATE TABLE IF NOT EXISTS withdrawals (
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
-      amount DECIMAL,
+      amount DECIMAL(10,2),
       payeer_wallet VARCHAR,
       status VARCHAR(20) DEFAULT 'pending',
       requested_at TIMESTAMP DEFAULT NOW(),
@@ -40,7 +41,7 @@ const initDB = async () => {
     );
   `;
   await client.query(query);
-  console.log("✅ جداول قاعدة البيانات جاهزة");
+  console.log("✅ الجداول أُنشئت أو موجودة مسبقًا");
 };
 
 module.exports = { client, initDB };
