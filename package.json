@@ -1,10 +1,10 @@
 {
-  "name": "telegram-offerwall-bot",
+  "name": "telegram-cpa-bot",
   "version": "1.0.0",
-  "description": "Bot for CPA earnings with admin panel and withdrawal system",
+  "description": "Bot for CPA offers with withdrawal and admin panel",
   "main": "bot.js",
   "scripts": {
-    "server": "node server.js"    
+    "start": "node bot.js"
   },
   "dependencies": {
     "telegraf": "^4.14.0",
@@ -15,4 +15,4 @@
   "engines": {
     "node": "18.x"
   }
-} 
+}
