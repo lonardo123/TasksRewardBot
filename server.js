@@ -1,5 +1,4 @@
 const express = require('express');
-const callbackRouter = require('./handlers/callback'); // أو الكود الداخلي
 require('dotenv').config();
 
 const app = express();
@@ -10,8 +9,10 @@ app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! استقبلت طلبك بنجاح.');
 });
 
-// === استقبال Postback ===
-app.use('/callback', callbackRouter);
+// === مؤقتًا: تعطيل callbackRouter ===
+app.get('/callback', (req, res) => {
+  res.send('📌 تم استقبال callback. السر: ' + req.query.secret);
+});
 
 // === الاستماع على المنفذ الصحيح ===
 const PORT = process.env.PORT || 8080;
