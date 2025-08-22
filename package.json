@@ -1,0 +1,19 @@
+{
+  "name": "telegram-offerwall-bot",
+  "version": "1.0.0",
+  "description": "Bot for CPA earnings with admin panel and withdrawal system",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "server": "node server.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.14.0",
+    "pg": "^8.11.3",
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+} 
