@@ -54,7 +54,7 @@ async function connectDB() {
 }
 
 // === 3. تشغيل البوت ===
-const bot = new Telegraf(process.env.BOT_TOKEN || '8488029999:AAHZHiKR96TUike1X50Yael9AEeIb6ThmiA');
+const bot = new Telegraf(process.env.BOT_TOKEN || '8488029999:AAHvdbfzkB945mbr3_SvTSunGjlhMQvraMs');
 
 // --- أوامر المستخدمين ---
 
@@ -369,14 +369,25 @@ app.get('/callback', async (req, res) => {
 (async () => {
   try {
     await connectDB();
-    await bot.launch();
-    console.log('✅ البوت شُغّل بنجاح');
 
+    // تشغيل البوت مع تجاهل الأخطاء التي توقف السيرفر
+    bot.launch().catch(err => {
+      console.error('⚠️ [Bot] فشل في التشغيل (قد يكون 409)، لكن السيرفر مستمر:', err.message);
+    });
+
+    // تشغيل السيرفر بغض النظر عن حالة البوت
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`);
     });
+
   } catch (error) {
-    console.error('فشل التشغيل:', error);
+    console.error('❌ خطأ عام في التشغيل:', error);
+
+    // حتى لو فشل، نحاول تشغيل السيرفر
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`⚠️ السيرفر يعمل على ${PORT} رغم خطأ في البوت`);
+    });
   }
 })();
