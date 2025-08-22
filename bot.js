@@ -51,7 +51,7 @@ async function connectDB() {
   }
 }
 
-// === 2. تشغيل البوت (بدون إيقاف السيرفر عند خطأ) ===
+// === 2. تشغيل البوت ===
 const bot = new Telegraf(process.env.BOT_TOKEN || '8488029999:AAHvdbfzkB945mbr3_SvTSunGjlhMQvraMs');
 
 // أمر /start
@@ -151,7 +151,72 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// === 3. Postback (يجب أن يعمل دائمًا) ===
+// 🔐 لوحة الأدمن
+bot.command('admin', async (ctx) => {
+  const userId = ctx.from.id;
+
+  if (userId.toString() !== process.env.ADMIN_ID) {
+    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+  }
+
+  await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
+    reply_markup: {
+      keyboard: [
+        ['📋 عرض الطلبات'],
+        ['📊 الإحصائيات'],
+        ['🚪 خروج من لوحة الأدمن']
+      ],
+      resize_keyboard: true
+    }
+  });
+  ctx.session = { isAdmin: true };
+});
+
+// عرض الطلبات
+bot.hears('📋 عرض الطلبات', async (ctx) => {
+  if (ctx.from.id.toString() !== process.env.ADMIN_ID) return;
+
+  const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
+  if (res.rows.length === 0) {
+    await ctx.reply('✅ لا توجد طلبات معلقة.');
+  } else {
+    for (let req of res.rows) {
+      await ctx.reply(`طلب #${req.id}\nالمستخدم: ${req.user_id}\nالمبلغ: ${req.amount}$\nPayeer: ${req.payeer_wallet}`);
+    }
+  }
+});
+
+// الإحصائيات
+bot.hears('📊 الإحصائيات', async (ctx) => {
+  if (ctx.from.id.toString() !== process.env.ADMIN_ID) return;
+
+  const [users, earnings] = await Promise.all([
+    client.query('SELECT COUNT(*) FROM users'),
+    client.query('SELECT COALESCE(SUM(amount), 0) FROM earnings')
+  ]);
+
+  await ctx.reply(
+    `📈 الإحصائيات:\n` +
+    `👥 المستخدمين: ${users.rows[0].count}\n` +
+    `💰 الأرباح: ${earnings.rows[0].sum.toFixed(2)}$`
+  );
+});
+
+// خروج
+bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
+  ctx.session = {};
+  await ctx.reply('✅ خرجت من لوحة الأدمن.', {
+    reply_markup: {
+      keyboard: [
+        ['💰 رصيدك', '🎁 مصادر الربح'],
+        ['📤 طلب سحب']
+      ],
+      resize_keyboard: true
+    }
+  });
+});
+
+// === 3. Postback ===
 const app = express();
 app.use(express.json());
 
@@ -161,7 +226,12 @@ app.get('/', (req, res) => {
 
 app.get('/callback', async (req, res) => {
   const { user_id, amount, secret } = req.query;
-  if (secret !== process.env.CALLBACK_SECRET) return res.status(403).send('Forbidden');
+
+  // ✅ التحقق من السر
+  if (secret !== process.env.CALLBACK_SECRET) {
+    console.log(`🚫 سر خاطئ: ${secret}`);
+    return res.status(403).send('Forbidden: Invalid Secret');
+  }
 
   const parsedAmount = parseFloat(amount);
   if (isNaN(parsedAmount)) return res.status(400).send('Invalid amount');
@@ -172,14 +242,16 @@ app.get('/callback', async (req, res) => {
       'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
       [user_id, 'offer', parsedAmount, 'Offer Completed']
     );
-    res.status(200).send('تمت المعالجة');
+
+    console.log(`🟢 أضيف ${parsedAmount}$ للمستخدم ${user_id}`);
+    res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
-    res.status(500).send('Error');
+    res.status(500).send('Server Error');
   }
 });
 
-// === 4. التشغيل النهائي (مهم جدًا) ===
+// === 4. التشغيل ===
 (async () => {
   try {
     await connectDB();
@@ -187,12 +259,11 @@ app.get('/callback', async (req, res) => {
     console.error('فشل في الاتصال بقاعدة البيانات:', err);
   }
 
-  // ❗ تشغيل البوت مع تجنب الانهيار عند 409
+  // تشغيل البوت (حتى لو فشل، السيرفر يعمل)
   bot.launch().catch(err => {
-    console.error('⚠️ [Telegraf] فشل في التشغيل (مثلاً 409)، لكن السيرفر مستمر:', err.message);
+    console.error('⚠️ [Telegraf] فشل في التشغيل:', err.message);
   });
 
-  // ✅ تشغيل السيرفر بغض النظر عن حالة البوت
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`);
