@@ -15,10 +15,8 @@ const adminCommand = async (ctx) => {
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', adminMenu());
 };
 
-// عرض الطلبات
 const handleAdminActions = async (ctx) => {
-  const userId = ctx.from.id;
-  if (!ctx.session.isAdmin) return;
+  if (!ctx.session?.isAdmin) return;
 
   const text = ctx.message?.text;
 
@@ -43,14 +41,14 @@ const handleAdminActions = async (ctx) => {
   else if (text === '📊 الإحصائيات') {
     const [users, earnings, pending] = await Promise.all([
       client.query('SELECT COUNT(*) FROM users'),
-      client.query('SELECT SUM(amount) FROM earnings'),
+      client.query('SELECT COALESCE(SUM(amount), 0) FROM earnings'),
       client.query('SELECT COUNT(*) FROM withdrawals WHERE status = $1', ['pending'])
     ]);
 
     await ctx.reply(
       `📈 الإحصائيات:\n` +
       `👥 عدد المستخدمين: ${users.rows[0].count}\n` +
-      `💸 الأرباح الموزعة: ${(earnings.rows[0].sum || 0).toFixed(2)}$\n` +
+      `💸 الأرباح الموزعة: ${earnings.rows[0].sum.toFixed(2)}$\n` +
       `⏳ طلبات معلقة: ${pending.rows[0].count}`
     );
   }
@@ -61,7 +59,7 @@ const handleAdminActions = async (ctx) => {
   }
 
   else if (text === '🚪 خروج من لوحة الأدمن') {
-    adminMode.delete(userId);
+    adminMode.delete(ctx.from.id);
     ctx.session.isAdmin = false;
     await ctx.reply('✅ خرجت من لوحة الأدمن.', mainMenu());
   }
