@@ -153,14 +153,13 @@ bot.on('text', async (ctx) => {
 bot.hears('📋 عرض الطلبات', async (ctx) => {
   const userId = ctx.from.id;
 
-  // التحقق من أن المستخدم هو الأدمن
   if (userId.toString() !== process.env.ADMIN_ID) {
     return;
   }
 
   try {
     const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
-    
+
     if (res.rows.length === 0) {
       await ctx.reply('✅ لا توجد طلبات معلقة.');
     } else {
@@ -171,22 +170,20 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
           `💵 المبلغ: ${req.amount}$\n` +
           `💳 Payeer: ${req.payeer_wallet}\n` +
           `📅 ${new Date(req.requested_at).toLocaleString()}\n\n` +
-          `لقبول: /pay ${req.id}\nلرفض: /reject ${req.id}`
+          `✅ انسخ الأمر:\n/pay ${req.id}  لقبول\n/reject ${req.id} لرفض`
         );
       }
     }
   } catch (err) {
-    console.error('خطأ في عرض الطلبات:', err);
-    await ctx.reply('حدث خطأ فني.');
+    console.error('❌ خطأ في عرض الطلبات:', err);
+    await ctx.reply('حدث خطأ فني. راجع السجلات.');
   }
 });
 
 bot.hears('📊 الإحصائيات', async (ctx) => {
   const userId = ctx.from.id;
 
-  if (userId.toString() !== process.env.ADMIN_ID) {
-    return;
-  }
+  if (userId.toString() !== process.env.ADMIN_ID) return;
 
   try {
     const [users, earnings, paid, pending] = await Promise.all([
@@ -205,19 +202,16 @@ bot.hears('📊 الإحصائيات', async (ctx) => {
       { parse_mode: 'HTML' }
     );
   } catch (err) {
-    console.error('خطأ في الإحصائيات:', err);
-    await ctx.reply('حدث خطأ فني.');
+    console.error('❌ خطأ في الإحصائيات:', err);
+    await ctx.reply('حدث خطأ في جلب الإحصائيات.');
   }
 });
 
 bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   const userId = ctx.from.id;
 
-  if (userId.toString() !== process.env.ADMIN_ID) {
-    return;
-  }
+  if (userId.toString() !== process.env.ADMIN_ID) return;
 
-  // إزالة حالة الأدمن
   ctx.session = {};
 
   await ctx.reply('✅ خرجت من لوحة الأدمن.', {
@@ -231,35 +225,6 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   });
 });
 
-// الإحصائيات
-bot.hears('📊 الإحصائيات', async (ctx) => {
-  if (ctx.from.id.toString() !== process.env.ADMIN_ID) return;
-
-  const [users, earnings] = await Promise.all([
-    client.query('SELECT COUNT(*) FROM users'),
-    client.query('SELECT COALESCE(SUM(amount), 0) FROM earnings')
-  ]);
-
-  await ctx.reply(
-    `📈 الإحصائيات:\n` +
-    `👥 المستخدمين: ${users.rows[0].count}\n` +
-    `💰 الأرباح: ${earnings.rows[0].sum.toFixed(2)}$`
-  );
-});
-
-// خروج
-bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
-  ctx.session = {};
-  await ctx.reply('✅ خرجت من لوحة الأدمن.', {
-    reply_markup: {
-      keyboard: [
-        ['💰 رصيدك', '🎁 مصادر الربح'],
-        ['📤 طلب سحب']
-      ],
-      resize_keyboard: true
-    }
-  });
-});
 
 // === التشغيل ===
 (async () => {
