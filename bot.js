@@ -150,45 +150,85 @@ bot.on('text', async (ctx) => {
 });
 
 // 🔐 أمر /admin — يجب أن يكون أولًا
-bot.command('admin', async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const adminId = process.env.ADMIN_ID;
+bot.hears('📋 عرض الطلبات', async (ctx) => {
+  const userId = ctx.from.id;
 
-  console.log('🎯 مستخدم حاول الدخول للأدمن:', userId);
-  console.log('🎯 ADMIN_ID المحدد:', adminId);
-
-  if (userId !== adminId) {
-    console.log('❌ رفض دخول: غير مسموح');
-    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+  // التحقق من أن المستخدم هو الأدمن
+  if (userId.toString() !== process.env.ADMIN_ID) {
+    return;
   }
 
-  console.log('✅ دخول ناجح إلى لوحة الأدمن');
-  ctx.session = { isAdmin: true };
+  try {
+    const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
+    
+    if (res.rows.length === 0) {
+      await ctx.reply('✅ لا توجد طلبات معلقة.');
+    } else {
+      for (const req of res.rows) {
+        await ctx.reply(
+          `طلب سحب #${req.id}\n` +
+          `👤 المستخدم: ${req.user_id}\n` +
+          `💵 المبلغ: ${req.amount}$\n` +
+          `💳 Payeer: ${req.payeer_wallet}\n` +
+          `📅 ${new Date(req.requested_at).toLocaleString()}\n\n` +
+          `لقبول: /pay ${req.id}\nلرفض: /reject ${req.id}`
+        );
+      }
+    }
+  } catch (err) {
+    console.error('خطأ في عرض الطلبات:', err);
+    await ctx.reply('حدث خطأ فني.');
+  }
+});
 
-  await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
+bot.hears('📊 الإحصائيات', async (ctx) => {
+  const userId = ctx.from.id;
+
+  if (userId.toString() !== process.env.ADMIN_ID) {
+    return;
+  }
+
+  try {
+    const [users, earnings, paid, pending] = await Promise.all([
+      client.query('SELECT COUNT(*) FROM users'),
+      client.query('SELECT COALESCE(SUM(amount), 0) FROM earnings'),
+      client.query('SELECT COALESCE(SUM(amount), 0) FROM withdrawals WHERE status = $1', ['paid']),
+      client.query('SELECT COUNT(*) FROM withdrawals WHERE status = $1', ['pending'])
+    ]);
+
+    await ctx.reply(
+      `📈 <b>الإحصائيات</b>\n\n` +
+      `👥 عدد المستخدمين: <b>${users.rows[0].count}</b>\n` +
+      `💰 الأرباح الموزعة: <b>${earnings.rows[0].sum.toFixed(2)}$</b>\n` +
+      `📤 المدفوعات: <b>${paid.rows[0].sum.toFixed(2)}$</b>\n` +
+      `⏳ طلبات معلقة: <b>${pending.rows[0].count}</b>`,
+      { parse_mode: 'HTML' }
+    );
+  } catch (err) {
+    console.error('خطأ في الإحصائيات:', err);
+    await ctx.reply('حدث خطأ فني.');
+  }
+});
+
+bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
+  const userId = ctx.from.id;
+
+  if (userId.toString() !== process.env.ADMIN_ID) {
+    return;
+  }
+
+  // إزالة حالة الأدمن
+  ctx.session = {};
+
+  await ctx.reply('✅ خرجت من لوحة الأدمن.', {
     reply_markup: {
       keyboard: [
-        ['📋 عرض الطلبات'],
-        ['📊 الإحصائيات'],
-        ['🚪 خروج من لوحة الأدمن']
+        ['💰 رصيدك', '🎁 مصادر الربح'],
+        ['📤 طلب سحب']
       ],
       resize_keyboard: true
     }
   });
-});
-
-// عرض الطلبات
-bot.hears('📋 عرض الطلبات', async (ctx) => {
-  if (ctx.from.id.toString() !== process.env.ADMIN_ID) return;
-
-  const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
-  if (res.rows.length === 0) {
-    await ctx.reply('✅ لا توجد طلبات معلقة.');
-  } else {
-    for (let req of res.rows) {
-      await ctx.reply(`طلب #${req.id}\nالمستخدم: ${req.user_id}\nالمبلغ: ${req.amount}$\nPayeer: ${req.payeer_wallet}`);
-    }
-  }
 });
 
 // الإحصائيات
