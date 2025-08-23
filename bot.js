@@ -31,15 +31,13 @@ bot.use((ctx, next) => {
 
 // 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
-  const userId = ctx.from.id.toString();
-  const adminId = process.env.ADMIN_ID;
+  console.log('🎯 ADMIN_ID في البيئة:', process.env.ADMIN_ID);
+  console.log('👤 مستخدم حالي:', ctx.from.id);
 
-  console.log('🎯 محاولة دخول لوحة الأدمن:', { userId, adminId });
-
-  if (userId !== adminId) {
-    console.log('❌ رفض الدخول');
-    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+  if (ctx.from.id.toString() !== process.env.ADMIN_ID) {
+    return ctx.reply('❌ ليس لديك صلاحيات.');
   }
+  
 
   ctx.session = { isAdmin: true };
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
@@ -103,8 +101,8 @@ bot.hears('💰 رصيدك', async (ctx) => {
 // 🎁 مصادر الربح
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
-  const timewallUrl = `https://timewall.example.com/?user_id=${userId}`;
-  const cpaleadUrl = `https://cpalead.com/myoffers.php?user_id=${userId}`;
+  const timewallUrl =`https://timewall.example.com/?user_id=${userId}`;
+  const cpaleadUrl =`https://cpalead.com/myoffers.php?user_id=${userId}`;
 
   ctx.reply('اختر مصدر ربح:', {
     inline_keyboard: [
