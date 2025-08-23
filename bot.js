@@ -1,10 +1,9 @@
 const { Telegraf } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
-bot.use((ctx, next) => {
-  console.log('📩 رسالة مستلمة:', ctx.from?.id, '→', ctx.message?.text);
-  return next();
-});
+
+console.log('📩 رسالة مستلمة:', ctx.from?.id, '→', ctx.message?.text);
+ 
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID, 'نوعه:', typeof process.env.ADMIN_ID);
 
 // === قاعدة البيانات ===
