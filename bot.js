@@ -2,7 +2,10 @@ const { Telegraf } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
 const express = require('express');
-
+console.log('🔐 السر المستخدم:', process.env.CALLBACK_SECRET ? 'تم تعيينه' : 'مفقود!');
+console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
+console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
+console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 // === 1. قاعدة البيانات ===
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:fdpGAaEUuSWDZXNJLLlqncuImnPLaviu@switchback.proxy.rlwy.net:49337/railway';
 
@@ -159,6 +162,7 @@ bot.command('admin', async (ctx) => {
     return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
   }
 
+  ctx.session.isAdmin = true;
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
     reply_markup: {
       keyboard: [
@@ -169,7 +173,6 @@ bot.command('admin', async (ctx) => {
       resize_keyboard: true
     }
   });
-  ctx.session = { isAdmin: true };
 });
 
 // عرض الطلبات
@@ -226,7 +229,13 @@ app.get('/', (req, res) => {
 
 app.get('/callback', async (req, res) => {
   const { user_id, amount, secret } = req.query;
+console.log('🔐 السر المستلم:', secret);
+  console.log('🔐 السر المخزن:', process.env.CALLBACK_SECRET);
 
+  if (secret !== process.env.CALLBACK_SECRET) {
+    console.log('🚫 سر خاطئ');
+    return res.status(403).send('Forbidden: Invalid Secret');
+  }
   // ✅ التحقق من السر
   if (secret !== process.env.CALLBACK_SECRET) {
     console.log(`🚫 سر خاطئ: ${secret}`);
