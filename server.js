@@ -3,18 +3,18 @@ const { Client } = require('pg');
 const express = require('express');
 
 // === قاعدة البيانات ===
-const DATABASE_URL = process.env.DATABASE_URL;
 const client = new Client({
-  connectionString: DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
 async function connectDB() {
   try {
     await client.connect();
-    console.log('✅ server.js: اتصال قاعدة البيانات ناجح');
+    console.log('✅ اتصال قاعدة البيانات ناجح');
   } catch (err) {
-    console.error('❌ server.js: فشل الاتصال:', err.message);
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
+    setTimeout(connectDB, 5000); // إعادة المحاولة
   }
 }
 
@@ -23,18 +23,21 @@ const app = express();
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.send('✅ Postback Server يعمل');
+  res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 
 app.get('/callback', async (req, res) => {
   const { user_id, amount, secret } = req.query;
 
   if (secret !== process.env.CALLBACK_SECRET) {
-    return res.status(403).send('Forbidden');
+    console.log('🚫 سر خاطئ:', secret);
+    return res.status(403).send('Forbidden: Invalid Secret');
   }
 
   const parsedAmount = parseFloat(amount);
-  if (isNaN(parsedAmount)) return res.status(400).send('Invalid amount');
+  if (isNaN(parsedAmount)) {
+    return res.status(400).send('Invalid amount');
+  }
 
   try {
     await client.query(
@@ -45,6 +48,7 @@ app.get('/callback', async (req, res) => {
       'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
       [user_id, 'offer', parsedAmount, 'Offer Completed']
     );
+    console.log(`🟢 أضيف ${parsedAmount}$ للمستخدم ${user_id}`);
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
@@ -55,8 +59,9 @@ app.get('/callback', async (req, res) => {
 // === التشغيل ===
 (async () => {
   await connectDB();
+
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 server.js: يعمل على ${PORT}`);
+    console.log(`🚀 Postback Server يعمل على المنفذ ${PORT}`);
   });
 })();
