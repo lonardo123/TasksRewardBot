@@ -151,14 +151,18 @@ bot.on('text', async (ctx) => {
 
 // 🔐 أمر /admin — يجب أن يكون أولًا
 bot.hears('📋 عرض الطلبات', async (ctx) => {
-  const userId = ctx.from.id;
+  console.log('🔍 تم استقبال أمر: عرض الطلبات');
 
+  const userId = ctx.from.id;
   if (userId.toString() !== process.env.ADMIN_ID) {
+    console.log('❌ ليس الأدمن');
     return;
   }
 
   try {
+    console.log('🔄 جاري تنفيذ استعلام قاعدة البيانات...');
     const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
+    console.log('✅ النتيجة من قاعدة البيانات:', res.rows);
 
     if (res.rows.length === 0) {
       await ctx.reply('✅ لا توجد طلبات معلقة.');
@@ -168,15 +172,14 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
           `طلب سحب #${req.id}\n` +
           `👤 المستخدم: ${req.user_id}\n` +
           `💵 المبلغ: ${req.amount}$\n` +
-          `💳 Payeer: ${req.payeer_wallet}\n` +
-          `📅 ${new Date(req.requested_at).toLocaleString()}\n\n` +
-          `✅ انسخ الأمر:\n/pay ${req.id}  لقبول\n/reject ${req.id} لرفض`
+          `💳 Payeer: ${req.payeer_wallet}\n\n` +
+          `لقبول: /pay ${req.id}\nلرفض: /reject ${req.id}`
         );
       }
     }
   } catch (err) {
-    console.error('❌ خطأ في عرض الطلبات:', err);
-    await ctx.reply('حدث خطأ فني. راجع السجلات.');
+    console.error('❌ خطأ في استعلام الطلبات:', err); // ← هذا سيظهر في Logs
+    await ctx.reply(`❌ حدث خطأ: ${err.message}`);
   }
 });
 
