@@ -1,16 +1,9 @@
 const { Telegraf } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
-const express = require('express');
-console.log('🔐 السر المستخدم:', process.env.CALLBACK_SECRET ? 'تم تعيينه' : 'مفقود!');
-console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
-console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
-console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
-// === 1. قاعدة البيانات ===
-const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:fdpGAaEUuSWDZXNJLLlqncuImnPLaviu@switchback.proxy.rlwy.net:49337/railway';
 
-console.log('🔧 محاولة الاتصال بقاعدة البيانات...');
-
+// === قاعدة البيانات ===
+const DATABASE_URL = process.env.DATABASE_URL;
 const client = new Client({
   connectionString: DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -19,43 +12,14 @@ const client = new Client({
 async function connectDB() {
   try {
     await client.connect();
-    console.log('✅ اتصال قاعدة البيانات ناجح');
-
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        telegram_id BIGINT UNIQUE,
-        balance DECIMAL(10,2) DEFAULT 0,
-        payeer_wallet VARCHAR,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS earnings (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT,
-        source VARCHAR(50),
-        amount DECIMAL(10,2),
-        description TEXT,
-        timestamp TIMESTAMP DEFAULT NOW()
-      );
-      CREATE TABLE IF NOT EXISTS withdrawals (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT,
-        amount DECIMAL(10,2),
-        payeer_wallet VARCHAR,
-        status VARCHAR(20) DEFAULT 'pending',
-        requested_at TIMESTAMP DEFAULT NOW(),
-        processed_at TIMESTAMP,
-        admin_note TEXT
-      );
-    `);
-    console.log('✅ الجداول أُنشئت أو موجودة مسبقًا');
+    console.log('✅ bot.js: اتصال قاعدة البيانات ناجح');
   } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
+    console.error('❌ bot.js: فشل الاتصال:', err.message);
   }
 }
 
-// === 2. تشغيل البوت ===
-const bot = new Telegraf(process.env.BOT_TOKEN || '8488029999:AAHvdbfzkB945mbr3_SvTSunGjlhMQvraMs');
+// === تشغيل البوت ===
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // أمر /start
 bot.start(async (ctx) => {
@@ -73,9 +37,7 @@ bot.start(async (ctx) => {
     }
 
     await ctx.replyWithHTML(
-      `👋 أهلاً بك، <b>${firstName}</b>!\n\n` +
-      `💰 <b>رصيدك:</b> ${balance.toFixed(2)}$\n\n` +
-      `اختر خيارًا:`,
+      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(2)}$`,
       {
         reply_markup: {
           keyboard: [
@@ -88,7 +50,7 @@ bot.start(async (ctx) => {
     );
   } catch (err) {
     console.error('❌ /start:', err);
-    await ctx.reply('حدث خطأ داخلي.');
+    await ctx.reply('حدث خطأ.');
   }
 });
 
@@ -139,7 +101,7 @@ bot.on('text', async (ctx) => {
   if (ctx.session?.awaiting_withdraw) {
     const wallet = ctx.message.text.trim();
     if (!/^P\d{8,}$/.test(wallet)) {
-      return ctx.reply('❌ رقم غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
+      return ctx.reply('❌ رقم غير صالح.');
     }
 
     const userId = ctx.from.id;
@@ -159,10 +121,9 @@ bot.command('admin', async (ctx) => {
   const userId = ctx.from.id;
 
   if (userId.toString() !== process.env.ADMIN_ID) {
-    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+    return ctx.reply('❌ ليس لديك صلاحيات.');
   }
 
-  ctx.session.isAdmin = true;
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
     reply_markup: {
       keyboard: [
@@ -173,6 +134,7 @@ bot.command('admin', async (ctx) => {
       resize_keyboard: true
     }
   });
+  ctx.session = { isAdmin: true };
 });
 
 // عرض الطلبات
@@ -219,70 +181,9 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   });
 });
 
-// === 3. Postback ===
-const app = express();
-app.use(express.json());
-
-app.get('/', (req, res) => {
-  res.send('✅ السيرفر يعمل! البوت قد يعمل أو لا.');
-});
-
-app.get('/callback', async (req, res) => {
-  const { user_id, amount, secret } = req.query;
-console.log('🔐 السر المستلم:', secret);
-  console.log('🔐 السر المخزن:', process.env.CALLBACK_SECRET);
-
-  if (secret !== process.env.CALLBACK_SECRET) {
-    console.log('🚫 سر خاطئ');
-    return res.status(403).send('Forbidden: Invalid Secret');
-  }
-  // ✅ التحقق من السر
-  if (secret !== process.env.CALLBACK_SECRET) {
-    console.log(`🚫 سر خاطئ: ${secret}`);
-    return res.status(403).send('Forbidden: Invalid Secret');
-  }
-
-  const parsedAmount = parseFloat(amount);
-  if (isNaN(parsedAmount)) return res.status(400).send('Invalid amount');
-
-  try {
-    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [parsedAmount, user_id]);
-    await client.query(
-      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
-      [user_id, 'offer', parsedAmount, 'Offer Completed']
-    );
-
-    console.log(`🟢 أضيف ${parsedAmount}$ للمستخدم ${user_id}`);
-    res.status(200).send('تمت المعالجة بنجاح');
-  } catch (err) {
-    console.error('Callback Error:', err);
-    res.status(500).send('Server Error');
-  }
-});
-
-// === 4. التشغيل النهائي ===
+// === التشغيل ===
 (async () => {
-  try {
-    await connectDB();
-  } catch (err) {
-    console.error('❌ خطأ في قاعدة البيانات:', err);
-  }
-
-  // 🚫 لا تُوقف السيرفر إذا فشل البوت
-  bot.launch().catch(err => {
-    console.error('⚠️ [Telegraf] فشل في التشغيل (409)، لكن السيرفر مستمر:', err.message);
-    // ❌ لا تُوقف العملية هنا
-  });
-
-  // ✅ السيرفر يعمل بغض النظر عن حالة البوت
-  const PORT = process.env.PORT || 3000;
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`);
-  });
-
-  // ❌ تجنب SIGTERM من Telegraf
-  process.on('unhandledRejection', (err) => {
-    console.error('Unhandled Rejection:', err);
-  });
-
+  await connectDB();
+  await bot.launch();
+  console.log('✅ bot.js: البوت شُغّل بنجاح');
 })();
