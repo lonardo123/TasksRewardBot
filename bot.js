@@ -2,6 +2,8 @@ const { Telegraf } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
 
+console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID, 'نوعه:', typeof process.env.ADMIN_ID);
+
 // === قاعدة البيانات ===
 const DATABASE_URL = process.env.DATABASE_URL;
 const client = new Client({
@@ -20,6 +22,37 @@ async function connectDB() {
 
 // === تشغيل البوت ===
 const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// ✅ أضف هذا السطر هنا — مباشرة بعد تعريف البوت
+bot.use((ctx, next) => {
+  console.log('📩 رسالة مستلمة:', ctx.updateType, 'من:', ctx.from?.id, 'النص:', ctx.message?.text || 'غير نص');
+  return next();
+});
+
+// ✅ ثم أمر /admin (من الأفضل أن يكون مبكرًا)
+bot.command('admin', async (ctx) => {
+  const userId = ctx.from.id.toString();
+  const adminId = process.env.ADMIN_ID;
+
+  console.log('🎯 محاولة دخول لوحة الأدمن:', { userId, adminId });
+
+  if (userId !== adminId) {
+    console.log('❌ رفض الدخول: غير مسموح');
+    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+  }
+
+  ctx.session = { isAdmin: true };
+  await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
+    reply_markup: {
+      keyboard: [
+        ['📋 عرض الطلبات'],
+        ['📊 الإحصائيات'],
+        ['🚪 خروج من لوحة الأدمن']
+      ],
+      resize_keyboard: true
+    }
+  });
+});
 
 // أمر /start
 bot.start(async (ctx) => {
@@ -116,13 +149,21 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// 🔐 لوحة الأدمن
+// 🔐 أمر /admin — يجب أن يكون أولًا
 bot.command('admin', async (ctx) => {
-  const userId = ctx.from.id;
+  const userId = ctx.from.id.toString();
+  const adminId = process.env.ADMIN_ID;
 
-  if (userId.toString() !== process.env.ADMIN_ID) {
-    return ctx.reply('❌ ليس لديك صلاحيات.');
+  console.log('🎯 مستخدم حاول الدخول للأدمن:', userId);
+  console.log('🎯 ADMIN_ID المحدد:', adminId);
+
+  if (userId !== adminId) {
+    console.log('❌ رفض دخول: غير مسموح');
+    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
   }
+
+  console.log('✅ دخول ناجح إلى لوحة الأدمن');
+  ctx.session = { isAdmin: true };
 
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', {
     reply_markup: {
@@ -134,7 +175,6 @@ bot.command('admin', async (ctx) => {
       resize_keyboard: true
     }
   });
-  ctx.session = { isAdmin: true };
 });
 
 // عرض الطلبات
