@@ -5,6 +5,7 @@ require('dotenv').config();
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
 console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
+console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
 
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
@@ -17,19 +18,16 @@ async function connectDB() {
     console.log('✅ bot.js: اتصال قاعدة البيانات ناجح');
   } catch (err) {
     console.error('❌ bot.js: فشل الاتصال:', err.message);
-    setTimeout(connectDB, 5000); // إعادة المحاولة
+    setTimeout(connectDB, 5000);
   }
 }
 
-
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// تسجيل الرسائل
 bot.use((ctx, next) => {
   console.log('📩', ctx.from?.id, '→', ctx.message?.text || ctx.updateType);
   return next();
 });
-
 
 // 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
@@ -56,7 +54,7 @@ bot.command('admin', async (ctx) => {
   });
 });
 
-// 🏠 أمر /start
+// 🏠 /start
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
   const firstName = ctx.from.first_name;
@@ -106,7 +104,7 @@ bot.hears('💰 رصيدك', async (ctx) => {
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.example.com/?user_id=${userId}`;
-  const cpaleadUrl = `https://cpalead.com/myoffers.php?user_id=${userId}`; // ✅ إزالة المسافة الزائدة
+  const cpaleadUrl = `https://cpalead.com/myoffers.php?user_id=${userId}`;
 
   ctx.reply('اختر مصدر ربح:', {
     inline_keyboard: [
@@ -137,40 +135,50 @@ bot.hears('📤 طلب سحب', async (ctx) => {
 
 // معالجة رقم Payeer
 bot.on('text', async (ctx) => {
-  if (ctx.session?.awaiting_withdraw) {
-    const wallet = ctx.message.text.trim();
+  if (!ctx.session) ctx.session = {};
+  const text = ctx.message?.text?.trim();
 
-    if (!/^P\d{8,}$/.test(wallet)) {
+  if (ctx.session.awaiting_withdraw) {
+    if (!/^P\d{8,}$/.test(text)) {
       return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
     }
 
     const userId = ctx.from.id;
-    const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-    const amount = parseFloat(userRes.rows[0]?.balance) || 0;
+    try {
+      const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+      const amount = parseFloat(userRes.rows[0]?.balance) || 0;
 
-    await client.query(
-      'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
-      [userId, amount, wallet]
-    );
+      await client.query(
+        'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
+        [userId, amount, text]
+      );
 
-    await client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
+      await client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
 
-    await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(2)}$.`);
-    ctx.session.awaiting_withdraw = false;
+      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(2)}$.`);
+      ctx.session.awaiting_withdraw = false;
+    } catch (err) {
+      console.error('❌ خطأ في معالجة السحب:', err);
+      await ctx.reply('حدث خطأ داخلي.');
+    }
   }
 });
 
 // 🔐 لوحة الأدمن - الأوامر
 bot.hears('📋 عرض الطلبات', async (ctx) => {
+  console.log('🔍 تم الضغط على: عرض الطلبات');
   const userId = ctx.from.id;
 
   if (userId.toString() !== process.env.ADMIN_ID) {
+    console.log('❌ ليس الأدمن');
     return;
   }
 
   try {
+    console.log('🔄 جاري استرجاع الطلبات...');
     const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
-    
+    console.log('✅ النتيجة:', res.rows);
+
     if (res.rows.length === 0) {
       await ctx.reply('✅ لا توجد طلبات معلقة.');
     } else {
@@ -235,7 +243,7 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
 });
 
 // ====================
-// 6. التشغيل النهائي
+// التشغيل النهائي
 // ====================
 (async () => {
   try {
