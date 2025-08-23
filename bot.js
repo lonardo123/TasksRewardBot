@@ -1,13 +1,22 @@
+// ====================
+// 1. استيراد المكتبات
+// ====================
 const { Telegraf } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
 
-console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID, 'نوعه:', typeof process.env.ADMIN_ID);
+// ====================
+// 2. التحقق من المتغيرات
+// ====================
+console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
+console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
+console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 
-// === قاعدة البيانات ===
-const DATABASE_URL = process.env.DATABASE_URL;
+// ====================
+// 3. قاعدة البيانات
+// ====================
 const client = new Client({
-  connectionString: DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
@@ -17,19 +26,26 @@ async function connectDB() {
     console.log('✅ bot.js: اتصال قاعدة البيانات ناجح');
   } catch (err) {
     console.error('❌ bot.js: فشل الاتصال:', err.message);
+    setTimeout(connectDB, 5000); // إعادة المحاولة
   }
 }
 
-// === تشغيل البوت ===
+// ====================
+// 4. تشغيل البوت
+// ====================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// ✅ أضف هذا السطر هنا — مباشرة بعد تعريف البوت
+// تسجيل الرسائل
 bot.use((ctx, next) => {
-  console.log('📩 رسالة مستلمة:', ctx.updateType, 'من:', ctx.from?.id, 'النص:', ctx.message?.text || 'غير نص');
+  console.log('📩', ctx.from?.id, '→', ctx.message?.text || ctx.updateType);
   return next();
 });
 
-// ✅ ثم أمر /admin (من الأفضل أن يكون مبكرًا)
+// ====================
+// 5. الأوامر
+// ====================
+
+// 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
   const userId = ctx.from.id.toString();
   const adminId = process.env.ADMIN_ID;
@@ -37,7 +53,7 @@ bot.command('admin', async (ctx) => {
   console.log('🎯 محاولة دخول لوحة الأدمن:', { userId, adminId });
 
   if (userId !== adminId) {
-    console.log('❌ رفض الدخول: غير مسموح');
+    console.log('❌ رفض الدخول');
     return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
   }
 
@@ -54,7 +70,7 @@ bot.command('admin', async (ctx) => {
   });
 });
 
-// أمر /start
+// 🏠 أمر /start
 bot.start(async (ctx) => {
   const userId = ctx.from.id;
   const firstName = ctx.from.first_name;
@@ -83,7 +99,7 @@ bot.start(async (ctx) => {
     );
   } catch (err) {
     console.error('❌ /start:', err);
-    await ctx.reply('حدث خطأ.');
+    await ctx.reply('حدث خطأ داخلي.');
   }
 });
 
@@ -104,7 +120,8 @@ bot.hears('💰 رصيدك', async (ctx) => {
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.example.com/?user_id=${userId}`;
-  const cpaleadUrl = `https://cpalead.com/myoffers.php?user_id=${userId}`;
+  const cpaleadUrl = `https://cpalead.com/myoffers.php?user_id=${userId}`; // ✅ إزالة المسافة الزائدة
+
   ctx.reply('اختر مصدر ربح:', {
     inline_keyboard: [
       [{ text: '🕒 TimeWall', url: timewallUrl }],
@@ -119,29 +136,37 @@ bot.hears('📤 طلب سحب', async (ctx) => {
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const balance = parseFloat(res.rows[0]?.balance) || 0;
-    if (balance < 1.0) return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(2)}$`);
 
-    await ctx.reply(`أرسل رقم محفظة Payeer (P12345678):`);
+    if (balance < 1.0) {
+      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(2)}$`);
+    }
+
+    await ctx.reply(`🟢 رصيدك مؤهل للسحب.\nأرسل رقم محفظة Payeer (مثل: P12345678):`);
     ctx.session = { awaiting_withdraw: true };
   } catch (err) {
     console.error(err);
-    await ctx.reply('حدث خطأ.');
+    await ctx.reply('حدث خطأ داخلي.');
   }
 });
 
-// معالجة Payeer
+// معالجة رقم Payeer
 bot.on('text', async (ctx) => {
   if (ctx.session?.awaiting_withdraw) {
     const wallet = ctx.message.text.trim();
+
     if (!/^P\d{8,}$/.test(wallet)) {
-      return ctx.reply('❌ رقم غير صالح.');
+      return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
     }
 
     const userId = ctx.from.id;
     const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const amount = parseFloat(userRes.rows[0]?.balance) || 0;
 
-    await client.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, amount, wallet]);
+    await client.query(
+      'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
+      [userId, amount, wallet]
+    );
+
     await client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
 
     await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(2)}$.`);
@@ -149,21 +174,17 @@ bot.on('text', async (ctx) => {
   }
 });
 
-// 🔐 أمر /admin — يجب أن يكون أولًا
+// 🔐 لوحة الأدمن - الأوامر
 bot.hears('📋 عرض الطلبات', async (ctx) => {
-  console.log('🔍 تم استقبال أمر: عرض الطلبات');
-
   const userId = ctx.from.id;
+
   if (userId.toString() !== process.env.ADMIN_ID) {
-    console.log('❌ ليس الأدمن');
     return;
   }
 
   try {
-    console.log('🔄 جاري تنفيذ استعلام قاعدة البيانات...');
     const res = await client.query('SELECT * FROM withdrawals WHERE status = $1', ['pending']);
-    console.log('✅ النتيجة من قاعدة البيانات:', res.rows);
-
+    
     if (res.rows.length === 0) {
       await ctx.reply('✅ لا توجد طلبات معلقة.');
     } else {
@@ -178,8 +199,8 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
       }
     }
   } catch (err) {
-    console.error('❌ خطأ في استعلام الطلبات:', err); // ← هذا سيظهر في Logs
-    await ctx.reply(`❌ حدث خطأ: ${err.message}`);
+    console.error('❌ خطأ في عرض الطلبات:', err);
+    await ctx.reply('حدث خطأ فني.');
   }
 });
 
@@ -216,7 +237,6 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   if (userId.toString() !== process.env.ADMIN_ID) return;
 
   ctx.session = {};
-
   await ctx.reply('✅ خرجت من لوحة الأدمن.', {
     reply_markup: {
       keyboard: [
@@ -228,10 +248,15 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   });
 });
 
-
-// === التشغيل ===
+// ====================
+// 6. التشغيل النهائي
+// ====================
 (async () => {
-  await connectDB();
-  await bot.launch();
-  console.log('✅ bot.js: البوت شُغّل بنجاح');
+  try {
+    await connectDB();
+    await bot.launch();
+    console.log('✅ bot.js: البوت شُغّل بنجاح');
+  } catch (error) {
+    console.error('❌ فشل في التشغيل:', error);
+  }
 })();
