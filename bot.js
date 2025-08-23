@@ -1,20 +1,11 @@
-// ====================
-// 1. استيراد المكتبات
-// ====================
 const { Telegraf } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
 
-// ====================
-// 2. التحقق من المتغيرات
-// ====================
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
 console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 
-// ====================
-// 3. قاعدة البيانات
-// ====================
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
@@ -30,9 +21,7 @@ async function connectDB() {
   }
 }
 
-// ====================
-// 4. تشغيل البوت
-// ====================
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // تسجيل الرسائل
@@ -41,9 +30,6 @@ bot.use((ctx, next) => {
   return next();
 });
 
-// ====================
-// 5. الأوامر
-// ====================
 
 // 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
