@@ -31,7 +31,7 @@ if (!process.env.BOT_TOKEN) {
 }
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Enable in-memory sessions (required to store ctx.session.awaiting_withdraw)
+// Enable in-memory sessions
 bot.use(session());
 
 // Simple logger
@@ -47,6 +47,7 @@ const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
 
 // 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
+  if (!ctx.session) ctx.session = {}; // ✅ تأكد إن session موجودة
   const userId = String(ctx.from.id);
   const adminId = String(process.env.ADMIN_ID);
   console.log('🎯 محاولة دخول لوحة الأدمن:', { userId, adminId });
@@ -106,10 +107,10 @@ bot.hears('💰 رصيدك', async (ctx) => {
   }
 });
 
-// 🎁 مصادر الربح (FIX: use reply_markup.inline_keyboard)
+// 🎁 مصادر الربح
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
-  const timewallUrl = `https://timewall.example.com/?user_id=${userId}`
+  const timewallUrl = `https://timewall.example.com/?user_id=${userId}`;
   const tasksRewardBotUrl = "https://safetradefx.neocities.org/";
 
   return ctx.reply(
@@ -123,6 +124,7 @@ bot.hears('🎁 مصادر الربح', (ctx) => {
 
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
+  if (!ctx.session) ctx.session = {}; // ✅ حماية إضافية
   const userId = ctx.from.id;
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
@@ -140,12 +142,11 @@ bot.hears('📤 طلب سحب', async (ctx) => {
   }
 });
 
-// معالجة رقم Payeer (FIX: relies on session middleware)
+// معالجة رقم Payeer
 bot.on('text', async (ctx, next) => {
-  if (!ctx.session) ctx.session = {};
+  if (!ctx.session) ctx.session = {}; // ✅ تأكد إن session موجودة
   const text = ctx.message?.text?.trim();
 
-  // Ignore if text is one of the menu buttons to let other handlers deal with it
   const menuTexts = new Set(['💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب','📋 عرض الطلبات','📊 الإحصائيات','🚪 خروج من لوحة الأدمن']);
   if (menuTexts.has(text)) return next();
 
@@ -186,10 +187,7 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
   }
 
   try {
-    console.log('🔄 جاري استرجاع الطلبات...');
     const res = await client.query('SELECT * FROM withdrawals WHERE status = $1 ORDER BY id DESC', ['pending']);
-    console.log('✅ النتيجة:', res.rows);
-
     if (res.rows.length === 0) {
       await ctx.reply('✅ لا توجد طلبات معلقة.');
     } else {
@@ -209,7 +207,7 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
   }
 });
 
-// 🔐 لوحة الأدمن - الإحصائيات (FIX: parseFloat for sums)
+// 🔐 لوحة الأدمن - الإحصائيات
 bot.hears('📊 الإحصائيات', async (ctx) => {
   if (!isAdmin(ctx)) return;
 
@@ -251,7 +249,7 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   );
 });
 
-// (اختياري) أوامر الدفع/الرفض للأدمن
+// أوامر الدفع/الرفض للأدمن
 bot.command('pay', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = Number((ctx.message.text.split(' ')[1] || '').trim());
@@ -265,6 +263,7 @@ bot.command('pay', async (ctx) => {
     await ctx.reply('فشل تحديث الحالة.');
   }
 });
+
 bot.command('reject', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = Number((ctx.message.text.split(' ')[1] || '').trim());
@@ -286,7 +285,6 @@ bot.command('reject', async (ctx) => {
     await bot.launch();
     console.log('✅ bot.js: البوت شُغّل بنجاح');
 
-    // Enable graceful stop
     process.once('SIGINT', () => {
       console.log('🛑 SIGINT: stopping bot...');
       bot.stop('SIGINT');
