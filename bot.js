@@ -81,7 +81,7 @@ bot.start(async (ctx) => {
     }
 
     await ctx.replyWithHTML(
-      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
+      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(3)}$`,
       Markup.keyboard([
         ['💰 رصيدك', '🎁 مصادر الربح'],
         ['📤 طلب سحب']
@@ -99,7 +99,7 @@ bot.hears('💰 رصيدك', async (ctx) => {
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const balance = parseFloat(res.rows[0]?.balance) || 0;
-    await ctx.replyWithHTML(`💰 رصيدك: <b>${balance.toFixed(4)}$</b>`);
+    await ctx.replyWithHTML(`💰 رصيدك: <b>${balance.toFixed(3)}$</b>`);
   } catch (err) {
     console.error('❌ رصيدك:', err);
     await ctx.reply('حدث خطأ.');
@@ -129,7 +129,7 @@ bot.hears('📤 طلب سحب', async (ctx) => {
     const balance = parseFloat(res.rows[0]?.balance) || 0;
 
     if (balance < 1.0) {
-      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(2)}$`);
+      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(3)}$`);
     }
 
     ctx.session.awaiting_withdraw = true;
