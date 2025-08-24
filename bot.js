@@ -81,7 +81,7 @@ bot.start(async (ctx) => {
     }
 
     await ctx.replyWithHTML(
-      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(3)}$`,
+      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(2)}$`,
       Markup.keyboard([
         ['💰 رصيدك', '🎁 مصادر الربح'],
         ['📤 طلب سحب']
@@ -99,7 +99,7 @@ bot.hears('💰 رصيدك', async (ctx) => {
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const balance = parseFloat(res.rows[0]?.balance) || 0;
-    await ctx.replyWithHTML(`💰 رصيدك: <b>${balance.toFixed(3)}$</b>`);
+    await ctx.replyWithHTML(`💰 رصيدك: <b>${balance.toFixed(2)}$</b>`);
   } catch (err) {
     console.error('❌ رصيدك:', err);
     await ctx.reply('حدث خطأ.');
@@ -129,7 +129,7 @@ bot.hears('📤 طلب سحب', async (ctx) => {
     const balance = parseFloat(res.rows[0]?.balance) || 0;
 
     if (balance < 1.0) {
-      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(3)}$`);
+      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(2)}$`);
     }
 
     ctx.session.awaiting_withdraw = true;
@@ -166,7 +166,7 @@ bot.on('text', async (ctx, next) => {
 
       await client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
 
-      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(3)}$.`);
+      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(2)}$.`);
       ctx.session.awaiting_withdraw = false;
     } catch (err) {
       console.error('❌ خطأ في معالجة السحب:', err);
@@ -197,7 +197,7 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
         await ctx.reply(
           `طلب سحب #${req.id}\n` +
           `👤 المستخدم: ${req.user_id}\n` +
-          `💵 المبلغ: ${Number(req.amount).toFixed(3)}$\n` +
+          `💵 المبلغ: ${Number(req.amount).toFixed(2)}$\n` +
           `💳 Payeer: ${req.payeer_wallet}\n\n` +
           `لقبول: /pay ${req.id}\nلرفض: /reject ${req.id}`
         );
@@ -229,8 +229,8 @@ bot.hears('📊 الإحصائيات', async (ctx) => {
     await ctx.replyWithHTML(
       `📈 <b>الإحصائيات</b>\n\n` +
       `👥 عدد المستخدمين: <b>${usersCount}</b>\n` +
-      `💰 الأرباح الموزعة: <b>${earningsSum.toFixed(3)}$</b>\n` +
-      `📤 المدفوعات: <b>${paidSum.toFixed(3)}$</b>\n` +
+      `💰 الأرباح الموزعة: <b>${earningsSum.toFixed(2)}$</b>\n` +
+      `📤 المدفوعات: <b>${paidSum.toFixed(2)}$</b>\n` +
       `⏳ طلبات معلقة: <b>${pendingCount}</b>`
     );
   } catch (err) {
