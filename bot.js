@@ -109,14 +109,14 @@ bot.hears('💰 رصيدك', async (ctx) => {
 // 🎁 مصادر الربح (FIX: use reply_markup.inline_keyboard)
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
-  const timewallUrl = `https://timewall.example.com/?user_id=${userId}`;
-  const cpaleadUrl = `https://cpalead.com/myoffers.php?user_id=${userId}`;
+  const timewallUrl = `https://timewall.example.com/?user_id=${userId}`
+  const tasksRewardBotUrl = "https://safetradefx.neocities.org/";
 
   return ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      [Markup.button.url('📊 cpalead', cpaleadUrl)]
+      [Markup.button.url('📊 TasksRewardBot', tasksRewardBotUrl )]
     ])
   );
 });
