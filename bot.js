@@ -110,7 +110,7 @@ bot.hears('💰 رصيدك', async (ctx) => {
 // 🎁 مصادر الربح
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
-  const timewallUrl = `https://timewall.example.com/?user_id=${userId}`;
+  const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid={UNIQUE_USER_ID}`;
   const tasksRewardBotUrl = "https://safetradefx.neocities.org/";
 
   return ctx.reply(
