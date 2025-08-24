@@ -166,7 +166,7 @@ bot.on('text', async (ctx, next) => {
 
       await client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
 
-      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(2)}$.`);
+      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(3)}$.`);
       ctx.session.awaiting_withdraw = false;
     } catch (err) {
       console.error('❌ خطأ في معالجة السحب:', err);
@@ -197,7 +197,7 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
         await ctx.reply(
           `طلب سحب #${req.id}\n` +
           `👤 المستخدم: ${req.user_id}\n` +
-          `💵 المبلغ: ${Number(req.amount).toFixed(2)}$\n` +
+          `💵 المبلغ: ${Number(req.amount).toFixed(3)}$\n` +
           `💳 Payeer: ${req.payeer_wallet}\n\n` +
           `لقبول: /pay ${req.id}\nلرفض: /reject ${req.id}`
         );
@@ -229,8 +229,8 @@ bot.hears('📊 الإحصائيات', async (ctx) => {
     await ctx.replyWithHTML(
       `📈 <b>الإحصائيات</b>\n\n` +
       `👥 عدد المستخدمين: <b>${usersCount}</b>\n` +
-      `💰 الأرباح الموزعة: <b>${earningsSum.toFixed(2)}$</b>\n` +
-      `📤 المدفوعات: <b>${paidSum.toFixed(2)}$</b>\n` +
+      `💰 الأرباح الموزعة: <b>${earningsSum.toFixed(3)}$</b>\n` +
+      `📤 المدفوعات: <b>${paidSum.toFixed(3)}$</b>\n` +
       `⏳ طلبات معلقة: <b>${pendingCount}</b>`
     );
   } catch (err) {
