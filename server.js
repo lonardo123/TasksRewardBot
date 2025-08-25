@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client } = require('pg');
 const express = require('express');
+const crypto = require('crypto');
 
 // === قاعدة البيانات ===
 const client = new Client({
@@ -51,6 +52,38 @@ async function connectDB() {
   }
 }
 
+// === دالة إضافة الرصيد ===
+async function addBalance(userId, amount, source = 'offer', transactionId = null) {
+  const percentage = 0.60;
+  const finalAmount = amount * percentage;
+
+  // تحقق من التكرار
+  if (transactionId) {
+    const existing = await client.query(
+      'SELECT * FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
+      [userId, source, `Transaction: ${transactionId}`]
+    );
+    if (existing.rows.length > 0) {
+      console.log(`🔁 عملية مكررة تم تجاهلها: ${transactionId}`);
+      return;
+    }
+  }
+
+  // تحديث الرصيد
+  await client.query(
+    'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+    [finalAmount, userId]
+  );
+
+  // تسجيل العملية
+  await client.query(
+    'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+    [userId, source, finalAmount, transactionId ? `Transaction: ${transactionId}` : 'No Transaction ID']
+  );
+
+  console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${amount}$) للمستخدم ${userId} (Transaction: ${transactionId || 'N/A'})`);
+}
+
 // === السيرفر ===
 const app = express();
 app.use(express.json());
@@ -59,10 +92,10 @@ app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 
+// ✅ TimeWall وغيره
 app.get('/callback', async (req, res) => {
   const { user_id, amount, transaction_id, secret, network } = req.query;
 
-  // التحقق من السر
   if (secret !== process.env.CALLBACK_SECRET) {
     return res.status(403).send('Forbidden: Invalid Secret');
   }
@@ -76,34 +109,10 @@ app.get('/callback', async (req, res) => {
     return res.status(400).send('Invalid amount');
   }
 
-  const percentage = 0.60; 
-  const finalAmount = parsedAmount * percentage;
-
-  // ✅ تحديد الشبكة
   const source = network === 'bitcotasks' ? 'bitcotasks' : 'offer';
 
   try {
-    const existing = await client.query(
-      'SELECT * FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
-      [user_id, source, `Transaction: ${transaction_id}`]
-    );
-
-    if (existing.rows.length > 0) {
-      console.log(`🔁 عملية مكررة تم تجاهلها: ${transaction_id}`);
-      return res.status(200).send('Duplicate transaction ignored');
-    }
-
-    await client.query(
-      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
-      [finalAmount, user_id]
-    );
-
-    await client.query(
-      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
-      [user_id, source, finalAmount, `Transaction: ${transaction_id}`]
-    );
-
-    console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
+    await addBalance(user_id, parsedAmount, source, transaction_id);
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
@@ -111,6 +120,29 @@ app.get('/callback', async (req, res) => {
   }
 });
 
+// ✅ BitcoTasks مخصص
+app.get('/bitcotasks-callback', async (req, res) => {
+  try {
+    const { user_id, amount, transaction_id, sign } = req.query;
+
+    const SECRET = "ضع_Secret_Key_هنا"; // ضع Secret Key من BitcoTasks
+    if (!user_id || !amount || !transaction_id) {
+      return res.status(400).send("Missing parameters");
+    }
+
+    // تحقق من التوقيع إذا مطلوب
+    // const expectedSign = crypto.createHash("md5").update(user_id + amount + SECRET).digest("hex");
+    // if (expectedSign !== sign) return res.status(403).send("Invalid signature");
+
+    await addBalance(user_id, parseFloat(amount), 'bitcotasks', transaction_id);
+
+    console.log(`✅ BitcoTasks: Added ${amount} to user ${user_id} (tx: ${transaction_id})`);
+    res.send("OK");
+  } catch (err) {
+    console.error("BitcoTasks callback error:", err);
+    res.status(500).send("Server error");
+  }
+});
 
 // === التشغيل ===
 (async () => {
