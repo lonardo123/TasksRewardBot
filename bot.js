@@ -1,6 +1,7 @@
 const { Telegraf, session, Markup } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
+const express = require('express');
 
 // ====== Debug env ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
@@ -111,13 +112,16 @@ bot.hears('💰 رصيدك', async (ctx) => {
 bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
+  const bitcotasksUrl = `https://publisher.bitcotasks.com/offerwall/12345/${userId}`; // ✅ عدل الـ 12345 لـ appId الحقيقي
   const tasksRewardBotUrl = "https://safetradefx.neocities.org/";
 
   return ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
+      [Markup.button.url('📊 BitcoTasks', bitcotasksUrl )]
       [Markup.button.url('📊 TasksRewardBot', tasksRewardBotUrl )]
+
     ])
   );
 });
@@ -278,12 +282,66 @@ bot.command('reject', async (ctx) => {
   }
 });
 
+// ========== Postback API ==========
+const app = express();
+app.use(express.json());
+
+// Postback مشترك (TimeWall / Bitcotasks)
+app.get('/postback', async (req, res) => {
+  try {
+    const { uid, amount, tx, source, secret } = req.query;
+
+    // تحقق من السر
+    if (secret !== process.env.CALLBACK_SECRET) {
+      return res.status(403).send('Forbidden: Invalid Secret');
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount)) {
+      return res.status(400).send('Invalid amount');
+    }
+
+    // نسبة الربح للمستخدم (مثلاً 60%)
+    const userReward = parsedAmount * 0.60;
+
+    // تحقق من تكرار العملية
+    const exists = await client.query(
+      'SELECT id FROM earnings WHERE user_id=$1 AND description=$2',
+      [uid, `Transaction: ${tx}`]
+    );
+    if (exists.rows.length > 0) {
+      return res.status(200).send('Duplicate ignored');
+    }
+
+    // تحديث رصيد المستخدم
+    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id=$2', [userReward, uid]);
+
+    // تسجيل العملية
+    await client.query(
+      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1,$2,$3,$4)',
+      [uid, source || 'offerwall', userReward, `Transaction: ${tx}`]
+    );
+
+    console.log(`🟢 Added ${userReward}$ to user ${uid} (${source})`);
+    res.send('OK');
+  } catch (err) {
+    console.error('❌ Postback error:', err);
+    res.status(500).send('Server error');
+  }
+});
+
 // ==================== التشغيل النهائي ====================
 (async () => {
   try {
     await connectDB();
     await bot.launch();
     console.log('✅ bot.js: البوت شُغّل بنجاح');
+
+    // تشغيل السيرفر للـ postback
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Postback server يعمل على البورت ${PORT}`);
+    });
 
     process.once('SIGINT', () => {
       console.log('🛑 SIGINT: stopping bot...');
