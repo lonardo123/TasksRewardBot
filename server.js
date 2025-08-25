@@ -77,6 +77,10 @@ app.get('/callback', async (req, res) => {
     return res.status(400).send('Invalid amount');
   }
 
+  // ✅ نسبة الأرباح (غيرها لأي قيمة مناسبة)
+  const percentage = 0.60; // 60%
+  const finalAmount = parsedAmount * percentage;
+
   try {
     // تحقق من أن هذه العملية لم تُعدّ من قبل
     const existing = await client.query(
@@ -90,21 +94,25 @@ app.get('/callback', async (req, res) => {
     }
 
     // أضف الرصيد
-    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [parsedAmount, user_id]);
+    await client.query(
+      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+      [finalAmount, user_id]
+    );
 
     // سجّل الأرباح
     await client.query(
       'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
-      [user_id, 'offer', parsedAmount, `Transaction: ${transaction_id}`]
+      [user_id, 'offer', finalAmount, `Transaction: ${transaction_id}`]
     );
 
-    console.log(`🟢 أضيف ${parsedAmount}$ للمستخدم ${user_id} (Transaction: ${transaction_id})`);
+    console.log(`🟢 أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
     res.status(500).send('Server Error');
   }
 });
+
 
 // === التشغيل ===
 (async () => {
