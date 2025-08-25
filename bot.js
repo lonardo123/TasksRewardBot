@@ -112,17 +112,18 @@ bot.hears('🎁 مصادر الربح', (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
   const tasksRewardBotUrl = "https://safetradefx.neocities.org/";
-  const bitcotasksUrl = `https://bitcotasks.com/?ref=${userId}`; // ✅ رابط إحالة المستخدم
+  const bitcotasksUrl = `https://bitcotasks.com/offerwall/[API_KEY]/${userId}`; // ✅ رابط Offerwall رسمي
 
   return ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      [Markup.button.url('📊 TasksRewardBot', tasksRewardBotUrl )],
-      [Markup.button.url('💎 BitcoTasks', bitcotasksUrl )] // ✅ أضفنا الشبكة الجديدة
+      [Markup.button.url('📊 TasksRewardBot', tasksRewardBotUrl)],
+      [Markup.button.url('💎 BitcoTasks', bitcotasksUrl)] // ✅ الشبكة الجديدة بشكل صحيح
     ])
   );
 });
+
 
 
 // 📤 طلب سحب
