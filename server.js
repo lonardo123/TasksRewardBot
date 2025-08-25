@@ -60,14 +60,13 @@ app.get('/', (req, res) => {
 });
 
 app.get('/callback', async (req, res) => {
-  const { user_id, amount, transaction_id, secret } = req.query;
+  const { user_id, amount, transaction_id, secret, network } = req.query;
 
   // التحقق من السر
   if (secret !== process.env.CALLBACK_SECRET) {
     return res.status(403).send('Forbidden: Invalid Secret');
   }
 
-  // التحقق من transaction_id
   if (!transaction_id) {
     return res.status(400).send('Missing transaction_id');
   }
@@ -77,15 +76,16 @@ app.get('/callback', async (req, res) => {
     return res.status(400).send('Invalid amount');
   }
 
-  // ✅ نسبة الأرباح (غيرها لأي قيمة مناسبة)
-  const percentage = 0.60; // 60%
+  const percentage = 0.60; 
   const finalAmount = parsedAmount * percentage;
 
+  // ✅ تحديد الشبكة
+  const source = network === 'bitcotasks' ? 'bitcotasks' : 'offer';
+
   try {
-    // تحقق من أن هذه العملية لم تُعدّ من قبل
     const existing = await client.query(
       'SELECT * FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
-      [user_id, 'offer', `Transaction: ${transaction_id}`]
+      [user_id, source, `Transaction: ${transaction_id}`]
     );
 
     if (existing.rows.length > 0) {
@@ -93,19 +93,17 @@ app.get('/callback', async (req, res) => {
       return res.status(200).send('Duplicate transaction ignored');
     }
 
-    // أضف الرصيد
     await client.query(
       'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
       [finalAmount, user_id]
     );
 
-    // سجّل الأرباح
     await client.query(
       'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
-      [user_id, 'offer', finalAmount, `Transaction: ${transaction_id}`]
+      [user_id, source, finalAmount, `Transaction: ${transaction_id}`]
     );
 
-    console.log(`🟢 أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
+    console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
