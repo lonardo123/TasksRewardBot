@@ -59,9 +59,9 @@ bot.command('admin', async (ctx) => {
 
   ctx.session.isAdmin = true;
 
-  // ✅ تم التعديل هنا لعرض لوحة تحكم الأدمن مباشرة
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن. اختر العملية:', Markup.keyboard([
       ['📋 عرض الطلبات', '📊 الإحصائيات'],
+      ['➕ إضافة رصيد', '➖ خصم رصيد'],
       ['🚪 خروج من لوحة الأدمن']
     ]).resize()
   );
@@ -83,7 +83,7 @@ bot.start(async (ctx) => {
     }
 
     await ctx.replyWithHTML(
-      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(2)}$`,
+      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
       Markup.keyboard([
         ['💰 رصيدك', '🎁 مصادر الربح'],
         ['📤 طلب سحب']
@@ -101,7 +101,7 @@ bot.hears('💰 رصيدك', async (ctx) => {
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const balance = parseFloat(res.rows[0]?.balance) || 0;
-    await ctx.replyWithHTML(`💰 رصيدك: <b>${balance.toFixed(2)}$</b>`);
+    await ctx.replyWithHTML(`💰 رصيدك: <b>${balance.toFixed(4)}$</b>`);
   } catch (err) {
     console.error('❌ رصيدك:', err);
     await ctx.reply('حدث خطأ.');
@@ -132,7 +132,7 @@ bot.hears('📤 طلب سحب', async (ctx) => {
     const balance = parseFloat(res.rows[0]?.balance) || 0;
 
     if (balance < 1.0) {
-      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(2)}$`);
+      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(4)}$`);
     }
 
     ctx.session.awaiting_withdraw = true;
@@ -143,14 +143,20 @@ bot.hears('📤 طلب سحب', async (ctx) => {
   }
 });
 
-// معالجة رقم Payeer
+// معالجة رقم Payeer أو أوامر الرصيد للأدمن
 bot.on('text', async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim();
 
-  const menuTexts = new Set(['💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب','📋 عرض الطلبات','📊 الإحصائيات','🚪 خروج من لوحة الأدمن']);
+  const menuTexts = new Set([
+    '💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب',
+    '📋 عرض الطلبات','📊 الإحصائيات',
+    '➕ إضافة رصيد','➖ خصم رصيد',
+    '🚪 خروج من لوحة الأدمن'
+  ]);
   if (menuTexts.has(text)) return next();
 
+  // —— طلب السحب —— 
   if (ctx.session.awaiting_withdraw) {
     if (!/^P\d{8,}$/i.test(text)) {
       return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
@@ -159,34 +165,75 @@ bot.on('text', async (ctx, next) => {
     const userId = ctx.from.id;
     try {
       const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-      const amount = parseFloat(userRes.rows[0]?.balance) || 0;
+      let balance = parseFloat(userRes.rows[0]?.balance) || 0;
+
+      if (balance < 1.0) {
+        return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(4)}$`);
+      }
+
+      const withdrawAmount = Math.floor(balance * 100) / 100;
+      const remaining = balance - withdrawAmount;
 
       await client.query(
         'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
-        [userId, amount, text.toUpperCase()]
+        [userId, withdrawAmount, text.toUpperCase()]
       );
 
-      await client.query('UPDATE users SET balance = 0 WHERE telegram_id = $1', [userId]);
+      await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
 
-      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${amount.toFixed(2)}$.`);
+      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${withdrawAmount.toFixed(2)}$. رصيدك المتبقي: ${remaining.toFixed(4)}$`);
       ctx.session.awaiting_withdraw = false;
     } catch (err) {
       console.error('❌ خطأ في معالجة السحب:', err);
       await ctx.reply('حدث خطأ داخلي.');
     }
-  } else {
+  }
+
+  // —— إضافة / خصم رصيد —— 
+  else if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
+    if (!ctx.session.targetUser) {
+      ctx.session.targetUser = text;
+      return ctx.reply('💵 أرسل المبلغ:');
+    } else {
+      const userId = ctx.session.targetUser;
+      const amount = parseFloat(text);
+
+      if (isNaN(amount)) {
+        ctx.session = {};
+        return ctx.reply('❌ المبلغ غير صالح.');
+      }
+
+      try {
+        const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+        if (res.rows.length === 0) {
+          ctx.session = {};
+          return ctx.reply('❌ المستخدم غير موجود.');
+        }
+
+        let balance = parseFloat(res.rows[0].balance) || 0;
+        let newBalance = ctx.session.awaitingAction === 'add_balance' ? balance + amount : balance - amount;
+        if (newBalance < 0) newBalance = 0;
+
+        await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, userId]);
+
+        ctx.reply(`✅ تم ${ctx.session.awaitingAction === 'add_balance' ? 'إضافة' : 'خصم'} ${amount.toFixed(4)}$ للمستخدم ${userId}.\n💰 رصيده الجديد: ${newBalance.toFixed(4)}$`);
+      } catch (err) {
+        console.error('❌ خطأ تحديث الرصيد:', err);
+        ctx.reply('❌ فشل تحديث الرصيد.');
+      }
+
+      ctx.session = {};
+    }
+  }
+
+  else {
     return next();
   }
 });
 
 // 🔐 لوحة الأدمن - عرض الطلبات
 bot.hears('📋 عرض الطلبات', async (ctx) => {
-  console.log('🔍 تم الضغط على: عرض الطلبات');
-  if (!isAdmin(ctx)) {
-    console.log('❌ ليس الأدمن');
-    return ctx.reply('❌ الوصول مرفوض.');
-  }
-
+  if (!isAdmin(ctx)) return ctx.reply('❌ الوصول مرفوض.');
   try {
     const res = await client.query('SELECT * FROM withdrawals WHERE status = $1 ORDER BY id DESC', ['pending']);
     if (res.rows.length === 0) {
@@ -211,7 +258,6 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
 // 🔐 لوحة الأدمن - الإحصائيات
 bot.hears('📊 الإحصائيات', async (ctx) => {
   if (!isAdmin(ctx)) return;
-
   try {
     const [users, earnings, paid, pending] = await Promise.all([
       client.query('SELECT COUNT(*) AS c FROM users'),
@@ -220,17 +266,12 @@ bot.hears('📊 الإحصائيات', async (ctx) => {
       client.query('SELECT COUNT(*) AS c FROM withdrawals WHERE status = $1', ['pending'])
     ]);
 
-    const usersCount = Number(users.rows[0].c || 0);
-    const earningsSum = Number(earnings.rows[0].s || 0);
-    const paidSum = Number(paid.rows[0].s || 0);
-    const pendingCount = Number(pending.rows[0].c || 0);
-
     await ctx.replyWithHTML(
       `📈 <b>الإحصائيات</b>\n\n` +
-      `👥 عدد المستخدمين: <b>${usersCount}</b>\n` +
-      `💰 الأرباح الموزعة: <b>${earningsSum.toFixed(2)}$</b>\n` +
-      `📤 المدفوعات: <b>${paidSum.toFixed(2)}$</b>\n` +
-      `⏳ طلبات معلقة: <b>${pendingCount}</b>`
+      `👥 عدد المستخدمين: <b>${users.rows[0].c}</b>\n` +
+      `💰 الأرباح الموزعة: <b>${Number(earnings.rows[0].s).toFixed(2)}$</b>\n` +
+      `📤 المدفوعات: <b>${Number(paid.rows[0].s).toFixed(2)}$</b>\n` +
+      `⏳ طلبات معلقة: <b>${pending.rows[0].c}</b>`
     );
   } catch (err) {
     console.error('❌ خطأ في الإحصائيات:', err);
@@ -238,10 +279,25 @@ bot.hears('📊 الإحصائيات', async (ctx) => {
   }
 });
 
+// ➕ إضافة رصيد
+bot.hears('➕ إضافة رصيد', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  ctx.session.awaitingAction = 'add_balance';
+  ctx.session.targetUser = null;
+  await ctx.reply('🆔 أرسل ID المستخدم لإضافة رصيد:');
+});
+
+// ➖ خصم رصيد
+bot.hears('➖ خصم رصيد', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  ctx.session.awaitingAction = 'deduct_balance';
+  ctx.session.targetUser = null;
+  await ctx.reply('🆔 أرسل ID المستخدم لخصم رصيد:');
+});
+
 // 🔐 لوحة الأدمن - خروج
 bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   if (!isAdmin(ctx)) return;
-
   ctx.session = {};
   await ctx.reply('✅ خرجت من لوحة الأدمن.', Markup.keyboard([
       ['💰 رصيدك', '🎁 مصادر الربح'],
