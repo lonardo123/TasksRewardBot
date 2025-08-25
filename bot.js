@@ -47,7 +47,7 @@ const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
 
 // 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
-  if (!ctx.session) ctx.session = {}; // ✅ تأكد إن session موجودة
+  if (!ctx.session) ctx.session = {};
   const userId = String(ctx.from.id);
   const adminId = String(process.env.ADMIN_ID);
   console.log('🎯 محاولة دخول لوحة الأدمن:', { userId, adminId });
@@ -58,9 +58,10 @@ bot.command('admin', async (ctx) => {
   }
 
   ctx.session.isAdmin = true;
-  await ctx.reply('🔐 أهلاً بك في لوحة الأدمن', Markup.keyboard([
-      ['📋 عرض الطلبات'],
-      ['📊 الإحصائيات'],
+
+  // ✅ تم التعديل هنا لعرض لوحة تحكم الأدمن مباشرة
+  await ctx.reply('🔐 أهلاً بك في لوحة الأدمن. اختر العملية:', Markup.keyboard([
+      ['📋 عرض الطلبات', '📊 الإحصائيات'],
       ['🚪 خروج من لوحة الأدمن']
     ]).resize()
   );
@@ -124,7 +125,7 @@ bot.hears('🎁 مصادر الربح', (ctx) => {
 
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
-  if (!ctx.session) ctx.session = {}; // ✅ حماية إضافية
+  if (!ctx.session) ctx.session = {};
   const userId = ctx.from.id;
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
@@ -144,7 +145,7 @@ bot.hears('📤 طلب سحب', async (ctx) => {
 
 // معالجة رقم Payeer
 bot.on('text', async (ctx, next) => {
-  if (!ctx.session) ctx.session = {}; // ✅ تأكد إن session موجودة
+  if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim();
 
   const menuTexts = new Set(['💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب','📋 عرض الطلبات','📊 الإحصائيات','🚪 خروج من لوحة الأدمن']);
