@@ -137,21 +137,19 @@ bot.hears('💰 رصيدك', async (ctx) => {
 });
 
 // 🎁 مصادر الربح
-bot.hears('🎁 مصادر الربح', (ctx) => {
+bot.hears('🎁 مصادر الربح', async (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
   const tasksRewardBotUrl = "https://safetradefx.neocities.org/";
 
-  return ctx.reply(
+  // أولاً: عرض الأزرار
+  await ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
       [Markup.button.url('📊 TasksRewardBot', tasksRewardBotUrl )]
     ])
   );
-
-
-  
 
   // ثانياً: إرسال رسالة الشرح
   await ctx.replyWithHTML(
@@ -164,12 +162,16 @@ bot.hears('🎁 مصادر الربح', (ctx) => {
 🔑 <b>طريقة سحب المال من TimeWall:</b>
 - ادخل صفحة Withdraw
 - اضغط على زر "سحب" أعلى الصفحة
-✅ الأرباح تضاف لحسابك مباشرة 💵
- `
+- الأرباح تضاف لحسابك مباشرة 💵
 
-  
+💰 <b>السحب من البوت:</b>
+- الحد الأدنى: 1$
+- اختر 📤 <b>طلب سحب</b>
+- أدخل محفظة <b>Payeer</b>
+- بعد مراجعة الأدمن يتم الدفع ✅`
   );
 });
+
 
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
