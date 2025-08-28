@@ -713,56 +713,219 @@ bot.on('text', async (ctx, next) => {
   }
 });
 
-// 📝 إثباتات مهمات المستخدمين (للأدمن)
+// =================== إثباتات مهمات المستخدمين (للأدمن) ===================
+
+/**
+ * عرض إثباتات المهام المعلقة (حدّ أقصى 10 مؤخراً)
+ * يظهر لكل إثبات: رقم، مستخدم، عنوان المهمة، السعر، الإثبات، وأزرار موافقة/رفض
+ */
 bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => {
   if (!isAdmin(ctx)) return;
   try {
     const res = await client.query(
-      'SELECT * FROM task_submissions WHERE status = $1 ORDER BY id DESC LIMIT 10',
+      `SELECT s.*, t.title AS task_title, t.price AS task_price
+       FROM task_submissions s
+       JOIN tasks t ON t.id = s.task_id
+       WHERE s.status = $1
+       ORDER BY s.id DESC
+       LIMIT 10`,
       ['pending']
     );
+
     if (res.rows.length === 0) return ctx.reply('✅ لا توجد إثباتات معلقة.');
 
     for (const sub of res.rows) {
-      await ctx.reply(
+      const price = parseFloat(sub.task_price) || 0;
+      const text =
         `📌 إثبات #${sub.id}\n` +
-        `👤 المستخدم: ${sub.user_id}\n` +
-        `📋 المهمة: ${sub.task_id}\n` +
-        `📝 الإثبات: ${sub.proof}\n\n` +
-        `للموافقة: /approve ${sub.id}\nللرفض: /deny ${sub.id}`
+        `👤 المستخدم: <code>${sub.user_id}</code>\n` +
+        `📋 المهمة: ${sub.task_title} (ID: ${sub.task_id})\n` +
+        `💰 المكافأة: ${price.toFixed(4)}$\n` +
+        `📝 الإثبات:\n${sub.proof}`;
+
+      await ctx.replyWithHTML(
+        text,
+        Markup.inlineKeyboard([
+          [ Markup.button.callback('✅ موافقة', `approve_${sub.id}`), Markup.button.callback('❌ رفض', `deny_${sub.id}`) ]
+        ])
       );
     }
   } catch (err) {
     console.error('❌ اثباتات:', err);
-    ctx.reply('خطأ أثناء جلب الإثباتات.');
+    await ctx.reply('خطأ أثناء جلب الإثباتات.');
   }
 });
 
-// أوامر للمراجعة
-bot.command('approve', async (ctx) => {
-  if (!isAdmin(ctx)) return;
-  const id = Number(ctx.message.text.split(' ')[1]);
-  if (!id) return ctx.reply('❌ استخدم: /approve <ID>');
+
+// =================== معالجة الموافقة/الرفض عبر أزرار Inline (callbacks) ===================
+
+/**
+ * approve via callback (inline button)
+ */
+bot.action(/^approve_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) {
+    await ctx.answerCbQuery('❌ غير مسموح');
+    return;
+  }
+
+  const subId = Number(ctx.match[1]);
+  await ctx.answerCbQuery(); // إغلاق دائرة التحميل في الواجهة
 
   try {
-    const res = await client.query(
-      'UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2 RETURNING *',
-      ['approved', id]
-    );
-    if (res.rowCount === 0) return ctx.reply('❌ لم يتم العثور على الإثبات.');
-    const sub = res.rows[0];
+    // ابدأ معاملة لضمان الاتساق
+    await client.query('BEGIN');
 
-    // أضف المكافأة للمستخدم
-    const taskRes = await client.query('SELECT reward FROM tasks WHERE id=$1', [sub.task_id]);
-    if (taskRes.rows.length > 0) {
-      const reward = parseFloat(taskRes.rows[0].reward) || 0;
-      await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id=$2', [reward, sub.user_id]);
+    // التحقق أن الإثبات موجود ومازال Pending
+    const subRes = await client.query('SELECT * FROM task_submissions WHERE id = $1 AND status = $2', [subId, 'pending']);
+    if (subRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      await ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته مسبقاً.');
+      return;
+    }
+    const sub = subRes.rows[0];
+
+    // احصل بيانات المهمة (السعر والعنوان)
+    const taskRes = await client.query('SELECT price, title FROM tasks WHERE id = $1', [sub.task_id]);
+    const price = parseFloat(taskRes.rows[0]?.price) || 0;
+
+    // حدّث/أضف رصيد المستخدم
+    const updRes = await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2 RETURNING *', [price, sub.user_id]);
+    if (updRes.rowCount === 0) {
+      // لو المستخدم غير موجود في جدول users، أنشئه
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]);
     }
 
-    ctx.reply(`✅ تمت الموافقة على إثبات #${id} ورُصدت المكافأة للمستخدم.`);
-  } catch (e) {
-    console.error('❌ approve:', e);
-    ctx.reply('خطأ أثناء الموافقة.');
+    // أدخل سجل للـ earnings للمستخدم
+    try {
+      await client.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [sub.user_id, price, 'task', `task_submission:${subId}`]);
+    } catch (_) {
+      // إن فشل إدخال earnings لا نوقف التنفيذ طالما تبدلت الرصيد
+      console.warn('⚠️ فشل إدخال سجل earnings (غير حرج).');
+    }
+
+    // حدّث حالة الإثبات إلى approved
+    await client.query('UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2', ['approved', subId]);
+
+    await client.query('COMMIT');
+
+    // طبق مكافأة الإحالة (ستسجل أيضاً referral_earnings داخل applyReferralBonus إن كانت موجودة)
+    try {
+      await applyReferralBonus(sub.user_id, price);
+    } catch (e) {
+      console.error('❌ خطأ في applyReferralBonus:', e);
+    }
+
+    // حاول تعديل رسالة الزر إن أمكن (لو الضغط تم على رسالة الإدمن)
+    try {
+      await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`);
+    } catch (_) {
+      // لو لم نتمكن من تعديل الرسالة (مثلاً تم إرسال الرد في رسالة منفصلة)، أرسل تأكيداً جديداً
+      await ctx.reply(`✅ تمت الموافقة على الإثبات #${subId} ورصدت المكافأة للمستخدم.`);
+    }
+
+    // إخطار المستخدم (محاولة إرسال رسالة)
+    try {
+      await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`);
+    } catch (_) {
+      // ممكن يفشل لو المستخدم لم يبدأ البوت أو حظر البوت
+    }
+
+  } catch (err) {
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('❌ approve callback error:', err);
+    await ctx.reply('حدث خطأ أثناء الموافقة على الإثبات.');
+  }
+});
+
+
+/**
+ * deny via callback (inline button)
+ */
+bot.action(/^deny_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) {
+    await ctx.answerCbQuery('❌ غير مسموح');
+    return;
+  }
+
+  const subId = Number(ctx.match[1]);
+  await ctx.answerCbQuery();
+
+  try {
+    const res = await client.query('UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2 AND status=$3 RETURNING *', ['rejected', subId, 'pending']);
+    if (res.rowCount === 0) {
+      await ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته سابقاً.');
+      return;
+    }
+    // تعديل رسالة الزر أو إرسال تأكيد
+    try {
+      await ctx.editMessageText(`❌ تم رفض الإثبات #${subId}`);
+    } catch (_) {
+      await ctx.reply(`❌ تم رفض الإثبات #${subId}`);
+    }
+    // إخطار المستخدم بالرفض (اختياري)
+    try {
+      const sub = res.rows[0];
+      await bot.telegram.sendMessage(sub.user_id, `❌ تم رفض إثبات المهمة (ID: ${sub.task_id}). يمكنك إعادة المحاولة إن استوفيت المطلوب.`);
+    } catch (_) {}
+  } catch (err) {
+    console.error('❌ deny callback error:', err);
+    await ctx.reply('حدث خطأ أثناء رفض الإثبات.');
+  }
+});
+
+
+// =================== أوامر نصية بديلة (/approve و /deny) ===================
+
+bot.command('approve', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number((ctx.message.text.split(' ')[1] || '').trim());
+  if (!id) return ctx.reply('❌ استخدم: /approve <ID>');
+
+  // بسيطة: نعيد استدعاء نفس المنطق الموجود في callback (بالتالي نستخدم الإجراءات نفسها)
+  // هنا نعيد تنفيذ المنطق مباشرة:
+  try {
+    await client.query('BEGIN');
+    const subRes = await client.query('SELECT * FROM task_submissions WHERE id = $1 AND status = $2', [id, 'pending']);
+    if (subRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته مسبقًا.');
+    }
+    const sub = subRes.rows[0];
+    const taskRes = await client.query('SELECT price FROM tasks WHERE id = $1', [sub.task_id]);
+    const price = parseFloat(taskRes.rows[0]?.price) || 0;
+
+    const updRes = await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2 RETURNING *', [price, sub.user_id]);
+    if (updRes.rowCount === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]);
+    }
+    try {
+      await client.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [sub.user_id, price, 'task', `task_submission:${id}`]);
+    } catch (_) {}
+    await client.query('UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2', ['approved', id]);
+    await client.query('COMMIT');
+    await applyReferralBonus(sub.user_id, price);
+    await ctx.reply(`✅ تمت الموافقة على الإثبات #${id} ورُصدت المكافأة (${price.toFixed(4)}$) للمستخدم.`);
+    try { await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة. ${price.toFixed(4)}$ أُضيفت إلى رصيدك.`); } catch (_) {}
+  } catch (err) {
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('❌ approve command error:', err);
+    await ctx.reply('حدث خطأ أثناء الموافقة.');
+  }
+});
+
+bot.command('deny', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number((ctx.message.text.split(' ')[1] || '').trim());
+  if (!id) return ctx.reply('❌ استخدم: /deny <ID>');
+
+  try {
+    const res = await client.query('UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2 AND status=$3 RETURNING *', ['rejected', id, 'pending']);
+    if (res.rowCount === 0) return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته سابقًا.');
+    await ctx.reply(`❌ تم رفض الإثبات #${id}`);
+    try { await bot.telegram.sendMessage(res.rows[0].user_id, `❌ تم رفض إثبات المهمة (ID: ${res.rows[0].task_id}).`); } catch (_) {}
+  } catch (err) {
+    console.error('❌ deny command error:', err);
+    await ctx.reply('حدث خطأ أثناء رفض الإثبات.');
   }
 });
 
