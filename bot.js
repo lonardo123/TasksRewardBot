@@ -610,17 +610,77 @@ bot.hears('📝 المهمات', async (ctx) => {
   try {
     const res = await client.query('SELECT * FROM tasks ORDER BY id DESC');
     if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام حالياً.');
-    
+
     let msg = '📋 قائمة المهمات:\n\n';
+    const inlineKeyboard = [];
+
     res.rows.forEach(t => {
-      msg += `#${t.id} - ${t.title} (${t.reward}$)\n`;
+      const price = parseFloat(t.price);
+      const priceStr = isNaN(price) ? "0.0000" : price.toFixed(4);
+
+      msg += `#${t.id} - ${t.title} (${priceStr}$)\n`;
+
+      inlineKeyboard.push([
+        { text: `✏️ تعديل ${t.id}`, callback_data: `edit_task_${t.id}` },
+        { text: `🗑️ حذف ${t.id}`, callback_data: `delete_task_${t.id}` }
+      ]);
     });
-    ctx.reply(msg);
+
+    ctx.reply(msg, {
+      reply_markup: {
+        inline_keyboard: inlineKeyboard
+      }
+    });
+
   } catch (err) {
     console.error('❌ المهمات:', err);
     ctx.reply('خطأ أثناء جلب المهمات.');
   }
 });
+
+// 📌 حذف مهمة
+bot.action(/delete_task_(\d+)/, async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const taskId = ctx.match[1];
+  try {
+    await client.query('DELETE FROM tasks WHERE id=$1', [taskId]);
+    ctx.answerCbQuery('✅ تم حذف المهمة بنجاح');
+    ctx.editMessageText(`🗑️ تم حذف المهمة رقم #${taskId}`);
+  } catch (err) {
+    console.error('❌ حذف مهمة:', err);
+    ctx.answerCbQuery('⚠️ حدث خطأ أثناء حذف المهمة');
+  }
+});
+
+// 📌 تعديل مهمة
+bot.action(/edit_task_(\d+)/, async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const taskId = ctx.match[1];
+  ctx.session.awaitingEditTask = taskId;
+  ctx.reply('✏️ أرسل بيانات المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
+});
+
+bot.on('text', async (ctx) => {
+  if (ctx.session.awaitingEditTask) {
+    const taskId = ctx.session.awaitingEditTask;
+    const [title, description, price] = ctx.message.text.split('|').map(s => s.trim());
+    if (!title || !description || !price) {
+      return ctx.reply('⚠️ الصيغة غير صحيحة. أرسل: العنوان | الوصف | السعر');
+    }
+    try {
+      await client.query(
+        'UPDATE tasks SET title=$1, description=$2, price=$3 WHERE id=$4',
+        [title, description, parseFloat(price), taskId]
+      );
+      ctx.reply(`✅ تم تعديل المهمة رقم #${taskId} بنجاح.`);
+    } catch (err) {
+      console.error('❌ تعديل مهمة:', err);
+      ctx.reply('⚠️ حدث خطأ أثناء تعديل المهمة.');
+    }
+    ctx.session.awaitingEditTask = null;
+  }
+});
+
 
 // 📝 إثباتات مهمات المستخدمين (للأدمن)
 bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => {
