@@ -363,27 +363,6 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   }
 });
 
-
-// 📝 عرض المهام للمستخدم (قائمة قصيرة مع زر عرض كل مهمة)
-bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
-  try {
-    const res = await client.query('SELECT id, title, description, price FROM tasks ORDER BY id DESC LIMIT 20');
-    if (res.rows.length === 0) return ctx.reply('❌ لا توجد مهمات متاحة حالياً.');
-
-    // عرض كل مهمة مع زر "عرض"
-    for (const t of res.rows) {
-      const price = parseFloat(t.price) || 0;
-      await ctx.replyWithHTML(
-        `📋 المهمة #${t.id}\n\n🏷️ <b>${t.title}</b>\n📖 ${t.description}\n💰 <b>${price.toFixed(6)}$</b>`,
-        Markup.inlineKeyboard([[Markup.button.callback('عرض المهمة', `task_${t.id}`)]])
-      );
-    }
-  } catch (err) {
-    console.error('❌ عرض المهمات:', err);
-    ctx.reply('حدث خطأ أثناء عرض المهمات.');
-  }
-});
-
 // 📌 عرض تفاصيل المهمة
 bot.action(/task_(\d+)/, async (ctx) => {
   try {
@@ -446,7 +425,7 @@ bot.on(["text", "photo"], async (ctx) => {
 
   try {
     await client.query(
-      "INSERT INTO task_submissions (task_id, user_id, proof, status, created_at) VALUES ($1,$2,$3,'pending',NOW())",
+      "INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES ($1,$2,$3,'pending',NOW())",
       [taskId, userId, proof]
     );
 
