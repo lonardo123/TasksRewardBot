@@ -541,60 +541,77 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
     await ctx.reply('حدث خطأ فني.');
   }
 });
-bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
-  if (!isAdmin(ctx)) return;
-  ctx.session.awaitingAction = 'add_task';
-  ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
-});
 
+// ---- إضافة مهمة جديدة (تحسين) ----
 bot.on('text', async (ctx, next) => {
-  if (ctx.session.awaitingAction === 'add_task') {
-    const parts = ctx.message.text.split('|').map(p => p.trim());
+  // فقط لو الأدمن بدأ عملية إضافة مهمة
+  if (ctx.session && ctx.session.awaitingAction === 'add_task') {
+    // تحقق صلاحية الأدمن أيضاً (أمان)
+    if (!isAdmin(ctx)) {
+      delete ctx.session.awaitingAction;
+      return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+    }
+
+    // الجزء المدخل من الأدمن
+    const raw = ctx.message.text || '';
+    const parts = raw.split('|').map(p => p.trim());
 
     if (parts.length < 3) {
-      return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر');
+      return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر\nمثال: coinpayu | اجمع رصيد وارفق رابط الموقع https://... | 0.0500');
     }
 
     const title = parts[0];
-    const rewardStr = parts[parts.length - 1]; // آخر جزء هو السعر
-    const description = parts.slice(1, -1).join(' | '); // الباقي وصف حتى لو فيه |
+    // الوصف هو كل الأجزاء من 1 إلى ما قبل الأخير (ندمجها مع | لترك الروابط سليمة)
+    const description = parts.slice(1, -1).join(' | ');
+    const rewardStr = parts[parts.length - 1];
 
-    // تنظيف المدخل: إزالة علامة $ إن وُجدت
-    const cleanReward = rewardStr.replace('$', '').trim();
+    // --- استخراج أول رقم (يتعامل مع "السعر 0.0500" أو "0,0500$") ---
+    const numMatch = rewardStr.match(/[\d]+(?:[.,]\d+)*/);
+    if (!numMatch) {
+      return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010 أو 0.0500');
+    }
 
-    // تحويل إلى رقم عشري
-    const reward = Number(cleanReward);
+    let cleanReward = numMatch[0].replace(',', '.'); // 0,0500 -> 0.0500
+    const reward = parseFloat(cleanReward);
 
     if (isNaN(reward) || reward <= 0) {
       return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010');
     }
 
     try {
-      await client.query(
-        'INSERT INTO tasks (title, description, reward) VALUES ($1,$2,$3)',
+      // إدخال المهمة في قاعدة البيانات
+      const res = await client.query(
+        'INSERT INTO tasks (title, description, reward) VALUES ($1,$2,$3) RETURNING id, title, reward',
         [title, description, reward]
       );
 
-      // استبدال أي روابط في النص لتظهر كـ <a href="...">...</a>
-      const formattedDescription = description.replace(
-        /(https?:\/\/[^\s]+)/g,
-        '<a href="$1">رابط المهمة</a>'
+      // أحَوّل أي روابط في الوصف إلى رابط HTML قابل للنقر عند الرد
+      const formattedDescription = description.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>');
+
+      await ctx.replyWithHTML(
+        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${res.rows[0].reward.toFixed(4)}$`,
+        { disable_web_page_preview: true }
       );
 
-      ctx.reply(
-        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${reward}$`,
-        { parse_mode: 'HTML', disable_web_page_preview: true }
-      );
-
+      // أنهِ حالة الجلسة
       delete ctx.session.awaitingAction;
     } catch (err) {
-      console.error('❌ إضافة مهمة:', err);
-      ctx.reply('حدث خطأ أثناء إضافة المهمة.');
+      // سجّل الخطأ المفصّل ليتضح السبب في الكونسول عند التشغيل
+      console.error('❌ إضافة مهمة: ', err.message);
+      console.error(err.stack);
+
+      // أعد رسالة مختصرة للمشغل حتى لا تفضح بيانات حساسة
+      ctx.reply('حدث خطأ أثناء إضافة المهمة. راجع سجلات السيرفر (console) لمعرفة التفاصيل.');
+      // لا تنس أن تتفقد الكونسول/لوغر السيرفر بعد ظهور هذه الرسالة
     }
-    return;
+
+    return; // نمنع الاستمرار إلى باقي المعالجات
   }
+
+  // لو مش في وضع إضافة مهمة نمرر للتحقق التالي
   return next();
 });
+
 
 
 // 📝 عرض كل المهمات (للأدمن)
