@@ -42,6 +42,13 @@ async function connectDB() {
         processed_at TIMESTAMP,
         admin_note TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS referrals (
+        id SERIAL PRIMARY KEY,
+        referrer_id BIGINT,
+        referee_id BIGINT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
 
     console.log('✅ الجداول أُنشئت أو موجودة مسبقًا');
@@ -93,6 +100,7 @@ app.get('/callback', async (req, res) => {
       return res.status(200).send('Duplicate transaction ignored');
     }
 
+    // ✅ تحديث رصيد المستخدم
     await client.query(
       'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
       [finalAmount, user_id]
@@ -104,6 +112,30 @@ app.get('/callback', async (req, res) => {
     );
 
     console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
+
+    // ✅ التحقق من وجود محيل للمستخدم
+    const ref = await client.query(
+      'SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1',
+      [user_id]
+    );
+
+    if (ref.rows.length > 0) {
+      const referrerId = ref.rows[0].referrer_id;
+      const bonus = parsedAmount * 0.03; // 3% للمحيل
+
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+        [bonus, referrerId]
+      );
+
+      await client.query(
+        'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+        [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]
+      );
+
+      console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
+    }
+
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
