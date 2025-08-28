@@ -24,6 +24,33 @@ async function connectDB() {
   }
 }
 
+// 🔵 إنشاء/تحديث الجدول الخاص بالإحالات عند الإقلاع
+async function initSchema() {
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id SERIAL PRIMARY KEY,
+        referrer_id BIGINT NOT NULL,
+        referee_id  BIGINT NOT NULL UNIQUE,
+        created_at  TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    // جدول أرباح الإحالة (اختياري للتقارير)، لو عندك جدول earnings نستخدمه مباشرة أيضاً
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referral_earnings (
+        id SERIAL PRIMARY KEY,
+        referrer_id BIGINT NOT NULL,
+        referee_id  BIGINT NOT NULL,
+        amount NUMERIC(12,6) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    console.log('✅ initSchema: تم تجهيز جداول الإحالات');
+  } catch (e) {
+    console.error('❌ initSchema:', e);
+  }
+}
+
 // ====== Bot setup ======
 if (!process.env.BOT_TOKEN) {
   console.error('❌ BOT_TOKEN غير موجود في ملف .env');
@@ -45,6 +72,73 @@ bot.use((ctx, next) => {
 // Utility: ensure admin
 const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
 
+// 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%) عند إضافة أرباح للمستخدم
+async function applyReferralBonus(earnerId, earnedAmount) {
+  try {
+    // ابحث عن المُحيل لهذا المستخدم
+    const ref = await client.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [earnerId]);
+    if (ref.rows.length === 0) return; // لا يوجد محيل
+
+    const referrerId = ref.rows[0].referrer_id;
+    if (!referrerId || Number(referrerId) === Number(earnerId)) return;
+
+    // 5% من أرباح المُحال
+    const bonus = Number(earnedAmount) * 0.05;
+    if (bonus <= 0) return;
+
+    // حدّث رصيد المُحيل
+    const balRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [referrerId]);
+    if (balRes.rows.length === 0) {
+      // أنشئ المستخدم إن لم يكن موجودًا
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [referrerId, 0]);
+    }
+    await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [bonus, referrerId]);
+
+    // سجل حركة أرباح الإحالة (اختياري)
+    await client.query(
+      'INSERT INTO referral_earnings (referrer_id, referee_id, amount) VALUES ($1,$2,$3)',
+      [referrerId, earnerId, bonus]
+    );
+
+    // إن كان لديك جدول earnings وتريد الظهور في الإحصائيات:
+    try {
+      await client.query(
+        'INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)',
+        [referrerId, bonus, 'referral_bonus']
+      );
+    } catch (_) {}
+
+    console.log(`🎉 إحالة: أضيفت مكافأة ${bonus.toFixed(4)}$ للمحيل ${referrerId} بسبب ربح ${earnerId}`);
+  } catch (e) {
+    console.error('❌ applyReferralBonus:', e);
+  }
+}
+
+// 🔵 أمر أدمن اختياري لاختبار إضافة أرباح + تطبيق مكافأة الإحالة
+bot.command('credit', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const parts = (ctx.message.text || '').trim().split(/\s+/);
+  // /credit <userId> <amount>
+  const targetId = parts[1];
+  const amount = Number(parts[2]);
+  if (!targetId || isNaN(amount)) {
+    return ctx.reply('استخدم: /credit <userId> <amount>');
+  }
+  try {
+    // أضف الأرباح للمستخدم
+    await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [amount, targetId]);
+    try {
+      await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [targetId, amount, 'manual_credit']);
+    } catch (_) {}
+    // طبق مكافأة الإحالة
+    await applyReferralBonus(targetId, amount);
+    return ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${targetId} وتطبيق مكافأة الإحالة (إن وجدت).`);
+  } catch (e) {
+    console.error('❌ /credit:', e);
+    return ctx.reply('فشل في إضافة الرصيد.');
+  }
+});
+
 // 🛠 أمر /admin
 bot.command('admin', async (ctx) => {
   if (!ctx.session) ctx.session = {};
@@ -62,11 +156,10 @@ bot.command('admin', async (ctx) => {
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن. اختر العملية:', Markup.keyboard([
       ['📋 عرض الطلبات', '📊 الإحصائيات'],
       ['➕ إضافة رصيد', '➖ خصم رصيد'],
-      ['🚪 خروج من لوحة الأدمن']
+      ['👥 ريفيرال', '🚪 خروج من لوحة الأدمن'] // 🔵 أضفنا زر ريفيرال هنا للأدمن أيضاً
     ]).resize()
   );
 });
-
 
 // 🏠 /start
 bot.start(async (ctx) => {
@@ -74,6 +167,16 @@ bot.start(async (ctx) => {
   const firstName = ctx.from.first_name || '';
 
   try {
+    // 🔵 التقاط الـ payload الخاص بالإحالة /start ref_123
+    let payload = null;
+    if (ctx.startPayload) {
+      payload = ctx.startPayload; // متاح في Telegraf v4
+    } else if (ctx.message?.text?.includes('/start')) {
+      const parts = ctx.message.text.split(' ');
+      payload = parts[1] || null;
+    }
+
+    // أنشئ المستخدم إن لم يوجد
     let res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     let balance = 0;
 
@@ -83,17 +186,30 @@ bot.start(async (ctx) => {
       await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [userId, 0]);
     }
 
+    // 🔵 إذا جاء عبر إحالة، سجل علاقة الإحالة لمرة واحدة
+    if (payload && /^ref_\d+$/i.test(payload)) {
+      const referrerId = Number(payload.replace(/ref_/i, ''));
+      if (referrerId && referrerId !== userId) {
+        const exists = await client.query('SELECT 1 FROM referrals WHERE referee_id = $1', [userId]);
+        if (exists.rows.length === 0) {
+          await client.query('INSERT INTO referrals (referrer_id, referee_id) VALUES ($1,$2)', [referrerId, userId]);
+          try {
+            // أرسل إشعار للمُحيل (غير مضمون لو ما بدأ البوت)
+            await bot.telegram.sendMessage(referrerId, `🎉 مستخدم جديد انضم من رابطك: ${userId}`);
+          } catch (_) {}
+        }
+      }
+    }
+
     await ctx.replyWithHTML(
       `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
       Markup.keyboard([
         ['💰 رصيدك', '🎁 مصادر الربح'],
-        ['📤 طلب سحب']
+        ['📤 طلب سحب', '👥 ريفيرال'] // 🔵 زر الريفيرال للمستخدم
       ]).resize()
     );
 
-
-    
- // رسالة الشرح (تظهر لكل مستخدم/زائر)
+    // رسالة الشرح (تظهر لكل مستخدم/زائر)
     await ctx.replyWithHTML(
       `📌 <b>طريقة العمل:</b>\n
 1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.\n
@@ -112,11 +228,6 @@ bot.start(async (ctx) => {
 - أدخل محفظة <b>Payeer</b>\n
 - بعد مراجعة الأدمن يتم الدفع ✅`
     );
-
-
-
-
-    
   } catch (err) {
     console.error('❌ /start:', err);
     await ctx.reply('حدث خطأ داخلي.');
@@ -133,6 +244,39 @@ bot.hears('💰 رصيدك', async (ctx) => {
   } catch (err) {
     console.error('❌ رصيدك:', err);
     await ctx.reply('حدث خطأ.');
+  }
+});
+
+// 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح ونبذة إحصائية
+bot.hears('👥 ريفيرال', async (ctx) => {
+  const userId = ctx.from.id;
+  const botUsername = 'YOUR_BOT_USERNAME'; // 👈 استبدلها باسم المستخدم الفعلي لبوتك بدون @
+  const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+  try {
+    // عدد الإحالات
+    const countRes = await client.query('SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1', [userId]);
+    const refsCount = Number(countRes.rows[0]?.c || 0);
+
+    // إجمالي أرباح الإحالة
+    const earnRes = await client.query('SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1', [userId]);
+    const refEarnings = Number(earnRes.rows[0]?.s || 0);
+
+    await ctx.replyWithHTML(
+`👥 <b>برنامج الإحالة</b>
+هذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:
+🔗 <code>${refLink}</code>
+
+💡 <b>كيف تُحتسب أرباح الإحالة؟</b>
+تحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك (أي نصف سنت عن كل 10 سنت يجمعها).
+
+📊 <b>إحصاءاتك</b>
+- عدد الإحالات: <b>${refsCount}</b>
+- أرباح الإحالة المتراكمة: <b>${refEarnings.toFixed(4)}$</b>`
+    );
+  } catch (e) {
+    console.error('❌ ريفيرال:', e);
+    await ctx.reply('تعذر جلب بيانات الإحالة حالياً.');
   }
 });
 
@@ -162,11 +306,9 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
 🔑 <b>طريقة سحب المال من TimeWall:</b>
 - ادخل صفحة Withdraw
 - اضغط على زر "سحب" أعلى الصفحة
-✅ الأرباح تضاف لحسابك مباشرة 💵
- `
+✅ الأرباح تضاف لحسابك مباشرة 💵`
   );
 });
-
 
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
@@ -188,15 +330,15 @@ bot.hears('📤 طلب سحب', async (ctx) => {
   }
 });
 
-// معالجة رقم Payeer أو أوامر الرصيد للأدمن
+// معالجة نصوص عامة
 bot.on('text', async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim();
 
   const menuTexts = new Set([
-    '💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب',
+    '💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب','👥 ريفيرال',
     '📋 عرض الطلبات','📊 الإحصائيات',
-    '➕ إضافة رصيد','➖ خصم رصيد',
+    '➕ إضافة רصيد','➖ خصم رصيد',
     '🚪 خروج من لوحة الأدمن'
   ]);
   if (menuTexts.has(text)) return next();
@@ -260,6 +402,14 @@ bot.on('text', async (ctx, next) => {
         if (newBalance < 0) newBalance = 0;
 
         await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, userId]);
+
+        // 🔵 عند إضافة أرباح (وليس خصم)، طبّق مكافأة الإحالة
+        if (ctx.session.awaitingAction === 'add_balance' && amount > 0) {
+          await applyReferralBonus(userId, amount);
+          try {
+            await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [userId, amount, 'admin_adjust']);
+          } catch (_) {}
+        }
 
         ctx.reply(`✅ تم ${ctx.session.awaitingAction === 'add_balance' ? 'إضافة' : 'خصم'} ${amount.toFixed(4)}$ للمستخدم ${userId}.\n💰 رصيده الجديد: ${newBalance.toFixed(4)}$`);
       } catch (err) {
@@ -346,7 +496,7 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   ctx.session = {};
   await ctx.reply('✅ خرجت من لوحة الأدمن.', Markup.keyboard([
       ['💰 رصيدك', '🎁 مصادر الربح'],
-      ['📤 طلب سحب']
+      ['📤 طلب سحب', '👥 ريفيرال']
     ]).resize()
   );
 });
@@ -384,6 +534,7 @@ bot.command('reject', async (ctx) => {
 (async () => {
   try {
     await connectDB();
+    await initSchema(); // 🔵 تجهيز جداول الإحالة
     await bot.launch();
     console.log('✅ bot.js: البوت شُغّل بنجاح');
 
