@@ -541,8 +541,11 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
     await ctx.reply('حدث خطأ فني.');
   }
 });
-
-// ---- إضافة مهمة جديدة (تحسين) ----
+bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  ctx.session.awaitingAction = 'add_task';
+  ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
+});
 bot.on('text', async (ctx, next) => {
   // فقط لو الأدمن بدأ عملية إضافة مهمة
   if (ctx.session && ctx.session.awaitingAction === 'add_task') {
