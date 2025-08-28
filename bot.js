@@ -612,79 +612,104 @@ bot.hears('📝 المهمات', async (ctx) => {
     if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام حالياً.');
 
     for (const t of res.rows) {
-  const price = parseFloat(t.price) || 0; // تحويل النص إلى رقم
-  const msg = `📋 المهمة #${t.id}\n\n` +
-              `🏷️ العنوان: ${t.title}\n` +
-              `📖 الوصف: ${t.description}\n` +
-              `💰 السعر: ${price.toFixed(4)}$\n`;
+      // تأكد أن السعر رقم
+      const price = parseFloat(t.price) || 0;
+      const text = `📋 المهمة #${t.id}\n\n` +
+                   `🏷️ العنوان: ${t.title}\n` +
+                   `📖 الوصف: ${t.description}\n` +
+                   `💰 السعر: ${price.toFixed(4)}$`;
 
-  await ctx.reply(msg, {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: `✏️ تعديل ${t.id}`, callback_data: `edit_${t.id}` }],
-        [{ text: `🗑️ حذف ${t.id}`, callback_data: `delete_${t.id}` }]
-      ]
-    }
-  });
-}
+      await ctx.reply(text, Markup.inlineKeyboard([
+        [ Markup.button.callback(`✏️ تعديل ${t.id}`, `edit_${t.id}`) ],
+        [ Markup.button.callback(`🗑️ حذف ${t.id}`, `delete_${t.id}`) ]
+      ]));
     }
   } catch (err) {
     console.error('❌ المهمات:', err);
-    ctx.reply('خطأ أثناء جلب المهمات.');
+    await ctx.reply('خطأ أثناء جلب المهمات.');
   }
 });
 
-
-// ✏️ التعديل
-bot.on('callback_query', async (ctx) => {
-  const data = ctx.callbackQuery.data;
-
-  // تعديل مهمة
-  if (data.startsWith('edit_')) {
-    if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مسموح');
-    const taskId = data.split('_')[1];
-    ctx.session.awaitingEdit = taskId;
-    await ctx.reply(`✏️ أرسل المهمة الجديدة لـ #${taskId} بصيغة:\n\nالعنوان | الوصف | السعر`);
-    return ctx.answerCbQuery();
+// ✏️ زر تعديل المهمة (يعين حالة انتظار التعديل)
+bot.action(/^edit_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) {
+    await ctx.answerCbQuery('❌ غير مسموح');
+    return;
   }
+  const taskId = ctx.match[1];
+  ctx.session.awaitingEdit = taskId;
+  await ctx.answerCbQuery(); // اغلاق الدائرة الصغيرة
+  await ctx.reply(`✏️ أرسل المهمة الجديدة لـ #${taskId} بصيغة:\n\nالعنوان | الوصف | السعر\n\nمثال:\ncoinpayu | اجمع رصيد وارفق رابط التسجيل https://... | 0.0500`);
+});
 
-  // حذف مهمة
-  if (data.startsWith('delete_')) {
-    if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مسموح');
-    const taskId = data.split('_')[1];
+// 🗑️ زر حذف المهمة
+bot.action(/^delete_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) {
+    await ctx.answerCbQuery('❌ غير مسموح');
+    return;
+  }
+  const taskId = ctx.match[1];
+  try {
+    await client.query('DELETE FROM tasks WHERE id = $1', [taskId]);
+    // حاول تعديل رسالة الزر لتُظهر أنها حُذِفت (لو ممكن)
     try {
-      await client.query('DELETE FROM tasks WHERE id=$1', [taskId]);
       await ctx.editMessageText(`🗑️ تم حذف المهمة #${taskId}`);
-    } catch (err) {
-      console.error('❌ حذف المهمة:', err);
-      ctx.reply('حدث خطأ أثناء الحذف.');
+    } catch (_) {
+      // لو لم نتمكن من تعديل الرسالة (مثلاً لأن الرسالة قديمة) نكتفي برد تأكيد
+      await ctx.reply(`🗑️ تم حذف المهمة #${taskId}`);
     }
-    return ctx.answerCbQuery();
+    await ctx.answerCbQuery();
+  } catch (err) {
+    console.error('❌ حذف المهمة:', err);
+    await ctx.answerCbQuery('حدث خطأ أثناء الحذف.');
+    await ctx.reply('حدث خطأ أثناء حذف المهمة.');
   }
 });
 
+// 📌 استلام بيانات التعديل (عند إرسال الأدمن للنص الجديد)
+bot.on('text', async (ctx, next) => {
+  // إن لم يكن الأدمن في وضع انتظار تعديل، مرّر الطلب لباقي المعالجات
+  if (!ctx.session || !ctx.session.awaitingEdit) return next();
 
-// 📌 استلام بيانات التعديل
-bot.on('text', async (ctx) => {
-  if (ctx.session.awaitingEdit) {
-    const taskId = ctx.session.awaitingEdit;
-    const parts = ctx.message.text.split('|').map(p => p.trim());
-    if (parts.length < 3) {
-      return ctx.reply('⚠️ الصيغة غير صحيحة. مثال:\ncoinpayu | سجل عبر الرابط | 0.05');
-    }
-
-    const [title, description, price] = parts;
-    try {
-      await client.query(
-        'UPDATE tasks SET title=$1, description=$2, price=$3 WHERE id=$4',
-        [title, description, parseFloat(price), taskId]
-      );
-      ctx.reply(`✅ تم تعديل المهمة #${taskId} بنجاح.`);
-    } catch (err) {
-      console.error('❌ تعديل المهمة:', err);
-      ctx.reply('حدث خطأ أثناء تعديل المهمة.');
-    }
+  // تحقق صلاحية الأدمن (أمان إضافي)
+  if (!isAdmin(ctx)) {
     ctx.session.awaitingEdit = null;
+    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+  }
+
+  const taskId = ctx.session.awaitingEdit;
+  const raw = ctx.message.text || '';
+  const parts = raw.split('|').map(p => p.trim());
+
+  if (parts.length < 3) {
+    return ctx.reply('⚠️ الصيغة غير صحيحة. مثال:\ncoinpayu | سجل عبر الرابط https://... | 0.0500');
+  }
+
+  const title = parts[0];
+  // الوصف قد يحتوي على روابط و '|' فجمعنا كل الأجزاء ما عدا الأخير كـ وصف
+  const description = parts.slice(1, -1).join(' | ');
+  const priceStr = parts[parts.length - 1];
+
+  // استخراج الرقم من آخر الجزء للتعامل مع صيغ مختلفة
+  const numMatch = priceStr.match(/[\d]+(?:[.,]\d+)*/);
+  if (!numMatch) {
+    return ctx.reply('❌ السعر غير صالح. استخدم مثلاً: 0.0500');
+  }
+  const price = parseFloat(numMatch[0].replace(',', '.'));
+  if (isNaN(price) || price <= 0) {
+    return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010 أو 0.0500');
+  }
+
+  try {
+    await client.query(
+      'UPDATE tasks SET title=$1, description=$2, price=$3 WHERE id=$4',
+      [title, description, price, taskId]
+    );
+    ctx.session.awaitingEdit = null;
+    await ctx.reply(`✅ تم تعديل المهمة #${taskId} بنجاح.\n📌 العنوان: ${title}\n💰 السعر: ${price.toFixed(4)}$`, { disable_web_page_preview: true });
+  } catch (err) {
+    console.error('❌ تعديل المهمة:', err);
+    await ctx.reply('حدث خطأ أثناء تعديل المهمة.');
   }
 });
 
