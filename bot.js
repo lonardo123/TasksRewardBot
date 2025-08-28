@@ -553,15 +553,23 @@ bot.on('text', async (ctx, next) => {
     if (parts.length !== 3) return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر');
 
     const [title, description, rewardStr] = parts;
-    const reward = parseFloat(rewardStr);
-    if (isNaN(reward)) return ctx.reply('❌ السعر غير صالح.');
+
+    // تنظيف المدخل: إزالة علامة $ إن وُجدت
+    const cleanReward = rewardStr.replace('$', '').trim();
+
+    // تحويل إلى رقم عشري
+    const reward = Number(cleanReward);
+
+    if (isNaN(reward) || reward <= 0) {
+      return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010');
+    }
 
     try {
       await client.query(
         'INSERT INTO tasks (title, description, reward) VALUES ($1,$2,$3)',
         [title, description, reward]
       );
-      ctx.reply('✅ تم إضافة المهمة بنجاح.');
+      ctx.reply(`✅ تم إضافة المهمة بنجاح.\n\n📌 العنوان: ${title}\n💰 السعر: ${reward}$`);
       delete ctx.session.awaitingAction;
     } catch (err) {
       console.error('❌ إضافة مهمة:', err);
@@ -570,6 +578,95 @@ bot.on('text', async (ctx, next) => {
     return;
   }
   return next();
+});
+
+// 📝 عرض كل المهمات (للأدمن)
+bot.hears('📝 المهمات', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  try {
+    const res = await client.query('SELECT * FROM tasks ORDER BY id DESC');
+    if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام حالياً.');
+    
+    let msg = '📋 قائمة المهمات:\n\n';
+    res.rows.forEach(t => {
+      msg += `#${t.id} - ${t.title} (${t.reward}$)\n`;
+    });
+    ctx.reply(msg);
+  } catch (err) {
+    console.error('❌ المهمات:', err);
+    ctx.reply('خطأ أثناء جلب المهمات.');
+  }
+});
+
+// 📝 إثباتات مهمات المستخدمين (للأدمن)
+bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  try {
+    const res = await client.query(
+      'SELECT * FROM task_submissions WHERE status = $1 ORDER BY id DESC LIMIT 10',
+      ['pending']
+    );
+    if (res.rows.length === 0) return ctx.reply('✅ لا توجد إثباتات معلقة.');
+
+    for (const sub of res.rows) {
+      await ctx.reply(
+        `📌 إثبات #${sub.id}\n` +
+        `👤 المستخدم: ${sub.user_id}\n` +
+        `📋 المهمة: ${sub.task_id}\n` +
+        `📝 الإثبات: ${sub.proof}\n\n` +
+        `للموافقة: /approve ${sub.id}\nللرفض: /deny ${sub.id}`
+      );
+    }
+  } catch (err) {
+    console.error('❌ اثباتات:', err);
+    ctx.reply('خطأ أثناء جلب الإثباتات.');
+  }
+});
+
+// أوامر للمراجعة
+bot.command('approve', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number(ctx.message.text.split(' ')[1]);
+  if (!id) return ctx.reply('❌ استخدم: /approve <ID>');
+
+  try {
+    const res = await client.query(
+      'UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2 RETURNING *',
+      ['approved', id]
+    );
+    if (res.rowCount === 0) return ctx.reply('❌ لم يتم العثور على الإثبات.');
+    const sub = res.rows[0];
+
+    // أضف المكافأة للمستخدم
+    const taskRes = await client.query('SELECT reward FROM tasks WHERE id=$1', [sub.task_id]);
+    if (taskRes.rows.length > 0) {
+      const reward = parseFloat(taskRes.rows[0].reward) || 0;
+      await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id=$2', [reward, sub.user_id]);
+    }
+
+    ctx.reply(`✅ تمت الموافقة على إثبات #${id} ورُصدت المكافأة للمستخدم.`);
+  } catch (e) {
+    console.error('❌ approve:', e);
+    ctx.reply('خطأ أثناء الموافقة.');
+  }
+});
+
+bot.command('deny', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number(ctx.message.text.split(' ')[1]);
+  if (!id) return ctx.reply('❌ استخدم: /deny <ID>');
+
+  try {
+    const res = await client.query(
+      'UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2',
+      ['denied', id]
+    );
+    if (res.rowCount === 0) return ctx.reply('❌ لم يتم العثور على الإثبات.');
+    ctx.reply(`⛔ تم رفض إثبات #${id}.`);
+  } catch (e) {
+    console.error('❌ deny:', e);
+    ctx.reply('خطأ أثناء الرفض.');
+  }
 });
 
 // 🔐 لوحة الأدمن - الإحصائيات
