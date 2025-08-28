@@ -1,4 +1,4 @@
-// bot.js (مجمّع كامل مع نظام المهمات + بقاء كل الوظائف القديمة)
+// bot.js (نسخة كاملة + نظام المهمات + الحفاظ على كل الوظائف القديمة)
 const { Telegraf, session, Markup } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
@@ -28,6 +28,14 @@ async function connectDB() {
 // ====== init schema (الإحالات + مهمات) ======
 async function initSchema() {
   try {
+    // users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        telegram_id BIGINT PRIMARY KEY,
+        balance NUMERIC(12,4) DEFAULT 0
+      );
+    `);
+
     // referrals
     await client.query(`
       CREATE TABLE IF NOT EXISTS referrals (
@@ -45,6 +53,29 @@ async function initSchema() {
         referrer_id BIGINT NOT NULL,
         referee_id BIGINT NOT NULL,
         amount NUMERIC(12,6) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // earnings (general)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS earnings (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        amount NUMERIC(12,6) NOT NULL,
+        source TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // withdrawals
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        amount NUMERIC(12,4) NOT NULL,
+        payeer_wallet TEXT NOT NULL,
+        status TEXT DEFAULT 'pending', -- pending | paid | rejected
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
@@ -72,7 +103,7 @@ async function initSchema() {
       );
     `);
 
-    console.log('✅ initSchema: تم تجهيز الجداول (إحالات + مهمات)');
+    console.log('✅ initSchema: تم تجهيز الجداول (users, إحالات, مهمات, withdrawals, earnings)');
   } catch (e) {
     console.error('❌ initSchema:', e);
   }
@@ -140,38 +171,13 @@ bot.command('credit', async (ctx) => {
   }
   try {
     await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [amount, targetId]);
-    try {
-      await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [targetId, amount, 'manual_credit']);
-    } catch (_) {}
+    try { await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [targetId, amount, 'manual_credit']); } catch (_) {}
     await applyReferralBonus(targetId, amount);
     return ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${targetId} وتطبيق مكافأة الإحالة (إن وجدت).`);
   } catch (e) {
     console.error('❌ /credit:', e);
     return ctx.reply('فشل في إضافة الرصيد.');
   }
-});
-
-// ====== /admin (لوحة الأدمن) ======
-bot.command('admin', async (ctx) => {
-  if (!ctx.session) ctx.session = {};
-  const userId = String(ctx.from.id);
-  const adminId = String(process.env.ADMIN_ID);
-  console.log('🎯 محاولة دخول لوحة الأدمن:', { userId, adminId });
-
-  if (userId !== adminId) {
-    console.log('❌ رفض الدخول');
-    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
-  }
-
-  ctx.session.isAdmin = true;
-
-  await ctx.reply('🔐 أهلاً بك في لوحة الأدمن. اختر العملية:', Markup.keyboard([
-    ['📋 عرض الطلبات', '📊 الإحصائيات'],
-    ['➕ إضافة رصيد', '➖ خصم رصيد'],
-    ['➕ إضافة مهمة جديدة', '📝 جدول المهمات'],
-    ['📂 إثباتات المهمات', '👥 ريفيرال'],
-    ['🚪 خروج من لوحة الأدمن']
-  ]).resize());
 });
 
 // ====== /start ======
@@ -182,21 +188,14 @@ bot.start(async (ctx) => {
   try {
     // payload handling for referral
     let payload = null;
-    if (ctx.startPayload) {
-      payload = ctx.startPayload;
-    } else if (ctx.message?.text?.includes('/start')) {
-      const parts = ctx.message.text.split(' ');
-      payload = parts[1] || null;
-    }
+    if (ctx.startPayload) payload = ctx.startPayload;
+    else if (ctx.message?.text?.includes('/start')) payload = ctx.message.text.split(' ')[1] || null;
 
     // ensure user row exists
     let res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     let balance = 0;
-    if (res.rows.length > 0) {
-      balance = parseFloat(res.rows[0].balance) || 0;
-    } else {
-      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [userId, 0]);
-    }
+    if (res.rows.length > 0) balance = parseFloat(res.rows[0].balance) || 0;
+    else await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [userId, 0]);
 
     // referral record
     if (payload && /^ref_\d+$/i.test(payload)) {
@@ -205,14 +204,12 @@ bot.start(async (ctx) => {
         const exists = await client.query('SELECT 1 FROM referrals WHERE referee_id = $1', [userId]);
         if (exists.rows.length === 0) {
           await client.query('INSERT INTO referrals (referrer_id, referee_id) VALUES ($1,$2)', [referrerId, userId]);
-          try {
-            await bot.telegram.sendMessage(referrerId, `🎉 مستخدم جديد انضم من رابطك: ${userId}`);
-          } catch (_) {}
+          try { await bot.telegram.sendMessage(referrerId, `🎉 مستخدم جديد انضم من رابطك: ${userId}`); } catch (_) {}
         }
       }
     }
 
-    // reply with keyboard (includes tasks + rate link)
+    // reply with keyboard
     await ctx.replyWithHTML(
       `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
       Markup.keyboard([
