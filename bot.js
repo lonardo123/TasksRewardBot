@@ -269,10 +269,13 @@ bot.hears('👥 ريفيرال', async (ctx) => {
   const botUsername = 'TasksRewardBot';
   const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
   try {
-    const countRes = await client.query('SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1', [userId]);
+    // حساب عدد الإحالات فقط
+    const countRes = await client.query(
+      'SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1',
+      [userId]
+    );
     const refsCount = Number(countRes.rows[0]?.c || 0);
-    const earnRes = await client.query('SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1', [userId]);
-    const refEarnings = Number(earnRes.rows[0]?.s || 0);
+
     await ctx.replyWithHTML(
 `👥 <b>برنامج الإحالة</b>
 هذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:
@@ -282,13 +285,14 @@ bot.hears('👥 ريفيرال', async (ctx) => {
 تحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك.
 
 📊 <b>إحصاءاتك</b>
-- عدد الإحالات: <b>${refsCount}</b>
+- عدد الإحالات: <b>${refsCount}</b>`
     );
   } catch (e) {
     console.error('❌ ريفيرال:', e);
     await ctx.reply('تعذر جلب بيانات الإحالة حالياً.');
   }
 });
+
 
 // 🎁 مصادر الربح (تحوي TimeWall وباقي)
 bot.hears('🎁 مصادر الربح', async (ctx) => {
