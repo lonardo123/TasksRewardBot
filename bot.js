@@ -250,7 +250,7 @@ bot.hears('💰 رصيدك', async (ctx) => {
 // 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح ونبذة إحصائية
 bot.hears('👥 ريفيرال', async (ctx) => {
   const userId = ctx.from.id;
-  const botUsername = 'YOUR_BOT_USERNAME'; // 👈 استبدلها باسم المستخدم الفعلي لبوتك بدون @
+  const botUsername = 'TasksRewardBot'; // 👈 استبدلها باسم المستخدم الفعلي لبوتك بدون @
   const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
   try {
