@@ -612,10 +612,11 @@ bot.hears('📝 المهمات', async (ctx) => {
     if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام حالياً.');
 
     for (const t of res.rows) {
+  const price = parseFloat(t.price) || 0; // تحويل النص إلى رقم
   const msg = `📋 المهمة #${t.id}\n\n` +
               `🏷️ العنوان: ${t.title}\n` +
               `📖 الوصف: ${t.description}\n` +
-              `💰 السعر: ${parseFloat(t.price).toFixed(4)}$\n`;
+              `💰 السعر: ${price.toFixed(4)}$\n`;
 
   await ctx.reply(msg, {
     reply_markup: {
