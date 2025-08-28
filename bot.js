@@ -550,9 +550,14 @@ bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
 bot.on('text', async (ctx, next) => {
   if (ctx.session.awaitingAction === 'add_task') {
     const parts = ctx.message.text.split('|').map(p => p.trim());
-    if (parts.length !== 3) return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر');
 
-    const [title, description, rewardStr] = parts;
+    if (parts.length < 3) {
+      return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر');
+    }
+
+    const title = parts[0];
+    const rewardStr = parts[parts.length - 1]; // آخر جزء هو السعر
+    const description = parts.slice(1, -1).join(' | '); // الباقي وصف حتى لو فيه |
 
     // تنظيف المدخل: إزالة علامة $ إن وُجدت
     const cleanReward = rewardStr.replace('$', '').trim();
@@ -569,7 +574,18 @@ bot.on('text', async (ctx, next) => {
         'INSERT INTO tasks (title, description, reward) VALUES ($1,$2,$3)',
         [title, description, reward]
       );
-      ctx.reply(`✅ تم إضافة المهمة بنجاح.\n\n📌 العنوان: ${title}\n💰 السعر: ${reward}$`);
+
+      // استبدال أي روابط في النص لتظهر كـ <a href="...">...</a>
+      const formattedDescription = description.replace(
+        /(https?:\/\/[^\s]+)/g,
+        '<a href="$1">رابط المهمة</a>'
+      );
+
+      ctx.reply(
+        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${reward}$`,
+        { parse_mode: 'HTML', disable_web_page_preview: true }
+      );
+
       delete ctx.session.awaitingAction;
     } catch (err) {
       console.error('❌ إضافة مهمة:', err);
@@ -579,6 +595,7 @@ bot.on('text', async (ctx, next) => {
   }
   return next();
 });
+
 
 // 📝 عرض كل المهمات (للأدمن)
 bot.hears('📝 المهمات', async (ctx) => {
