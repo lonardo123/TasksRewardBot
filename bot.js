@@ -336,39 +336,112 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
 ✅ الأرباح تضاف لحسابك مباشرة 💵`
   );
 });
-// 📌 عند اختيار مهمة لعرض التفاصيل
-bot.action(/task_(\d+)/, async (ctx) => {
-  const taskId = ctx.match[1];
+// 📋 عرض قائمة المهمات (للمستخدمين)
+bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   try {
     const res = await client.query(
-      'SELECT id, title, description, price FROM tasks WHERE id=$1',
-      [taskId]
+      'SELECT id, title, description, reward FROM tasks ORDER BY id DESC LIMIT 20'
     );
 
     if (res.rows.length === 0) {
-      return ctx.reply('❌ لم يتم العثور على هذه المهمة.');
+      return ctx.reply('❌ لا توجد مهمات متاحة حالياً.');
     }
 
-    const t = res.rows[0];
-    const msg =
-      `📋 تفاصيل المهمة #${t.id}\n\n` +
-      `🏷️ العنوان: ${t.title}\n` +
-      `📖 الوصف: ${t.description}\n` +
-      `💰 السعر: ${parseFloat(t.price).toFixed(4)}$\n\n` +
-      `🔗 بعد إتمام المهمة، أرسل الإثبات هنا.`;
+    for (const t of res.rows) {
+      const msg =
+        `📋 المهمة #${t.id}\n\n` +
+        `🏷️ العنوان: ${t.title}\n` +
+        `📖 الوصف: ${t.description}\n` +
+        `💰 السعر: ${parseFloat(t.reward).toFixed(2)}$\n\n` +
+        `▶️ لإرسال إثبات المهمة: /submit ${t.id}`;
 
-    await ctx.reply(msg, {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '✅ إرسال إثبات', callback_data: `submit_${t.id}` }]
-        ]
-      }
-    });
+      await ctx.reply(msg);
+    }
   } catch (err) {
-    console.error('❌ task details:', err);
-    ctx.reply('حدث خطأ أثناء عرض المهمة.');
+    console.error('❌ عرض المهمات:', err);
+    ctx.reply('حدث خطأ أثناء عرض المهمات.');
   }
 });
+
+
+// 📝 إثباتات مهمات المستخدمين (للأدمن)
+bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  try {
+    const res = await client.query(
+      'SELECT * FROM task_submissions WHERE status = $1 ORDER BY id DESC LIMIT 10',
+      ['pending']
+    );
+    if (res.rows.length === 0) return ctx.reply('✅ لا توجد إثباتات معلقة.');
+
+    for (const sub of res.rows) {
+      await ctx.reply(
+        `📌 إثبات #${sub.id}\n` +
+        `👤 المستخدم: ${sub.user_id}\n` +
+        `📋 المهمة: ${sub.task_id}\n` +
+        `📝 الإثبات: ${sub.proof}\n\n` +
+        `للموافقة: /approve ${sub.id}\nللرفض: /deny ${sub.id}`
+      );
+    }
+  } catch (err) {
+    console.error('❌ اثباتات:', err);
+    ctx.reply('خطأ أثناء جلب الإثباتات.');
+  }
+});
+
+
+// ✅ أمر الموافقة على إثبات (للأدمن)
+bot.command('approve', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number(ctx.message.text.split(' ')[1]);
+  if (!id) return ctx.reply('❌ استخدم: /approve <ID>');
+
+  try {
+    const res = await client.query(
+      'UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2 RETURNING *',
+      ['approved', id]
+    );
+    if (res.rowCount === 0) return ctx.reply('❌ لم يتم العثور على الإثبات.');
+    const sub = res.rows[0];
+
+    // أضف المكافأة للمستخدم
+    const taskRes = await client.query('SELECT reward FROM tasks WHERE id=$1', [sub.task_id]);
+    if (taskRes.rows.length > 0) {
+      const reward = parseFloat(taskRes.rows[0].reward) || 0;
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id=$2',
+        [reward, sub.user_id]
+      );
+    }
+
+    ctx.reply(`✅ تمت الموافقة على إثبات #${id} ورُصدت المكافأة للمستخدم.`);
+  } catch (e) {
+    console.error('❌ approve:', e);
+    ctx.reply('خطأ أثناء الموافقة.');
+  }
+});
+
+
+// ❌ أمر رفض إثبات (للأدمن)
+bot.command('deny', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number(ctx.message.text.split(' ')[1]);
+  if (!id) return ctx.reply('❌ استخدم: /deny <ID>');
+
+  try {
+    const res = await client.query(
+      'UPDATE task_submissions SET status=$1, processed_at=NOW() WHERE id=$2 RETURNING *',
+      ['denied', id]
+    );
+    if (res.rowCount === 0) return ctx.reply('❌ لم يتم العثور على الإثبات.');
+
+    ctx.reply(`❌ تم رفض الإثبات #${id}.`);
+  } catch (e) {
+    console.error('❌ deny:', e);
+    ctx.reply('خطأ أثناء الرفض.');
+  }
+});
+
 
 bot.hears('🔗 قيم البوت من هنا', (ctx) => {
   ctx.reply(
