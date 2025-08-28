@@ -546,16 +546,14 @@ bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
   ctx.session.awaitingAction = 'add_task';
   ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
 });
+
 bot.on('text', async (ctx, next) => {
-  // فقط لو الأدمن بدأ عملية إضافة مهمة
   if (ctx.session && ctx.session.awaitingAction === 'add_task') {
-    // تحقق صلاحية الأدمن أيضاً (أمان)
     if (!isAdmin(ctx)) {
       delete ctx.session.awaitingAction;
       return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
     }
 
-    // الجزء المدخل من الأدمن
     const raw = ctx.message.text || '';
     const parts = raw.split('|').map(p => p.trim());
 
@@ -564,58 +562,47 @@ bot.on('text', async (ctx, next) => {
     }
 
     const title = parts[0];
-    // الوصف هو كل الأجزاء من 1 إلى ما قبل الأخير (ندمجها مع | لترك الروابط سليمة)
     const description = parts.slice(1, -1).join(' | ');
     const rewardStr = parts[parts.length - 1];
 
-    // --- استخراج أول رقم (يتعامل مع "السعر 0.0500" أو "0,0500$") ---
     const numMatch = rewardStr.match(/[\d]+(?:[.,]\d+)*/);
     if (!numMatch) {
       return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010 أو 0.0500');
     }
 
-    let cleanReward = numMatch[0].replace(',', '.'); // 0,0500 -> 0.0500
-    const reward = parseFloat(cleanReward);
+    let cleanReward = numMatch[0].replace(',', '.');
+    const price = parseFloat(cleanReward);
 
-    if (isNaN(reward) || reward <= 0) {
+    if (isNaN(price) || price <= 0) {
       return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010');
     }
 
     try {
-      // إدخال المهمة في قاعدة البيانات
+      // استخدم price بدل reward
       const res = await client.query(
-        'INSERT INTO tasks (title, description, reward) VALUES ($1,$2,$3) RETURNING id, title, reward',
-        [title, description, reward]
+        'INSERT INTO tasks (title, description, price) VALUES ($1,$2,$3) RETURNING id, title, price',
+        [title, description, price]
       );
 
-      // أحَوّل أي روابط في الوصف إلى رابط HTML قابل للنقر عند الرد
       const formattedDescription = description.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>');
 
       await ctx.replyWithHTML(
-        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${res.rows[0].reward.toFixed(4)}$`,
+        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${res.rows[0].price.toFixed(4)}$`,
         { disable_web_page_preview: true }
       );
 
-      // أنهِ حالة الجلسة
       delete ctx.session.awaitingAction;
     } catch (err) {
-      // سجّل الخطأ المفصّل ليتضح السبب في الكونسول عند التشغيل
       console.error('❌ إضافة مهمة: ', err.message);
       console.error(err.stack);
-
-      // أعد رسالة مختصرة للمشغل حتى لا تفضح بيانات حساسة
       ctx.reply('حدث خطأ أثناء إضافة المهمة. راجع سجلات السيرفر (console) لمعرفة التفاصيل.');
-      // لا تنس أن تتفقد الكونسول/لوغر السيرفر بعد ظهور هذه الرسالة
     }
 
-    return; // نمنع الاستمرار إلى باقي المعالجات
+    return;
   }
 
-  // لو مش في وضع إضافة مهمة نمرر للتحقق التالي
   return next();
 });
-
-
 
 // 📝 عرض كل المهمات (للأدمن)
 bot.hears('📝 المهمات', async (ctx) => {
