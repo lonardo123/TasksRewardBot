@@ -587,7 +587,7 @@ bot.on('text', async (ctx, next) => {
       const formattedDescription = description.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>');
 
       await ctx.replyWithHTML(
-        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${res.rows[0].price.toFixed(4)}$`,
+        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${parseFloat(res.rows[0].price).toFixed(4)}`,
         { disable_web_page_preview: true }
       );
 
