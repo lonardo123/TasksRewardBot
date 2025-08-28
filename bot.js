@@ -45,6 +45,31 @@ async function initSchema() {
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
+    // 🔵 جدول المهمات
+await client.query(`
+  CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    reward NUMERIC(12,6) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+// 🔵 جدول إثباتات المستخدمين
+await client.query(`
+  CREATE TABLE IF NOT EXISTS task_submissions (
+    id SERIAL PRIMARY KEY,
+    task_id INT NOT NULL,
+    user_id BIGINT NOT NULL,
+    proof TEXT,
+    status VARCHAR(20) DEFAULT 'pending',
+    submitted_at TIMESTAMP DEFAULT NOW(),
+    processed_at TIMESTAMP,
+    admin_note TEXT
+  );
+`);
+
     console.log('✅ initSchema: تم تجهيز جداول الإحالات');
   } catch (e) {
     console.error('❌ initSchema:', e);
@@ -156,6 +181,7 @@ bot.command('admin', async (ctx) => {
   await ctx.reply('🔐 أهلاً بك في لوحة الأدمن. اختر العملية:', Markup.keyboard([
       ['📋 عرض الطلبات', '📊 الإحصائيات'],
       ['➕ إضافة رصيد', '➖ خصم رصيد'],
+      ['➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين']
       ['👥 ريفيرال', '🚪 خروج من لوحة الأدمن'] // 🔵 أضفنا زر ريفيرال هنا للأدمن أيضاً
     ]).resize()
   );
@@ -204,10 +230,10 @@ bot.start(async (ctx) => {
     await ctx.replyWithHTML(
   `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
   Markup.keyboard([
-    ['💰 رصيدك', '🎁 مصادر الربح'],
-    ['📤 طلب سحب', '👥 ريفيرال'],  // ✅ أضفنا الفاصلة بين الصفوف
-    ['🔗 قيم البوت من هنا']
-  ]).resize()
+  ['💰 رصيدك', '🎁 مصادر الربح'],
+  ['📤 طلب سحب', '👥 ريفيرال'],
+  ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا']
+]).resize()
 );
 
     // رسالة الشرح (تظهر لكل مستخدم/زائر)
@@ -310,6 +336,40 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
 ✅ الأرباح تضاف لحسابك مباشرة 💵`
   );
 });
+bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
+  const userId = ctx.from.id;
+  try {
+    const res = await client.query('SELECT * FROM tasks ORDER BY id ASC');
+    if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام متاحة حالياً.');
+
+    const buttons = res.rows.map(task => [Markup.button.callback(task.title, `task_${task.id}`)]);
+    await ctx.reply('اختر مهمة لعرض التفاصيل:', Markup.inlineKeyboard(buttons));
+  } catch (err) {
+    console.error('❌ مهمات:', err);
+    await ctx.reply('حدث خطأ أثناء جلب المهام.');
+  }
+});
+bot.action(/task_(\d+)/, async (ctx) => {
+  const taskId = Number(ctx.match[1]);
+  const userId = ctx.from.id;
+
+  try {
+    const res = await client.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
+    if (res.rows.length === 0) return ctx.answerCbQuery('⚠️ المهمة غير موجودة.');
+
+    const task = res.rows[0];
+
+    ctx.session.awaiting_task_submission = { taskId, userId };
+
+    await ctx.replyWithHTML(
+      `<b>${task.title}</b>\n\n${task.description}\n\n💰 المكافأة: ${task.reward.toFixed(2)}$` +
+      `\n\n📌 أرسل إثبات تنفيذ المهمة في رسالة واحدة`
+    );
+  } catch (err) {
+    console.error('❌ فتح مهمة:', err);
+    ctx.reply('حدث خطأ أثناء عرض المهمة.');
+  }
+});
 
 bot.hears('🔗 قيم البوت من هنا', (ctx) => {
   ctx.reply(
@@ -350,6 +410,29 @@ bot.on('text', async (ctx, next) => {
     '➕ إضافة רصيد','➖ خصم رصيد',
     '🚪 خروج من لوحة الأدمن'
   ]);
+  // —— إرسال إثبات المهمة ——
+if (ctx.session.awaiting_task_submission) {
+  const { taskId, userId } = ctx.session.awaiting_task_submission;
+  const proof = ctx.message.text.trim();
+
+  try {
+    await client.query(
+      'INSERT INTO task_submissions (task_id, user_id, proof) VALUES ($1,$2,$3)',
+      [taskId, userId, proof]
+    );
+
+    // حذف المهمة من جلسة المستخدم
+    delete ctx.session.awaiting_task_submission;
+
+    ctx.reply('✅ تم إرسال إثبات المهمة للأدمن للمراجعة.');
+  } catch (err) {
+    console.error('❌ إرسال إثبات المهمة:', err);
+    ctx.reply('حدث خطأ أثناء إرسال إثبات المهمة.');
+  }
+
+  return; // لمنع المعالجة لبقية الكود
+}
+
   if (menuTexts.has(text)) return next();
 
   // —— طلب السحب —— 
@@ -457,6 +540,36 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
     console.error('❌ خطأ في عرض الطلبات:', err);
     await ctx.reply('حدث خطأ فني.');
   }
+});
+bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  ctx.session.awaitingAction = 'add_task';
+  ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
+});
+
+bot.on('text', async (ctx, next) => {
+  if (ctx.session.awaitingAction === 'add_task') {
+    const parts = ctx.message.text.split('|').map(p => p.trim());
+    if (parts.length !== 3) return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر');
+
+    const [title, description, rewardStr] = parts;
+    const reward = parseFloat(rewardStr);
+    if (isNaN(reward)) return ctx.reply('❌ السعر غير صالح.');
+
+    try {
+      await client.query(
+        'INSERT INTO tasks (title, description, reward) VALUES ($1,$2,$3)',
+        [title, description, reward]
+      );
+      ctx.reply('✅ تم إضافة المهمة بنجاح.');
+      delete ctx.session.awaitingAction;
+    } catch (err) {
+      console.error('❌ إضافة مهمة:', err);
+      ctx.reply('حدث خطأ أثناء إضافة المهمة.');
+    }
+    return;
+  }
+  return next();
 });
 
 // 🔐 لوحة الأدمن - الإحصائيات
