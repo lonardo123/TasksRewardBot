@@ -415,6 +415,7 @@ bot.on('text', async (ctx, next) => {
       ctx.session.editTaskData = null;
       return ctx.reply('❌ لا تملك صلاحية أداء هذه العملية.');
     }
+
     if (ctx.session.editTaskStage === 'title') {
       ctx.session.editTaskData.title = ctx.message.text;
       ctx.session.editTaskStage = 'desc';
@@ -445,43 +446,6 @@ bot.on('text', async (ctx, next) => {
   }
 });
 
-
-  // ——— إدارة تعديل مهمة (الأدمن) ———
-  if (ctx.session.editTaskStage) {
-    if (!isAdmin(ctx)) {
-      ctx.session.editTaskStage = null;
-      ctx.session.editTaskId = null;
-      ctx.session.editTaskData = null;
-      return ctx.reply('❌ لا تملك صلاحية أداء هذه العملية.');
-    }
-    if (ctx.session.editTaskStage === 'title') {
-      ctx.session.editTaskData.title = ctx.message.text;
-      ctx.session.editTaskStage = 'desc';
-      return ctx.reply('✏️ أرسل الوصف الجديد للمهمة:');
-    } else if (ctx.session.editTaskStage === 'desc') {
-      ctx.session.editTaskData.description = ctx.message.text;
-      ctx.session.editTaskStage = 'price';
-      return ctx.reply('💵 أرسل السعر الجديد (مثال: 0.5):');
-    } else if (ctx.session.editTaskStage === 'price') {
-      const price = parseFloat(ctx.message.text);
-      if (isNaN(price)) return ctx.reply('❌ السعر غير صالح.');
-      const id = ctx.session.editTaskId;
-      const d = ctx.session.editTaskData;
-      try {
-        await client.query('UPDATE tasks SET title=$1, description=$2, price=$3 WHERE id=$4', [d.title, d.description, price, id]);
-        ctx.session.editTaskStage = null;
-        ctx.session.editTaskId = null;
-        ctx.session.editTaskData = null;
-        return ctx.reply(`✅ تم تعديل المهمة #${id} بنجاح.`);
-      } catch (e) {
-        console.error('❌ تعديل مهمة:', e);
-        ctx.session.editTaskStage = null;
-        ctx.session.editTaskId = null;
-        ctx.session.editTaskData = null;
-        return ctx.reply('❌ فشل تعديل المهمة.');
-      }
-    }
-  }
 
   // ——— طلب السحب ———
   if (ctx.session.awaiting_withdraw) {
