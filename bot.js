@@ -202,13 +202,13 @@ bot.start(async (ctx) => {
     }
 
     await ctx.replyWithHTML(
-      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
-      Markup.keyboard([
-        ['💰 رصيدك', '🎁 مصادر الربح'],
-        ['📤 طلب سحب', '👥 ريفيرال'] // 🔵 زر الريفيرال للمستخدم
-        ['🔗 قيم البوت من هنا']
-      ]).resize()
-    );
+  `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
+  Markup.keyboard([
+    ['💰 رصيدك', '🎁 مصادر الربح'],
+    ['📤 طلب سحب', '👥 ريفيرال'],  // ✅ أضفنا الفاصلة بين الصفوف
+    ['🔗 قيم البوت من هنا']
+  ]).resize()
+);
 
     // رسالة الشرح (تظهر لكل مستخدم/زائر)
     await ctx.replyWithHTML(
@@ -311,8 +311,14 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
   );
 });
 
-// 🔗 قيم البوت من هنا (زر القائمة يفتح رسالة مع الرابط) bot.hears('🔗 قيم البوت من هنا', (ctx) => { ctx.reply( 🌟 لو سمحت قيم البوت من هنا:\n👉 https://toptelegrambots.com/list/TasksRewardBot, Markup.inlineKeyboard([ [Markup.button.url('🔗 افتح صفحة التقييم', 'https://toptelegrambots.com/list/TasksRewardBot')] ]) ); });
-
+bot.hears('🔗 قيم البوت من هنا', (ctx) => {
+  ctx.reply(
+    `🌟 لو سمحت قيم البوت من هنا:\n👉 https://toptelegrambots.com/list/TasksRewardBot`,
+    Markup.inlineKeyboard([
+      [Markup.button.url('🔗 افتح صفحة التقييم', 'https://toptelegrambots.com/list/TasksRewardBot')]
+    ])
+  );
+});
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
   if (!ctx.session) ctx.session = {};
