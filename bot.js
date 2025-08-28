@@ -336,37 +336,36 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
 ✅ الأرباح تضاف لحسابك مباشرة 💵`
   );
 });
-bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
-  const userId = ctx.from.id;
-  try {
-    const res = await client.query('SELECT * FROM tasks ORDER BY id ASC');
-    if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام متاحة حالياً.');
-
-    const buttons = res.rows.map(task => [Markup.button.callback(task.title, `task_${task.id}`)]);
-    await ctx.reply('اختر مهمة لعرض التفاصيل:', Markup.inlineKeyboard(buttons));
-  } catch (err) {
-    console.error('❌ مهمات:', err);
-    await ctx.reply('حدث خطأ أثناء جلب المهام.');
-  }
-});
+// 📌 عند اختيار مهمة لعرض التفاصيل
 bot.action(/task_(\d+)/, async (ctx) => {
-  const taskId = Number(ctx.match[1]);
-  const userId = ctx.from.id;
-
+  const taskId = ctx.match[1];
   try {
-    const res = await client.query('SELECT * FROM tasks WHERE id = $1', [taskId]);
-    if (res.rows.length === 0) return ctx.answerCbQuery('⚠️ المهمة غير موجودة.');
-
-    const task = res.rows[0];
-
-    ctx.session.awaiting_task_submission = { taskId, userId };
-
-    await ctx.replyWithHTML(
-      `<b>${task.title}</b>\n\n${task.description}\n\n💰 المكافأة: ${task.reward.toFixed(2)}$` +
-      `\n\n📌 أرسل إثبات تنفيذ المهمة في رسالة واحدة`
+    const res = await client.query(
+      'SELECT id, title, description, price FROM tasks WHERE id=$1',
+      [taskId]
     );
+
+    if (res.rows.length === 0) {
+      return ctx.reply('❌ لم يتم العثور على هذه المهمة.');
+    }
+
+    const t = res.rows[0];
+    const msg =
+      `📋 تفاصيل المهمة #${t.id}\n\n` +
+      `🏷️ العنوان: ${t.title}\n` +
+      `📖 الوصف: ${t.description}\n` +
+      `💰 السعر: ${parseFloat(t.price).toFixed(4)}$\n\n` +
+      `🔗 بعد إتمام المهمة، أرسل الإثبات هنا.`;
+
+    await ctx.reply(msg, {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '✅ إرسال إثبات', callback_data: `submit_${t.id}` }]
+        ]
+      }
+    });
   } catch (err) {
-    console.error('❌ فتح مهمة:', err);
+    console.error('❌ task details:', err);
     ctx.reply('حدث خطأ أثناء عرض المهمة.');
   }
 });
