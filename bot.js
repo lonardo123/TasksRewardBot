@@ -373,7 +373,7 @@ bot.action(/task_(\d+)/, async (ctx) => {
     const t = res.rows[0];
 
     await ctx.replyWithHTML(
-      `<b>${t.title}</b>\n\n${t.description}\n\n💰 <b>${parseFloat(t.reward).toFixed(6)}$</b>`,
+      `<b>${t.title}</b>\n\n${t.description}\n\n💰 <b>${parseFloat(t.price).toFixed(6)}$</b>`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -437,6 +437,7 @@ bot.on(["text", "photo"], async (ctx) => {
     ctx.reply("حدث خطأ أثناء إرسال الإثبات.");
   }
 });
+
 
 
 bot.hears('🔗 قيم البوت من هنا', (ctx) => {
