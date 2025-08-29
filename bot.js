@@ -314,82 +314,88 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   }
 });
 
-// 📌 عرض تفاصيل المهمة (مع زر إرسال إثبات)
-bot.action(/task_(\d+)/, async (ctx) => {
+// ✅ عرض المهام مع زرار إرسال الإثبات
+bot.command("tasks", async (ctx) => {
   try {
-    const taskId = Number(ctx.match[1]);
-    const res = await client.query('SELECT * FROM tasks WHERE id=$1', [taskId]);
-    if (res.rows.length === 0) return ctx.reply('❌ لم يتم العثور على المهمة.');
+    const [tasks] = await db.query("SELECT * FROM tasks ORDER BY id DESC");
 
-    const t = res.rows[0];
-    const price = parseFloat(t.price) || 0;
+    if (!tasks.length) {
+      return ctx.reply("⚠️ لا توجد مهام حالياً.");
+    }
 
-    await ctx.replyWithHTML(
-      `<b>${t.title}</b>\n\n${t.description}\n\n💰 <b>${price.toFixed(6)}$</b>`,
-      Markup.inlineKeyboard([
-        [ Markup.button.callback('📝 إرسال إثبات', `submit_${taskId}`) ]
-      ])
-    );
-
-    await ctx.answerCbQuery();
+    for (const task of tasks) {
+      await ctx.reply(
+        `📝 المهمة: ${task.title}\n📖 الوصف: ${task.description}\n💰 السعر: ${task.price}`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "📩 إرسال إثبات", callback_data: `submit_${task.id}` }]
+            ]
+          }
+        }
+      );
+    }
   } catch (err) {
-    console.error('❌ task action:', err);
-    await ctx.reply('حدث خطأ أثناء عرض المهمة.');
+    console.error("❌ خطأ في جلب المهام:", err);
+    ctx.reply("⚠️ حدث خطأ أثناء جلب المهام.");
   }
 });
 
-// 📌 بدء إرسال الإثبات عبر الزر (callback)
-bot.action(/submit_(\d+)/, async (ctx) => {
+// ✅ عند الضغط على زر "إرسال إثبات"
+bot.action(/^submit_(\d+)$/, async (ctx) => {
   try {
-    const taskId = Number(ctx.match[1]);
-    ctx.session.awaiting_task_submission = { taskId, userId: ctx.from.id };
+    const taskId = ctx.match[1];
+    const userId = ctx.from.id;
 
-    await ctx.reply('📌 الآن أرسل إثبات المهمة (نص أو صورة مع تعليق).');
-    await ctx.answerCbQuery();
+    if (!userSessions[userId]) {
+      userSessions[userId] = {};
+    }
+
+    userSessions[userId].awaiting_task_submission = taskId;
+
+    await ctx.reply(`📩 أرسل الآن إثبات إتمام المهمة رقم ${taskId}`);
   } catch (err) {
-    console.error('❌ submit action:', err);
-    await ctx.reply('حدث خطأ أثناء بدء إرسال الإثبات.');
+    console.error("❌ submit action error:", err);
+    await ctx.reply("⚠️ حدث خطأ، حاول مرة أخرى.");
   }
 });
 
-// 📌 أمر /submit للمستخدم (بديل للزر)
-bot.command('submit', async (ctx) => {
-  const parts = (ctx.message.text || '').trim().split(/\s+/);
-  const taskId = Number(parts[1]);
-  if (!taskId) return ctx.reply('❌ استخدم: /submit <taskId>\nمثال: /submit 2');
+// ✅ استقبال الرسائل من المستخدم (إرسال الإثبات)
+bot.on("message", async (ctx) => {
+  const userId = ctx.from.id;
 
-  ctx.session.awaiting_task_submission = { taskId, userId: ctx.from.id };
-  await ctx.reply('📌 الآن أرسل إثبات المهمة (نص أو صورة مع تعليق).');
-});
-
-// 📌 استقبال النص أو الصورة كإثبات (واحد فقطhandler لتجنب الازدواج)
-bot.on(['photo', 'text'], async (ctx, next) => {
-  if (!ctx.session || !ctx.session.awaiting_task_submission) return next();
-
-  const { taskId, userId } = ctx.session.awaiting_task_submission;
-  let proof = '';
-
-  if (ctx.message.photo) {
-    const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-    const caption = ctx.message.caption || '';
-    proof = `صورة: ${fileId} ${caption}`;
-  } else {
-    proof = ctx.message.text || '';
+  if (!userSessions[userId]) {
+    userSessions[userId] = {};
   }
 
-  try {
-    await client.query(
-      'INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES ($1,$2,$3,$4,NOW())',
-      [taskId, userId, proof, 'pending']
-    );
+  const session = userSessions[userId];
 
-    await ctx.reply('✅ تم إرسال الإثبات بنجاح، سيتم مراجعته من الأدمن قريبًا.');
-    ctx.session.awaiting_task_submission = null;
-  } catch (err) {
-    console.error('❌ insert proof:', err);
-    await ctx.reply('حدث خطأ أثناء إرسال الإثبات.');
+  if (session.awaiting_task_submission) {
+    const taskId = session.awaiting_task_submission;
+
+    // نص الإثبات أو صورة
+    let proof = ctx.message.text || "";
+    if (ctx.message.photo) {
+      const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
+      proof = `صورة مرفقة - file_id: ${fileId}`;
+    }
+
+    try {
+      await db.query(
+        "INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES (?, ?, ?, 'pending', NOW())",
+        [taskId, userId, proof]
+      );
+
+      await ctx.reply("✅ تم إرسال الإثبات، وسيتم مراجعته من الإدارة.");
+
+      session.awaiting_task_submission = null; // إعادة التعيين
+    } catch (err) {
+      console.error("❌ خطأ أثناء حفظ الإثبات:", err);
+      await ctx.reply("⚠️ لم يتم حفظ الإثبات، حاول مرة أخرى.");
+    }
   }
 });
+
 
 // 🔗 قيمة البوت
 bot.hears('🔗 قيم البوت من هنا', (ctx) => {
