@@ -344,8 +344,10 @@ bot.command("tasks", async (ctx) => {
 // ✅ عند الضغط على زر "إرسال إثبات"
 bot.action(/^submit_(\d+)$/, async (ctx) => {
   try {
-    const taskId = ctx.match[1];
+    const taskId = ctx.match[1]; // رقم المهمة
     const userId = ctx.from.id;
+
+    console.log("📌 submit pressed:", { taskId, userId });
 
     if (!userSessions[userId]) {
       userSessions[userId] = {};
@@ -355,7 +357,7 @@ bot.action(/^submit_(\d+)$/, async (ctx) => {
 
     await ctx.reply(`📩 أرسل الآن إثبات إتمام المهمة رقم ${taskId}`);
   } catch (err) {
-    console.error("❌ submit action error:", err);
+    console.error("❌ submit action error:", err.message, err.stack);
     await ctx.reply("⚠️ حدث خطأ، حاول مرة أخرى.");
   }
 });
