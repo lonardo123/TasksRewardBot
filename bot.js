@@ -35,42 +35,42 @@ async function initSchema() {
         created_at  TIMESTAMP DEFAULT NOW()
       );
     `);
-    // جدول أرباح الإحالة (اختياري للتقارير)، لو عندك جدول earnings نستخدمه مباشرة أيضاً
+
+    // جدول أرباح الإحالة
     await client.query(`
       CREATE TABLE IF NOT EXISTS referral_earnings (
         id SERIAL PRIMARY KEY,
         referrer_id BIGINT NOT NULL,
-        referee_id  BIGINT NOT NULL,
+        referee_id BIGINT NOT NULL,
         amount NUMERIC(12,6) NOT NULL,
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
-    // 🔵 جدول المهمات
-await client.query(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    reward NUMERIC(12,6) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-  );
-`);
 
-// 🔵 جدول إثباتات المستخدمين
-await client.query(`
-  CREATE TABLE IF NOT EXISTS task_submissions (
-    id SERIAL PRIMARY KEY,
-    task_id INT NOT NULL,
-    user_id BIGINT NOT NULL,
-    proof TEXT,
-    status VARCHAR(20) DEFAULT 'pending',
-    submitted_at TIMESTAMP DEFAULT NOW(),
-    processed_at TIMESTAMP,
-    admin_note TEXT
-  );
-`);
+    // 🔵 جدول المهمات (استخدم price بدلاً من reward)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        price NUMERIC(12,6) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
-    console.log('✅ initSchema: تم تجهيز جداول الإحالات');
+    // 🔵 جدول إثباتات المستخدمين (task_proofs) — مطابق لما ذكرت أنه موجود في قاعدة البيانات
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_proofs (
+        id SERIAL PRIMARY KEY,
+        task_id INT NOT NULL,
+        user_id BIGINT NOT NULL,
+        proof TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    console.log('✅ initSchema: تم تجهيز جداول الإحالات والمهمات والإثباتات');
   } catch (e) {
     console.error('❌ initSchema:', e);
   }
@@ -100,32 +100,26 @@ const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
 // 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%) عند إضافة أرباح للمستخدم
 async function applyReferralBonus(earnerId, earnedAmount) {
   try {
-    // ابحث عن المُحيل لهذا المستخدم
     const ref = await client.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [earnerId]);
-    if (ref.rows.length === 0) return; // لا يوجد محيل
+    if (ref.rows.length === 0) return;
 
     const referrerId = ref.rows[0].referrer_id;
     if (!referrerId || Number(referrerId) === Number(earnerId)) return;
 
-    // 5% من أرباح المُحال
     const bonus = Number(earnedAmount) * 0.05;
     if (bonus <= 0) return;
 
-    // حدّث رصيد المُحيل
     const balRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [referrerId]);
     if (balRes.rows.length === 0) {
-      // أنشئ المستخدم إن لم يكن موجودًا
       await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [referrerId, 0]);
     }
     await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [bonus, referrerId]);
 
-    // سجل حركة أرباح الإحالة (اختياري)
     await client.query(
       'INSERT INTO referral_earnings (referrer_id, referee_id, amount) VALUES ($1,$2,$3)',
       [referrerId, earnerId, bonus]
     );
 
-    // إن كان لديك جدول earnings وتريد الظهور في الإحصائيات:
     try {
       await client.query(
         'INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)',
@@ -143,19 +137,16 @@ async function applyReferralBonus(earnerId, earnedAmount) {
 bot.command('credit', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const parts = (ctx.message.text || '').trim().split(/\s+/);
-  // /credit <userId> <amount>
   const targetId = parts[1];
   const amount = Number(parts[2]);
   if (!targetId || isNaN(amount)) {
     return ctx.reply('استخدم: /credit <userId> <amount>');
   }
   try {
-    // أضف الأرباح للمستخدم
     await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [amount, targetId]);
     try {
       await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [targetId, amount, 'manual_credit']);
     } catch (_) {}
-    // طبق مكافأة الإحالة
     await applyReferralBonus(targetId, amount);
     return ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${targetId} وتطبيق مكافأة الإحالة (إن وجدت).`);
   } catch (e) {
@@ -184,7 +175,7 @@ bot.command('admin', async (ctx) => {
     ['➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين'],
     ['👥 ريفيرال', '🚪 خروج من لوحة الأدمن']
   ]).resize()
-);
+  );
 });
 
 // 🏠 /start
@@ -193,16 +184,14 @@ bot.start(async (ctx) => {
   const firstName = ctx.from.first_name || '';
 
   try {
-    // 🔵 التقاط الـ payload الخاص بالإحالة /start ref_123
     let payload = null;
     if (ctx.startPayload) {
-      payload = ctx.startPayload; // متاح في Telegraf v4
+      payload = ctx.startPayload;
     } else if (ctx.message?.text?.includes('/start')) {
       const parts = ctx.message.text.split(' ');
       payload = parts[1] || null;
     }
 
-    // أنشئ المستخدم إن لم يوجد
     let res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     let balance = 0;
 
@@ -212,7 +201,6 @@ bot.start(async (ctx) => {
       await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [userId, 0]);
     }
 
-    // 🔵 إذا جاء عبر إحالة، سجل علاقة الإحالة لمرة واحدة
     if (payload && /^ref_\d+$/i.test(payload)) {
       const referrerId = Number(payload.replace(/ref_/i, ''));
       if (referrerId && referrerId !== userId) {
@@ -220,7 +208,6 @@ bot.start(async (ctx) => {
         if (exists.rows.length === 0) {
           await client.query('INSERT INTO referrals (referrer_id, referee_id) VALUES ($1,$2)', [referrerId, userId]);
           try {
-            // أرسل إشعار للمُحيل (غير مضمون لو ما بدأ البوت)
             await bot.telegram.sendMessage(referrerId, `🎉 مستخدم جديد انضم من رابطك: ${userId}`);
           } catch (_) {}
         }
@@ -228,32 +215,16 @@ bot.start(async (ctx) => {
     }
 
     await ctx.replyWithHTML(
-  `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
-  Markup.keyboard([
-  ['💰 رصيدك', '🎁 مصادر الربح'],
-  ['📤 طلب سحب', '👥 ريفيرال'],
-  ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا']
-]).resize()
-);
+      `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
+      Markup.keyboard([
+        ['💰 رصيدك', '🎁 مصادر الربح'],
+        ['📤 طلب سحب', '👥 ريفيرال'],
+        ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا']
+      ]).resize()
+    );
 
-    // رسالة الشرح (تظهر لكل مستخدم/زائر)
     await ctx.replyWithHTML(
-      `📌 <b>طريقة العمل:</b>\n
-1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.\n
-2️⃣ اختر 🕒 <b>TimeWall</b>.\n
-3️⃣ اربط حسابك عبر الرابط الظاهر.\n
-4️⃣ نفّذ المهام (مشاهدة إعلانات – تنفيذ مهمات بسيطة).\n
-\n
-🔑 <b>طريقة سحب المال من TimeWall:</b>\n
-- ادخل صفحة Withdraw\n
-- اضغط على زر "سحب" أعلى الصفحة\n
-- الأرباح تضاف لحسابك مباشرة 💵\n
-\n
-💰 <b>السحب من البوت:</b>\n
-- الحد الأدنى: 1$\n
-- اختر 📤 <b>طلب سحب</b>\n
-- أدخل محفظة <b>Payeer</b>\n
-- بعد مراجعة الأدمن يتم الدفع ✅`
+      `📌 <b>طريقة العمل:</b>\n\n1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.\n\n2️⃣ اختر 🕒 <b>TimeWall</b>.\n\n3️⃣ اربط حسابك عبر الرابط الظاهر.\n\n4️⃣ نفّذ المهام (مشاهدة إعلانات – تنفيذ مهمات بسيطة).\n\n\n🔑 <b>طريقة سحب المال من TimeWall:</b>\n- ادخل صفحة Withdraw\n- اضغط على زر "سحب" أعلى الصفحة\n- الأرباح تضاف لحسابك مباشرة 💵\n\n\n💰 <b>السحب من البوت:</b>\n- الحد الأدنى: 1$\n- اختر 📤 <b>طلب سحب</b>\n- أدخل محفظة <b>Payeer</b>\n- بعد مراجعة الأدمن يتم الدفع ✅`
     );
   } catch (err) {
     console.error('❌ /start:', err);
@@ -274,31 +245,21 @@ bot.hears('💰 رصيدك', async (ctx) => {
   }
 });
 
-// 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح ونبذة إحصائية
+// 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح
 bot.hears('👥 ريفيرال', async (ctx) => {
   const userId = ctx.from.id;
-  const botUsername = 'TasksRewardBot'; // 👈 استبدلها باسم المستخدم الفعلي لبوتك بدون @
+  const botUsername = 'TasksRewardBot';
   const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
   try {
-    // عدد الإحالات
     const countRes = await client.query('SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1', [userId]);
     const refsCount = Number(countRes.rows[0]?.c || 0);
 
-    // إجمالي أرباح الإحالة
     const earnRes = await client.query('SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1', [userId]);
     const refEarnings = Number(earnRes.rows[0]?.s || 0);
 
     await ctx.replyWithHTML(
-`👥 <b>برنامج الإحالة</b>
-هذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:
-🔗 <code>${refLink}</code>
-
-💡 <b>كيف تُحتسب أرباح الإحالة؟</b>
-تحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك (أي نصف سنت عن كل 10 سنت يجمعها).
-
-📊 <b>إحصاءاتك</b>
-- عدد الإحالات: <b>${refsCount}</b>`
+`👥 <b>برنامج الإحالة</b>\nهذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:\n🔗 <code>${refLink}</code>\n\n💡 <b>كيف تُحتسب أرباح الإحالة؟</b>\nتحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك (أي نصف سنت عن كل 10 سنت يجمعها).\n\n📊 <b>إحصاءاتك</b>\n- عدد الإحالات: <b>${refsCount}</b>`
     );
   } catch (e) {
     console.error('❌ ريفيرال:', e);
@@ -306,14 +267,12 @@ bot.hears('👥 ريفيرال', async (ctx) => {
   }
 });
 
-
 // 🎁 مصادر الربح
 bot.hears('🎁 مصادر الربح', async (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
   const tasksRewardBotUrl = "https://tasksrewardbot.neocities.org";
 
-  // أولاً: عرض الأزرار
   await ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
@@ -322,40 +281,32 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
     ])
   );
 
-  // ثانياً: إرسال رسالة الشرح
   await ctx.replyWithHTML(
-`📌 <b>طريقة العمل:</b>
-1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.
-2️⃣ اختر 🕒 <b>TimeWall</b>.
-3️⃣ اربط حسابك عبر الرابط الظاهر.
-4️⃣ نفّذ المهام (مشاهدة إعلانات – تنفيذ مهمات بسيطة).
-
-🔑 <b>طريقة سحب المال من TimeWall:</b>
-- ادخل صفحة Withdraw
-- اضغط على زر "سحب" أعلى الصفحة
-✅ الأرباح تضاف لحسابك مباشرة 💵`
+`📌 <b>طريقة العمل:</b>\n1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.\n2️⃣ اختر 🕒 <b>TimeWall</b>.\n3️⃣ اربط حسابك عبر الرابط الظاهر.\n4️⃣ نفّذ المهام (مشاهدة إعلانات – تنفيذ مهام بسيطة).\n\n🔑 <b>طريقة سحب المال من TimeWall:</b>\n- ادخل صفحة Withdraw\n- اضغط على زر "سحب" أعلى الصفحة\n✅ الأرباح تضاف لحسابك مباشرة 💵`
   );
 });
-// 📝 عرض المهمات
+
+// 📝 عرض المهمات (للمستخدمين)
 bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   try {
-    const res = await client.query(
-      'SELECT id, title, description, price FROM tasks ORDER BY id DESC LIMIT 20'
-    );
+    const res = await client.query('SELECT id, title, description, price FROM tasks ORDER BY id DESC LIMIT 20');
 
     if (res.rows.length === 0) {
       return ctx.reply('❌ لا توجد مهمات متاحة حالياً.');
     }
 
     for (const t of res.rows) {
+      const price = parseFloat(t.price) || 0;
       const msg =
         `📋 المهمة #${t.id}\n\n` +
         `🏷️ العنوان: ${t.title}\n` +
         `📖 الوصف: ${t.description}\n` +
-        `💰 السعر: ${parseFloat(t.price).toFixed(2)}$\n\n` +
-        `▶️ لإرسال إثبات المهمة: /submit ${t.id}`;
+        `💰 السعر: ${price.toFixed(6)}$\n\n` +
+        `▶️ لإرسال إثبات المهمة: اضغط زر "📝 إرسال إثبات" أو اكتب /submit ${t.id}`;
 
-      await ctx.reply(msg);
+      await ctx.reply(msg, Markup.inlineKeyboard([
+        [ Markup.button.callback('📝 إرسال إثبات', `submit_${t.id}`) ]
+      ]));
     }
   } catch (err) {
     console.error('❌ عرض المهمات:', err);
@@ -363,7 +314,7 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   }
 });
 
-// 📌 عرض تفاصيل المهمة
+// 📌 عرض تفاصيل المهمة (مع زر إرسال إثبات)
 bot.action(/task_(\d+)/, async (ctx) => {
   try {
     const taskId = Number(ctx.match[1]);
@@ -371,16 +322,13 @@ bot.action(/task_(\d+)/, async (ctx) => {
     if (res.rows.length === 0) return ctx.reply('❌ لم يتم العثور على المهمة.');
 
     const t = res.rows[0];
+    const price = parseFloat(t.price) || 0;
 
     await ctx.replyWithHTML(
-      `<b>${t.title}</b>\n\n${t.description}\n\n💰 <b>${parseFloat(t.price).toFixed(6)}$</b>`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "📝 إرسال إثبات", callback_data: `submit_${taskId}` }]
-          ]
-        }
-      }
+      `<b>${t.title}</b>\n\n${t.description}\n\n💰 <b>${price.toFixed(6)}$</b>`,
+      Markup.inlineKeyboard([
+        [ Markup.button.callback('📝 إرسال إثبات', `submit_${taskId}`) ]
+      ])
     );
 
     await ctx.answerCbQuery();
@@ -390,56 +338,60 @@ bot.action(/task_(\d+)/, async (ctx) => {
   }
 });
 
-// 📌 بدء إرسال الإثبات
+// 📌 بدء إرسال الإثبات عبر الزر (callback)
 bot.action(/submit_(\d+)/, async (ctx) => {
   try {
     const taskId = Number(ctx.match[1]);
     ctx.session.awaiting_task_submission = { taskId, userId: ctx.from.id };
 
-    await ctx.reply(
-      "✍️ من فضلك أرسل الآن إثبات تنفيذ المهمة (نص أو صورة).",
-      { reply_markup: { force_reply: true } }
-    );
-
+    await ctx.reply('📌 الآن أرسل إثبات المهمة (نص أو صورة مع تعليق).');
     await ctx.answerCbQuery();
   } catch (err) {
-    console.error("❌ submit action:", err);
-    await ctx.reply("حدث خطأ أثناء بدء إرسال الإثبات.");
+    console.error('❌ submit action:', err);
+    await ctx.reply('حدث خطأ أثناء بدء إرسال الإثبات.');
   }
 });
 
-// 📌 استقبال النص أو الصورة كإثبات
-bot.on(["text", "photo"], async (ctx) => {
-  if (!ctx.session.awaiting_task_submission) return;
+// 📌 أمر /submit للمستخدم (بديل للزر)
+bot.command('submit', async (ctx) => {
+  const parts = (ctx.message.text || '').trim().split(/\s+/);
+  const taskId = Number(parts[1]);
+  if (!taskId) return ctx.reply('❌ استخدم: /submit <taskId>\nمثال: /submit 2');
+
+  ctx.session.awaiting_task_submission = { taskId, userId: ctx.from.id };
+  await ctx.reply('📌 الآن أرسل إثبات المهمة (نص أو صورة مع تعليق).');
+});
+
+// 📌 استقبال النص أو الصورة كإثبات (واحد فقطhandler لتجنب الازدواج)
+bot.on(['photo', 'text'], async (ctx, next) => {
+  if (!ctx.session || !ctx.session.awaiting_task_submission) return next();
 
   const { taskId, userId } = ctx.session.awaiting_task_submission;
-  let proof = "";
+  let proof = '';
 
   if (ctx.message.photo) {
     const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-    const caption = ctx.message.caption || "";
+    const caption = ctx.message.caption || '';
     proof = `صورة: ${fileId} ${caption}`;
   } else {
-    proof = ctx.message.text;
+    proof = ctx.message.text || '';
   }
 
   try {
     await client.query(
-      "INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES ($1,$2,$3,'pending',NOW())",
-      [taskId, userId, proof]
+      'INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES ($1,$2,$3,$4,NOW())',
+      [taskId, userId, proof, 'pending']
     );
 
-    ctx.reply("✅ تم إرسال الإثبات بنجاح، سيتم مراجعته من الأدمن قريبًا.");
-
+    await ctx.reply('✅ تم إرسال الإثبات بنجاح، سيتم مراجعته من الأدمن قريبًا.');
     ctx.session.awaiting_task_submission = null;
   } catch (err) {
-    console.error("❌ insert proof:", err);
-    ctx.reply("حدث خطأ أثناء إرسال الإثبات.");
+    console.error('❌ insert proof:', err);
+    await ctx.reply('حدث خطأ أثناء إرسال الإثبات.');
   }
 });
 
-
-
+// 🔗 قيمة البوت
 bot.hears('🔗 قيم البوت من هنا', (ctx) => {
   ctx.reply(
     `🌟 لو سمحت قيم البوت من هنا:\n👉 https://toptelegrambots.com/list/TasksRewardBot`,
@@ -448,6 +400,7 @@ bot.hears('🔗 قيم البوت من هنا', (ctx) => {
     ])
   );
 });
+
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
   if (!ctx.session) ctx.session = {};
@@ -468,7 +421,7 @@ bot.hears('📤 طلب سحب', async (ctx) => {
   }
 });
 
-// معالجة نصوص عامة
+// معالجة نصوص عامة (سابقاً كان فيها تعارض مع إرسال الإثبات) — لا تزدوج إرسال الإثبات هنا
 bot.on('text', async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim();
@@ -479,32 +432,8 @@ bot.on('text', async (ctx, next) => {
     '➕ إضافة רصيد','➖ خصم رصيد',
     '🚪 خروج من لوحة الأدمن'
   ]);
-  // —— إرسال إثبات المهمة ——
-if (ctx.session.awaiting_task_submission) {
-  const { taskId, userId } = ctx.session.awaiting_task_submission;
-  const proof = ctx.message.text.trim();
 
-  try {
-    await client.query(
-      'INSERT INTO task_submissions (task_id, user_id, proof) VALUES ($1,$2,$3)',
-      [taskId, userId, proof]
-    );
-
-    // حذف المهمة من جلسة المستخدم
-    delete ctx.session.awaiting_task_submission;
-
-    ctx.reply('✅ تم إرسال إثبات المهمة للأدمن للمراجعة.');
-  } catch (err) {
-    console.error('❌ إرسال إثبات المهمة:', err);
-    ctx.reply('حدث خطأ أثناء إرسال إثبات المهمة.');
-  }
-
-  return; // لمنع المعالجة لبقية الكود
-}
-
-  if (menuTexts.has(text)) return next();
-
-  // —— طلب السحب —— 
+  // —— طلب السحب ——
   if (ctx.session.awaiting_withdraw) {
     if (!/^P\d{8,}$/i.test(text)) {
       return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
@@ -522,11 +451,7 @@ if (ctx.session.awaiting_task_submission) {
       const withdrawAmount = Math.floor(balance * 100) / 100;
       const remaining = balance - withdrawAmount;
 
-      await client.query(
-        'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
-        [userId, withdrawAmount, text.toUpperCase()]
-      );
-
+      await client.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
       await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
 
       await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${withdrawAmount.toFixed(2)}$. رصيدك المتبقي: ${remaining.toFixed(4)}$`);
@@ -535,10 +460,12 @@ if (ctx.session.awaiting_task_submission) {
       console.error('❌ خطأ في معالجة السحب:', err);
       await ctx.reply('حدث خطأ داخلي.');
     }
+
+    return;
   }
 
-  // —— إضافة / خصم رصيد —— 
-  else if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
+  // —— إضافة / خصم رصيد ——
+  if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
     if (!ctx.session.targetUser) {
       ctx.session.targetUser = text;
       return ctx.reply('💵 أرسل المبلغ:');
@@ -564,12 +491,9 @@ if (ctx.session.awaiting_task_submission) {
 
         await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, userId]);
 
-        // 🔵 عند إضافة أرباح (وليس خصم)، طبّق مكافأة الإحالة
         if (ctx.session.awaitingAction === 'add_balance' && amount > 0) {
           await applyReferralBonus(userId, amount);
-          try {
-            await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [userId, amount, 'admin_adjust']);
-          } catch (_) {}
+          try { await client.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)', [userId, amount, 'admin_adjust']); } catch(_){}
         }
 
         ctx.reply(`✅ تم ${ctx.session.awaitingAction === 'add_balance' ? 'إضافة' : 'خصم'} ${amount.toFixed(4)}$ للمستخدم ${userId}.\n💰 رصيده الجديد: ${newBalance.toFixed(4)}$`);
@@ -579,12 +503,12 @@ if (ctx.session.awaiting_task_submission) {
       }
 
       ctx.session = {};
+      return;
     }
   }
 
-  else {
-    return next();
-  }
+  if (menuTexts.has(text)) return next();
+  return next();
 });
 
 // 🔐 لوحة الأدمن - عرض الطلبات
@@ -610,12 +534,14 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
     await ctx.reply('حدث خطأ فني.');
   }
 });
+
 bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
   if (!isAdmin(ctx)) return;
   ctx.session.awaitingAction = 'add_task';
   ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
 });
 
+// إضافة مهمة - أدمن
 bot.on('text', async (ctx, next) => {
   if (ctx.session && ctx.session.awaitingAction === 'add_task') {
     if (!isAdmin(ctx)) {
@@ -647,7 +573,6 @@ bot.on('text', async (ctx, next) => {
     }
 
     try {
-      // استخدم price بدل reward
       const res = await client.query(
         'INSERT INTO tasks (title, description, price) VALUES ($1,$2,$3) RETURNING id, title, price',
         [title, description, price]
@@ -681,7 +606,6 @@ bot.hears('📝 المهمات', async (ctx) => {
     if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام حالياً.');
 
     for (const t of res.rows) {
-      // تأكد أن السعر رقم
       const price = parseFloat(t.price) || 0;
       const text = `📋 المهمة #${t.id}\n\n` +
                    `🏷️ العنوان: ${t.title}\n` +
@@ -707,7 +631,7 @@ bot.action(/^edit_(\d+)$/, async (ctx) => {
   }
   const taskId = ctx.match[1];
   ctx.session.awaitingEdit = taskId;
-  await ctx.answerCbQuery(); // اغلاق الدائرة الصغيرة
+  await ctx.answerCbQuery();
   await ctx.reply(`✏️ أرسل المهمة الجديدة لـ #${taskId} بصيغة:\n\nالعنوان | الوصف | السعر\n\nمثال:\ncoinpayu | اجمع رصيد وارفق رابط التسجيل https://... | 0.0500`);
 });
 
@@ -720,11 +644,9 @@ bot.action(/^delete_(\d+)$/, async (ctx) => {
   const taskId = ctx.match[1];
   try {
     await client.query('DELETE FROM tasks WHERE id = $1', [taskId]);
-    // حاول تعديل رسالة الزر لتُظهر أنها حُذِفت (لو ممكن)
     try {
       await ctx.editMessageText(`🗑️ تم حذف المهمة #${taskId}`);
     } catch (_) {
-      // لو لم نتمكن من تعديل الرسالة (مثلاً لأن الرسالة قديمة) نكتفي برد تأكيد
       await ctx.reply(`🗑️ تم حذف المهمة #${taskId}`);
     }
     await ctx.answerCbQuery();
@@ -737,10 +659,7 @@ bot.action(/^delete_(\d+)$/, async (ctx) => {
 
 // 📌 استلام بيانات التعديل (عند إرسال الأدمن للنص الجديد)
 bot.on('text', async (ctx, next) => {
-  // إن لم يكن الأدمن في وضع انتظار تعديل، مرّر الطلب لباقي المعالجات
   if (!ctx.session || !ctx.session.awaitingEdit) return next();
-
-  // تحقق صلاحية الأدمن (أمان إضافي)
   if (!isAdmin(ctx)) {
     ctx.session.awaitingEdit = null;
     return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
@@ -755,11 +674,9 @@ bot.on('text', async (ctx, next) => {
   }
 
   const title = parts[0];
-  // الوصف قد يحتوي على روابط و '|' فجمعنا كل الأجزاء ما عدا الأخير كـ وصف
   const description = parts.slice(1, -1).join(' | ');
   const priceStr = parts[parts.length - 1];
 
-  // استخراج الرقم من آخر الجزء للتعامل مع صيغ مختلفة
   const numMatch = priceStr.match(/[\d]+(?:[.,]\d+)*/);
   if (!numMatch) {
     return ctx.reply('❌ السعر غير صالح. استخدم مثلاً: 0.0500');
@@ -770,10 +687,7 @@ bot.on('text', async (ctx, next) => {
   }
 
   try {
-    await client.query(
-      'UPDATE tasks SET title=$1, description=$2, price=$3 WHERE id=$4',
-      [title, description, price, taskId]
-    );
+    await client.query('UPDATE tasks SET title=$1, description=$2, price=$3 WHERE id=$4', [title, description, price, taskId]);
     ctx.session.awaitingEdit = null;
     await ctx.reply(`✅ تم تعديل المهمة #${taskId} بنجاح.\n📌 العنوان: ${title}\n💰 السعر: ${price.toFixed(4)}$`, { disable_web_page_preview: true });
   } catch (err) {
@@ -782,94 +696,139 @@ bot.on('text', async (ctx, next) => {
   }
 });
 
-// 📌 عرض قائمة الإثباتات في الانتظار (لأدمن فقط)
-bot.command("tasks_admin", async (ctx) => {
-  const adminId = ctx.from.id;
-  if (adminId !== ADMIN_ID) return ctx.reply("❌ هذا الأمر مخصص للأدمن فقط.");
-
+// =================== إثباتات مهمات المستخدمين (للأدمن) ===================
+bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => {
+  if (!isAdmin(ctx)) return;
   try {
     const res = await client.query(
-      "SELECT tp.id, tp.task_id, tp.user_id, tp.proof, tp.status, tp.created_at, t.title, t.price " +
-      "FROM task_proofs tp JOIN tasks t ON tp.task_id = t.id " +
-      "WHERE tp.status='pending' ORDER BY tp.created_at ASC LIMIT 10"
+      `SELECT tp.id, tp.task_id, tp.user_id, tp.proof, tp.status, tp.created_at, t.title, t.price
+       FROM task_proofs tp
+       JOIN tasks t ON t.id = tp.task_id
+       WHERE tp.status = $1
+       ORDER BY tp.id DESC
+       LIMIT 10`,
+      ['pending']
     );
 
-    if (res.rows.length === 0) return ctx.reply("📭 لا توجد إثباتات معلقة الآن.");
+    if (res.rows.length === 0) return ctx.reply('✅ لا توجد إثباتات معلقة.');
 
-    for (const row of res.rows) {
-      await ctx.replyWithHTML(
-        `📌 <b>مهمة:</b> ${row.title}\n` +
-        `👤 <b>User ID:</b> ${row.user_id}\n` +
-        `💰 <b>السعر:</b> ${parseFloat(row.price).toFixed(6)}$\n` +
-        `📝 <b>الإثبات:</b> ${row.proof}\n\n` +
-        `⏰ ${row.created_at}`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: "✅ قبول", callback_data: `approve_${row.id}` },
-                { text: "❌ رفض", callback_data: `reject_${row.id}` }
-              ]
-            ]
-          }
-        }
-      );
+    for (const sub of res.rows) {
+      const price = parseFloat(sub.price) || 0;
+      const text =
+        `📌 إثبات #${sub.id}\n` +
+        `👤 المستخدم: <code>${sub.user_id}</code>\n` +
+        `📋 المهمة: ${sub.title} (ID: ${sub.task_id})\n` +
+        `💰 المكافأة: ${price.toFixed(4)}$\n` +
+        `📝 الإثبات:\n${sub.proof}`;
+
+      await ctx.replyWithHTML(text, Markup.inlineKeyboard([
+        [ Markup.button.callback('✅ موافقة', `approve_${sub.id}`), Markup.button.callback('❌ رفض', `deny_${sub.id}`) ]
+      ]));
     }
   } catch (err) {
-    console.error("❌ tasks_admin:", err);
-    ctx.reply("حدث خطأ أثناء جلب الإثباتات.");
+    console.error('❌ اثباتات:', err);
+    ctx.reply('خطأ أثناء جلب الإثباتات.');
   }
 });
 
-// 📌 قبول الإثبات
-bot.action(/approve_(\d+)/, async (ctx) => {
-  const proofId = Number(ctx.match[1]);
+// approve via callback (inline button)
+bot.action(/^approve_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) { await ctx.answerCbQuery('❌ غير مسموح'); return; }
+  const subId = Number(ctx.match[1]);
+  await ctx.answerCbQuery();
 
   try {
-    // جلب الإثبات مع المهمة
-    const res = await client.query(
-      "SELECT tp.id, tp.user_id, tp.task_id, t.price " +
-      "FROM task_proofs tp JOIN tasks t ON tp.task_id = t.id " +
-      "WHERE tp.id=$1",
-      [proofId]
-    );
+    await client.query('BEGIN');
+    const subRes = await client.query('SELECT * FROM task_proofs WHERE id = $1 AND status = $2', [subId, 'pending']);
+    if (subRes.rows.length === 0) { await client.query('ROLLBACK'); return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته مسبقاً.'); }
+    const sub = subRes.rows[0];
 
-    if (res.rows.length === 0) return ctx.reply("❌ لم يتم العثور على الإثبات.");
+    const taskRes = await client.query('SELECT price, title FROM tasks WHERE id = $1', [sub.task_id]);
+    const price = parseFloat(taskRes.rows[0]?.price) || 0;
 
-    const proof = res.rows[0];
+    const updRes = await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2 RETURNING *', [price, sub.user_id]);
+    if (updRes.rowCount === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]);
+    }
 
-    // تحديث حالة الإثبات
-    await client.query("UPDATE task_proofs SET status='approved' WHERE id=$1", [proofId]);
+    try { await client.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [sub.user_id, price, 'task', `task_proof:${subId}`]); } catch(_){}
 
-    // إضافة الرصيد للمستخدم
-    await client.query(
-      "UPDATE users SET balance = balance + $1 WHERE user_id=$2",
-      [proof.price, proof.user_id]
-    );
+    await client.query('UPDATE task_proofs SET status=$1 WHERE id=$2', ['approved', subId]);
+    await client.query('COMMIT');
 
-    await ctx.reply(`✅ تم قبول إثبات #${proofId} وتم إضافة ${proof.price}$ لرصيد المستخدم ${proof.user_id}.`);
-    await ctx.answerCbQuery("تمت الموافقة ✅");
+    try { await applyReferralBonus(sub.user_id, price); } catch(e){ console.error(e); }
+
+    try { await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`); } catch(_) { await ctx.reply(`✅ تمت الموافقة على الإثبات #${subId} ورصدت المكافأة للمستخدم.`); }
+
+    try { await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`); } catch(_){}
   } catch (err) {
-    console.error("❌ approve:", err);
-    ctx.reply("حدث خطأ أثناء الموافقة.");
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('❌ approve callback error:', err);
+    await ctx.reply('حدث خطأ أثناء الموافقة على الإثبات.');
   }
 });
 
-// 📌 رفض الإثبات
-bot.action(/reject_(\d+)/, async (ctx) => {
-  const proofId = Number(ctx.match[1]);
+// deny via callback (inline button)
+bot.action(/^deny_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) { await ctx.answerCbQuery('❌ غير مسموح'); return; }
+  const subId = Number(ctx.match[1]);
+  await ctx.answerCbQuery();
 
   try {
-    await client.query("UPDATE task_proofs SET status='rejected' WHERE id=$1", [proofId]);
-
-    await ctx.reply(`❌ تم رفض إثبات #${proofId}.`);
-    await ctx.answerCbQuery("تم الرفض ❌");
+    const res = await client.query('UPDATE task_proofs SET status=$1 WHERE id=$2 AND status=$3 RETURNING *', ['rejected', subId, 'pending']);
+    if (res.rowCount === 0) return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته سابقًا.');
+    try { await ctx.editMessageText(`❌ تم رفض الإثبات #${subId}`); } catch(_) { await ctx.reply(`❌ تم رفض الإثبات #${subId}`); }
+    try { await bot.telegram.sendMessage(res.rows[0].user_id, `❌ تم رفض إثبات المهمة (ID: ${res.rows[0].task_id}). يمكنك إعادة المحاولة إن استوفيت المطلوب.`); } catch(_){}
   } catch (err) {
-    console.error("❌ reject:", err);
-    ctx.reply("حدث خطأ أثناء الرفض.");
+    console.error('❌ deny callback error:', err);
+    await ctx.reply('حدث خطأ أثناء رفض الإثبات.');
   }
 });
 
+// نصي: /approve و /deny (بدائل للأزرار)
+bot.command('approve', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number((ctx.message.text.split(' ')[1] || '').trim());
+  if (!id) return ctx.reply('❌ استخدم: /approve <ID>');
+
+  try {
+    await client.query('BEGIN');
+    const subRes = await client.query('SELECT * FROM task_proofs WHERE id = $1 AND status = $2', [id, 'pending']);
+    if (subRes.rows.length === 0) { await client.query('ROLLBACK'); return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته مسبقًا.'); }
+    const sub = subRes.rows[0];
+    const taskRes = await client.query('SELECT price FROM tasks WHERE id = $1', [sub.task_id]);
+    const price = parseFloat(taskRes.rows[0]?.price) || 0;
+
+    const updRes = await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2 RETURNING *', [price, sub.user_id]);
+    if (updRes.rowCount === 0) { await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]); }
+    try { await client.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [sub.user_id, price, 'task', `task_proof:${id}`]); } catch(_){}
+    await client.query('UPDATE task_proofs SET status=$1 WHERE id=$2', ['approved', id]);
+    await client.query('COMMIT');
+    await applyReferralBonus(sub.user_id, price);
+    await ctx.reply(`✅ تمت الموافقة على الإثبات #${id} ورُصدت المكافأة (${price.toFixed(4)}$) للمستخدم.`);
+    try { await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة. ${price.toFixed(4)}$ أُضيفت إلى رصيدك.`); } catch(_){}
+  } catch (err) {
+    await client.query('ROLLBACK').catch(()=>{});
+    console.error('❌ approve command error:', err);
+    await ctx.reply('حدث خطأ أثناء الموافقة.');
+  }
+});
+
+bot.command('deny', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  const id = Number((ctx.message.text.split(' ')[1] || '').trim());
+  if (!id) return ctx.reply('❌ استخدم: /deny <ID>');
+
+  try {
+    const res = await client.query('UPDATE task_proofs SET status=$1 WHERE id=$2 AND status=$3 RETURNING *', ['rejected', id, 'pending']);
+    if (res.rowCount === 0) return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته سابقًا.');
+    await ctx.reply(`❌ تم رفض الإثبات #${id}`);
+    try { await bot.telegram.sendMessage(res.rows[0].user_id, `❌ تم رفض إثبات المهمة (ID: ${res.rows[0].task_id}).`); } catch(_){}
+  } catch (err) {
+    console.error('❌ deny command error:', err);
+    await ctx.reply('حدث خطأ أثناء الرفض.');
+  }
+});
 
 // 🔐 لوحة الأدمن - الإحصائيات
 bot.hears('📊 الإحصائيات', async (ctx) => {
@@ -955,7 +914,7 @@ bot.command('reject', async (ctx) => {
 (async () => {
   try {
     await connectDB();
-    await initSchema(); // 🔵 تجهيز جداول الإحالة
+    await initSchema();
     await bot.launch();
     console.log('✅ bot.js: البوت شُغّل بنجاح');
 
