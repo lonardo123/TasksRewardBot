@@ -379,12 +379,13 @@ bot.on("message", async (ctx) => {
     let proof = ctx.message.text || "";
     if (ctx.message.photo) {
       const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-      proof = `صورة مرفقة - file_id: ${fileId}`;
+      proof = `📷 صورة مرفقة - file_id: ${fileId}`;
     }
 
     try {
-      await db.query(
-        "INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES (?, ?, ?, 'pending', NOW())",
+      // ✅ PostgreSQL بصيغة صحيحة
+      await client.query(
+        "INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES ($1, $2, $3, 'pending', NOW())",
         [taskId, userId, proof]
       );
 
