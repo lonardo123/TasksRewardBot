@@ -25,15 +25,39 @@ async function connectDB() {
   }
 }
 
-// 🔵 إنشاء/تحديث الجدول الخاص بالإحالات عند الإقلاع
+// 🔵 إنشاء/تحديث جميع الجداول عند الإقلاع
 async function initSchema() {
   try {
+    // جدول المستخدمين
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        telegram_id BIGINT UNIQUE NOT NULL,
+        balance NUMERIC(12,6) DEFAULT 0,
+        payeer_wallet VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // جدول الأرباح
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS earnings (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        source VARCHAR(100),
+        amount NUMERIC(12,6) NOT NULL,
+        description TEXT,
+        timestamp TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // جدول الإحالات
     await client.query(`
       CREATE TABLE IF NOT EXISTS referrals (
         id SERIAL PRIMARY KEY,
         referrer_id BIGINT NOT NULL,
-        referee_id  BIGINT NOT NULL UNIQUE,
-        created_at  TIMESTAMP DEFAULT NOW()
+        referee_id BIGINT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW()
       );
     `);
 
@@ -48,7 +72,7 @@ async function initSchema() {
       );
     `);
 
-    // 🔵 جدول المهمات (استخدم price بدلاً من reward)
+    // جدول المهمات
     await client.query(`
       CREATE TABLE IF NOT EXISTS tasks (
         id SERIAL PRIMARY KEY,
@@ -59,7 +83,7 @@ async function initSchema() {
       );
     `);
 
-    // 🔵 جدول إثباتات المستخدمين (task_proofs) — مطابق لما ذكرت أنه موجود في قاعدة البيانات
+    // جدول إثباتات المهمات
     await client.query(`
       CREATE TABLE IF NOT EXISTS task_proofs (
         id SERIAL PRIMARY KEY,
@@ -71,11 +95,36 @@ async function initSchema() {
       );
     `);
 
-    console.log('✅ initSchema: تم تجهيز جداول الإحالات والمهمات والإثباتات');
+    // جدول إرسال المهمات (فيه proof + status زي اللي قلت)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_submissions (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        task_id INT NOT NULL,
+        proof TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // جدول السحوبات
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        amount NUMERIC(12,6) NOT NULL,
+        payeer_wallet VARCHAR(50) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    console.log('✅ initSchema: تم تجهيز كل الجداول بنجاح');
   } catch (e) {
     console.error('❌ initSchema:', e);
   }
 }
+
 
 // ====== Bot setup ======
 if (!process.env.BOT_TOKEN) {
