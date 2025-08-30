@@ -384,18 +384,19 @@ bot.action(/^submit_(\d+)$/, async (ctx) => {
   }
 });
 
-// ✅ استقبال الإثبات من المستخدم
-bot.on("message", async (ctx) => {
+// ✅ استقبال الإثبات من المستخدم — لا يمنع بقية الأزرار من العمل
+bot.on("message", async (ctx, next) => {
   const userId = ctx.from.id;
   if (!userSessions[userId]) userSessions[userId] = {};
   const session = userSessions[userId];
 
+  // لو المستخدم في وضع إرسال إثبات
   if (session.awaiting_task_submission) {
     const taskId = session.awaiting_task_submission;
 
     // نص الإثبات أو صورة
     let proof = ctx.message.text || "";
-    if (ctx.message.photo) {
+    if (ctx.message.photo && ctx.message.photo.length) {
       const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
       proof = `📷 صورة مرفقة - file_id: ${fileId}`;
     }
@@ -412,8 +413,14 @@ bot.on("message", async (ctx) => {
       console.error("❌ خطأ أثناء حفظ الإثبات:", err);
       await ctx.reply("⚠️ لم يتم حفظ الإثبات، حاول مرة أخرى.");
     }
+
+    return; // ⛔️ مهم: لا تكمّل لباقي الهاندلرز بعد الحفظ
   }
+
+  // مش في وضع إثبات → مرّر الرسالة لباقي الهاندلرز (hears/command)
+  return next();
 });
+
 
 
 // 🔗 قيم البوت
