@@ -33,8 +33,17 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- 🗂 جدول المستخدمين
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    telegram_id BIGINT UNIQUE NOT NULL,
+    balance NUMERIC(20,6) DEFAULT 0,
+    payeer_wallet VARCHAR(100),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- 🗂 جدول المهمات
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -43,7 +52,7 @@ CREATE TABLE tasks (
 );
 
 -- 🗂 جدول إثباتات المهمات
-CREATE TABLE task_proofs (
+CREATE TABLE IF NOT EXISTS task_proofs (
     id SERIAL PRIMARY KEY,
     task_id INT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
     user_id BIGINT NOT NULL,
@@ -53,17 +62,17 @@ CREATE TABLE task_proofs (
 );
 
 -- 🗂 جدول الأرباح
-CREATE TABLE earnings (
+CREATE TABLE IF NOT EXISTS earnings (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
-    source VARCHAR(50) NOT NULL, -- task / referral / bonus / ...
+    source VARCHAR(50) NOT NULL, -- task / referral / bonus ...
     amount NUMERIC(20,6) NOT NULL,
     description TEXT,
     timestamp TIMESTAMP DEFAULT NOW()
 );
 
--- 🗂 جدول إحالات المستخدمين
-CREATE TABLE referrals (
+-- 🗂 جدول الإحالات
+CREATE TABLE IF NOT EXISTS referrals (
     id SERIAL PRIMARY KEY,
     referrer_id BIGINT NOT NULL,
     referee_id BIGINT NOT NULL,
@@ -71,7 +80,7 @@ CREATE TABLE referrals (
 );
 
 -- 🗂 جدول أرباح الإحالات
-CREATE TABLE referral_earnings (
+CREATE TABLE IF NOT EXISTS referral_earnings (
     id SERIAL PRIMARY KEY,
     referrer_id BIGINT NOT NULL,
     referee_id BIGINT NOT NULL,
@@ -79,8 +88,8 @@ CREATE TABLE referral_earnings (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- 🗂 جدول طلبات السحب
-CREATE TABLE withdrawals (
+-- 🗂 جدول السحوبات
+CREATE TABLE IF NOT EXISTS withdrawals (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     amount NUMERIC(20,6) NOT NULL,
@@ -88,7 +97,6 @@ CREATE TABLE withdrawals (
     status VARCHAR(20) DEFAULT 'pending', -- pending | approved | rejected
     requested_at TIMESTAMP DEFAULT NOW()
 );
-
 
     console.log('✅ initSchema: تم تجهيز جداول الإحالات والمهمات والإثباتات');
   } catch (e) {
