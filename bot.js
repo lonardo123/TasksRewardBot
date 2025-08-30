@@ -367,15 +367,27 @@ bot.on("message", async (ctx) => {
 });
 
 
-// 🔗 قيمة البوت
-bot.hears('🔗 قيم البوت من هنا', (ctx) => {
-  ctx.reply(
-    `🌟 لو سمحت قيم البوت من هنا:\n👉 https://toptelegrambots.com/list/TasksRewardBot`,
-    Markup.inlineKeyboard([
-      [Markup.button.url('🔗 افتح صفحة التقييم', 'https://toptelegrambots.com/list/TasksRewardBot')]
-    ])
-  );
+// 🔗 قيم البوت
+bot.hears('🔗 قيم البوت من هنا', async (ctx) => {
+  try {
+    await ctx.reply(
+      `🌟 لو سمحت قيّم البوت من هنا:\n👉 https://toptelegrambots.com/list/TasksRewardBot`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🔗 افتح صفحة التقييم', url: 'https://toptelegrambots.com/list/TasksRewardBot' }
+            ]
+          ]
+        }
+      }
+    );
+  } catch (err) {
+    console.error("❌ خطأ في زر التقييم:", err);
+    await ctx.reply("⚠️ حدث خطأ، حاول مرة أخرى.");
+  }
 });
+
 
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
