@@ -1007,34 +1007,78 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   );
 });
 
-// أوامر الدفع/الرفض للأدمن
 bot.command('pay', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = Number((ctx.message.text.split(' ')[1] || '').trim());
   if (!id) return ctx.reply('استخدم: /pay <ID>');
+
   try {
-    const res = await client.query('UPDATE withdrawals SET status = $1 WHERE id = $2 RETURNING *', ['paid', id]);
+    const res = await client.query(
+      'UPDATE withdrawals SET status = $1 WHERE id = $2 RETURNING *',
+      ['paid', id]
+    );
+    
     if (res.rowCount === 0) return ctx.reply('لم يتم العثور على الطلب.');
-    await ctx.reply(`✅ تم تعليم الطلب #${id} كمدفوع.`);
+
+    const withdrawal = res.rows[0];
+    const userId = withdrawal.user_id;
+    const amount = parseFloat(withdrawal.amount).toFixed(2);
+    const wallet = withdrawal.payeer_wallet;
+
+    // إرسال إشعار للمستخدم
+    try {
+      await bot.telegram.sendMessage(
+        userId,
+        `✅ تم الموافقة على طلب السحب الخاص بك.\n💰 المبلغ: ${amount}$\n💳 المحفظة: ${wallet}\n⏳ سيتم تنفيذ السحب قريباً.`
+      );
+    } catch (e) {
+      console.error('❌ خطأ عند إرسال رسالة للمستخدم:', e);
+    }
+
+    await ctx.reply(`✅ تم تعليم الطلب #${id} كمدفوع وتم إعلام المستخدم.`);
+
   } catch (e) {
     console.error('❌ pay:', e);
     await ctx.reply('فشل تحديث الحالة.');
   }
+  
 });
-
 bot.command('reject', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = Number((ctx.message.text.split(' ')[1] || '').trim());
   if (!id) return ctx.reply('استخدم: /reject <ID>');
+
   try {
-    const res = await client.query('UPDATE withdrawals SET status = $1 WHERE id = $2 RETURNING *', ['rejected', id]);
+    const res = await client.query(
+      'UPDATE withdrawals SET status = $1 WHERE id = $2 RETURNING *',
+      ['rejected', id]
+    );
+
     if (res.rowCount === 0) return ctx.reply('لم يتم العثور على الطلب.');
-    await ctx.reply(`⛔ تم رفض الطلب #${id}.`);
+
+    const withdrawal = res.rows[0];
+    const userId = withdrawal.user_id;
+    const amount = parseFloat(withdrawal.amount).toFixed(2);
+    const wallet = withdrawal.payeer_wallet;
+
+    // إرسال إشعار للمستخدم
+    try {
+      await bot.telegram.sendMessage(
+        userId,
+        `❌ تم رفض طلب السحب الخاص بك.\n💰 المبلغ: ${amount}$\n💳 المحفظة: ${wallet}\n🔹 يمكنك تعديل طلبك أو المحاولة لاحقاً.`
+      );
+    } catch (e) {
+      console.error('❌ خطأ عند إرسال رسالة للمستخدم:', e);
+    }
+
+    await ctx.reply(`⛔ تم رفض الطلب #${id} وتم إعلام المستخدم.`);
+
   } catch (e) {
     console.error('❌ reject:', e);
     await ctx.reply('فشل تحديث الحالة.');
   }
 });
+
 
 // ==================== التشغيل النهائي ====================
 (async () => {
