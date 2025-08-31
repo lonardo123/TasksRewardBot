@@ -482,80 +482,68 @@ bot.hears('🔗 قيم البوت من هنا', async (ctx) => {
   }
 });
 
-// ← الحد الأدنى للسحب
-const MIN_WITHDRAW = 1.00; // يمكنك تعديل الحد الأدنى هنا
-
-// 📤 بدء طلب السحب
+// 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
-    if (!ctx.session) ctx.session = {};
-    const userId = ctx.from.id;
+  if (!ctx.session) ctx.session = {};
+  const userId = ctx.from.id;
+  try {
+    const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+    const balance = parseFloat(res.rows[0]?.balance) || 0;
 
-    try {
-        const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-        const balance = parseFloat(res.rows[0]?.balance) || 0;
-
-        if (balance < MIN_WITHDRAW) {
-            return ctx.reply(`❌ الحد الأدنى للسحب هو ${MIN_WITHDRAW}$. رصيدك: ${balance.toFixed(4)}$`);
-        }
-
-        ctx.session.awaiting_withdraw = true;
-        await ctx.reply(`🟢 رصيدك مؤهل للسحب.\nأرسل رقم محفظة Payeer (مثل: P12345678):`);
-    } catch (err) {
-        console.error('❌ طلب سحب:', err);
-        await ctx.reply('حدث خطأ داخلي.');
+    if (balance < 1.0) {
+      return ctx.reply(`❌ الحد الأدنى للسحب هو 0.05$. رصيدك: ${balance.toFixed(4)}$`);
     }
+
+    ctx.session.awaiting_withdraw = true;
+    await ctx.reply(`🟢 رصيدك مؤهل للسحب.\nأرسل رقم محفظة Payeer (مثل: P12345678):`);
+  } catch (err) {
+    console.error('❌ طلب سحب:', err);
+    await ctx.reply('حدث خطأ داخلي.');
+  }
 });
 
-// 📥 معالجة رقم المحفظة وإتمام السحب
+// معالجة نصوص عامة (سابقاً كان فيها تعارض مع إرسال الإثبات) — لا تزدوج إرسال الإثبات هنا
 bot.on('text', async (ctx, next) => {
-    if (!ctx.session) ctx.session = {};
-    const text = ctx.message?.text?.trim();
+  if (!ctx.session) ctx.session = {};
+  const text = ctx.message?.text?.trim();
 
-    // إذا المستخدم في وضع السحب
-    if (ctx.session.awaiting_withdraw) {
-        if (!/^P\d{8,}$/i.test(text)) {
-            return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
-        }
+  const menuTexts = new Set([
+    '💰 رصيدك','🎁 مصادر الربح','📤 طلب سحب','👥 ريفيرال',
+    '📋 عرض الطلبات','📊 الإحصائيات',
+    '➕ إضافة רصيد','➖ خصم رصيد',
+    '🚪 خروج من لوحة الأدمن'
+  ]);
 
-        const userId = ctx.from.id;
-
-        try {
-            // جلب الرصيد الحالي
-            const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-            const balance = parseFloat(res.rows[0]?.balance) || 0;
-
-            if (balance < MIN_WITHDRAW) {
-                ctx.session.awaiting_withdraw = false;
-                return ctx.reply(`❌ الحد الأدنى للسحب هو ${MIN_WITHDRAW}$. رصيدك: ${balance.toFixed(4)}$`);
-            }
-
-            const withdrawAmount = Math.floor(balance * 100) / 100; // تقريب لأقرب سنت
-            const remaining = balance - withdrawAmount;
-
-            // تسجيل طلب السحب
-            await client.query(
-                'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
-                [userId, withdrawAmount, text.toUpperCase()]
-            );
-
-            // تحديث رصيد المستخدم
-            await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
-
-            await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${withdrawAmount.toFixed(2)}$. رصيدك المتبقي: ${remaining.toFixed(4)}$`);
-            ctx.session.awaiting_withdraw = false;
-
-        } catch (err) {
-            console.error('❌ خطأ في معالجة السحب:', err);
-            await ctx.reply('حدث خطأ داخلي.');
-        }
-
-        return; // مهم: لا تمرر الرسالة لبقية الهاندلرز
+  // —— طلب السحب ——
+  if (ctx.session.awaiting_withdraw) {
+    if (!/^P\d{8,}$/i.test(text)) {
+      return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
     }
 
-    // إذا لم يكن في وضع السحب، استمر في باقي المعالجات
-    next();
-});
+    const userId = ctx.from.id;
+    try {
+      const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+      let balance = parseFloat(userRes.rows[0]?.balance) || 0;
 
+      if (balance < 1.0) {
+        return ctx.reply(`❌ الحد الأدنى للسحب هو 0.05$. رصيدك: ${balance.toFixed(4)}$`);
+      }
+
+      const withdrawAmount = Math.floor(balance * 100) / 100;
+      const remaining = balance - withdrawAmount;
+
+      await client.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
+      await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
+
+      await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${withdrawAmount.toFixed(2)}$. رصيدك المتبقي: ${remaining.toFixed(4)}$`);
+      ctx.session.awaiting_withdraw = false;
+    } catch (err) {
+      console.error('❌ خطأ في معالجة السحب:', err);
+      await ctx.reply('حدث خطأ داخلي.');
+    }
+
+    return;
+  }
 
   // —— إضافة / خصم رصيد ——
   if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
