@@ -483,6 +483,8 @@ bot.hears('🔗 قيم البوت من هنا', async (ctx) => {
 });
 
 
+const MIN_WITHDRAW = 0.50; // ← هنا تحدد الحد الأدنى للسحب
+
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
   if (!ctx.session) ctx.session = {};
@@ -491,8 +493,8 @@ bot.hears('📤 طلب سحب', async (ctx) => {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const balance = parseFloat(res.rows[0]?.balance) || 0;
 
-    if (balance < 1.0) {
-      return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(4)}$`);
+    if (balance < MIN_WITHDRAW) {
+      return ctx.reply(`❌ الحد الأدنى للسحب هو ${MIN_WITHDRAW}$. رصيدك: ${balance.toFixed(4)}$`);
     }
 
     ctx.session.awaiting_withdraw = true;
@@ -503,7 +505,7 @@ bot.hears('📤 طلب سحب', async (ctx) => {
   }
 });
 
-// معالجة نصوص عامة (سابقاً كان فيها تعارض مع إرسال الإثبات) — لا تزدوج إرسال الإثبات هنا
+// معالجة نصوص عامة
 bot.on('text', async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim();
@@ -526,8 +528,8 @@ bot.on('text', async (ctx, next) => {
       const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
       let balance = parseFloat(userRes.rows[0]?.balance) || 0;
 
-      if (balance < 1.0) {
-        return ctx.reply(`❌ الحد الأدنى للسحب هو 0.50$. رصيدك: ${balance.toFixed(4)}$`);
+      if (balance < MIN_WITHDRAW) {
+        return ctx.reply(`❌ الحد الأدنى للسحب هو ${MIN_WITHDRAW}$. رصيدك: ${balance.toFixed(4)}$`);
       }
 
       const withdrawAmount = Math.floor(balance * 100) / 100;
@@ -545,6 +547,7 @@ bot.on('text', async (ctx, next) => {
 
     return;
   }
+});
 
   // —— إضافة / خصم رصيد ——
   if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
