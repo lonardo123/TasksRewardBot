@@ -333,13 +333,13 @@ bot.hears('👥 ريفيرال', async (ctx) => {
 bot.hears('🎁 مصادر الربح', async (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
-  const tasksRewardBotUrl = "https://tasksrewardbot.neocities.org";
+  
 
   await ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      [Markup.button.url('📊 TasksRewardBot', tasksRewardBotUrl )]
+      
     ])
   );
 
