@@ -821,7 +821,7 @@ bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => 
   }
 });
 
-// ✅ موافقة الأدمن (محدّث: يحدث user_tasks إلى 'approved' داخل المعاملة)
+// ✅ موافقة الأدمن (محدّث: يحدث user_tasks إلى 'approved' داخل المعاملة + إشعار المحيل)
 bot.action(/^approve_(\d+)$/, async (ctx) => {
   if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مسموح');
   const subId = Number(ctx.match[1]);
@@ -857,7 +857,7 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
     // تحديث حالة الإثبات إلى approved
     await client.query('UPDATE task_proofs SET status=$1 WHERE id=$2', ['approved', subId]);
 
-    // تحديث/إدخال سجل user_tasks → approved (يضمن بقاء المهمة مخفية من القائمة لاحقاً)
+    // تحديث/إدخال سجل user_tasks → approved
     await client.query(
       `INSERT INTO user_tasks (user_id, task_id, status)
        VALUES ($1, $2, 'approved')
@@ -867,13 +867,44 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
 
     await client.query('COMMIT');
 
-    // تحديث رسالة الأدمن (محاولة) وإعلام المستخدم
-    try { await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`); } catch (_) {}
-    try { await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`); } catch (_) {}
+    // تحديث رسالة الأدمن وإبلاغ المستخدم
+    try { 
+      await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`); 
+    } catch (_) {}
+    try { 
+      await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`); 
+    } catch (_) {}
 
-    // تطبيق مكافأة الإحالة (وظيفة موجودة مسبقاً)
+    // تطبيق مكافأة الإحالة مع إشعار المحيل مباشرة
     try {
-      await applyReferralBonus(sub.user_id, price);
+      const refRes = await client.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [sub.user_id]);
+      if (refRes.rows.length > 0) {
+        const referrerId = refRes.rows[0].referrer_id;
+        const commission = price * 0.05;
+
+        if (commission > 0) {
+          // إضافة الرصيد للمحيل
+          const updRef = await client.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id=$2', [commission, referrerId]);
+          if (updRef.rowCount === 0) {
+            await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1,$2)', [referrerId, commission]);
+          }
+
+          // تسجيل المكافأة في جدول referral_earnings و earnings
+          await client.query(
+            'INSERT INTO referral_earnings (referrer_id, referee_id, amount) VALUES ($1,$2,$3)',
+            [referrerId, sub.user_id, commission]
+          );
+          await client.query(
+            'INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)',
+            [referrerId, commission, 'referral_bonus']
+          );
+
+          // إرسال إشعار المحيل
+          try {
+            await bot.telegram.sendMessage(referrerId, `🎉 حصلت على عمولة ${commission.toFixed(4)}$ من إحالة ${sub.user_id} بعد تنفيذ مهمة.`);
+          } catch (_) {}
+        }
+      }
     } catch (e) {
       console.error('❌ خطأ أثناء تطبيق مكافأة الإحالة بعد الموافقة:', e);
     }
@@ -884,6 +915,7 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
     await ctx.reply('حدث خطأ أثناء الموافقة على الإثبات.');
   }
 });
+
 
 // ✅ رفض الأدمن (محدّث: يجعل user_tasks = 'rejected' حتى تظهر المهمة للمستخدم مرة أخرى)
 bot.action(/^deny_(\d+)$/, async (ctx) => {
