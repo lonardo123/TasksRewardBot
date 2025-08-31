@@ -783,37 +783,90 @@ bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => 
   }
 });
 
-// ✅ موافقة الأدمن
+// ✅ موافقة الأدمن (مُحدّث: يضيف رصيد للمستخدم، يسجل في earnings، ويمنح المحيل 5%)
 bot.action(/^approve_(\d+)$/, async (ctx) => {
   if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مسموح');
   const subId = Number(ctx.match[1]);
 
   try {
+    // نبدأ معاملة لحماية التحديثات
     await client.query('BEGIN');
-    const subRes = await client.query('SELECT * FROM task_proofs WHERE id=$1 AND status=$2', [subId, 'pending']);
+
+    // نتحقق أن الإثبات موجود وحالته pending
+    const subRes = await client.query(
+      'SELECT * FROM task_proofs WHERE id=$1 AND status=$2',
+      [subId, 'pending']
+    );
+
     if (!subRes.rows.length) {
       await client.query('ROLLBACK');
+      await ctx.answerCbQuery();
       return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته مسبقاً.');
     }
+
     const sub = subRes.rows[0];
+
+    // جلب سعر المهمة
     const taskRes = await client.query('SELECT price FROM tasks WHERE id=$1', [sub.task_id]);
     const price = parseFloat(taskRes.rows[0]?.price) || 0;
 
-    await client.query(
+    // تحديث رصيد المستخدم (أو إدخاله إن لم يكن موجوداً)
+    const upd = await client.query(
       'UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2',
       [price, sub.user_id]
     );
+    if (upd.rowCount === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]);
+    }
+
+    // تسجيل الربح في جدول earnings (للمستخدم)
+    await client.query(
+      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+      [sub.user_id, 'task', price, `ربح من تنفيذ مهمة ID ${sub.task_id}`]
+    );
+
+    // تغيير حالة الإثبات إلى approved
     await client.query('UPDATE task_proofs SET status=$1 WHERE id=$2', ['approved', subId]);
+
+    // نكمل المعاملة
     await client.query('COMMIT');
 
-    await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`);
-    await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`);
+    // نحدّث رسالة الأدمن ونبلغ المستخدم
+    try {
+      await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`);
+    } catch (_) { /* ممكن يفشل التعديل إن كانت الرسالة تغيرت — ليس خطأ قاتل */ }
+
+    try {
+      await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`);
+    } catch (_) { /* تجاهل أخطاء الإرسال للمستخدم */ }
+
+    // بعد الإضافة بنجاح: نطبق مكافأة الإحالة 5% (باستخدام الدالة المركزية applyReferralBonus)
+    try {
+      // applyReferralBonus يتوقع (earnerId, earnedAmount) ويضيف 5% للمحيل إن وجد
+      await applyReferralBonus(sub.user_id, price);
+
+      // نبلغ المحيل برسالة (اذا كان موجود)
+      const refRes = await client.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [sub.user_id]);
+      if (refRes.rows.length > 0) {
+        const referrerId = refRes.rows[0].referrer_id;
+        const commission = price * 0.05;
+        try {
+          await bot.telegram.sendMessage(referrerId, `🎉 حصلت على عمولة ${commission.toFixed(4)}$ من إحالة ${sub.user_id} بعد تنفيذ مهمة.`);
+        } catch (_) { /* تجاهل أخطاء إرسال الإشعار */ }
+      }
+    } catch (e) {
+      // لو فشلت إضافة الإحالة لا نلغي نجاح عملية الموافقة، فقط نسجل الخطأ
+      console.error('❌ خطأ أثناء تطبيق مكافأة الإحالة بعد الموافقة:', e);
+    }
+
   } catch (err) {
-    await client.query('ROLLBACK');
+    // أي خطأ أثناء التحديث؛ نرجع كل شيء ونبلغ الأدمن
+    try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('❌ approve error:', err);
-    ctx.reply('حدث خطأ أثناء الموافقة على الإثبات.');
+    await ctx.reply('حدث خطأ أثناء الموافقة على الإثبات.');
   }
 });
+
 
 // ✅ رفض الأدمن
 bot.action(/^deny_(\d+)$/, async (ctx) => {
