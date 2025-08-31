@@ -482,13 +482,14 @@ bot.hears('🔗 قيم البوت من هنا', async (ctx) => {
   }
 });
 
-
-const MIN_WITHDRAW = 0.50; // ← هنا تحدد الحد الأدنى للسحب
+// الحد الأدنى للسحب
+const MIN_WITHDRAW = 0.50;
 
 // 📤 طلب سحب
 bot.hears('📤 طلب سحب', async (ctx) => {
   if (!ctx.session) ctx.session = {};
   const userId = ctx.from.id;
+
   try {
     const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
     const balance = parseFloat(res.rows[0]?.balance) || 0;
@@ -535,7 +536,10 @@ bot.on('text', async (ctx, next) => {
       const withdrawAmount = Math.floor(balance * 100) / 100;
       const remaining = balance - withdrawAmount;
 
-      await client.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
+      await client.query(
+        'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
+        [userId, withdrawAmount, text.toUpperCase()]
+      );
       await client.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
 
       await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${withdrawAmount.toFixed(2)}$. رصيدك المتبقي: ${remaining.toFixed(4)}$`);
