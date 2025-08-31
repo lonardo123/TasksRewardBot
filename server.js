@@ -112,7 +112,7 @@ app.get('/callback', async (req, res) => {
     );
 
     console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
-// 💬 رسالة للمستخدم
+// رسالة للمستخدم
 try {
   await bot.telegram.sendMessage(
     user_id,
@@ -143,7 +143,7 @@ try {
 
       console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
     }
- // 💬 رسالة للمحيل
+// رسالة للمحيل داخل نفس النطاق
   try {
     await bot.telegram.sendMessage(
       referrerId,
@@ -152,7 +152,6 @@ try {
   } catch (e) {
     console.error(`❌ خطأ عند إرسال رسالة للمحيل ${referrerId}:`, e.message);
   }
-}
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
     console.error('Callback Error:', err);
