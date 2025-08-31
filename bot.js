@@ -974,9 +974,16 @@ bot.hears('➖ خصم رصيد', async (ctx) => {
 bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   if (!isAdmin(ctx)) return;
   ctx.session = {};
-  await ctx.reply('✅ خرجت من لوحة الأدمن.', Markup.keyboard([
+
+  const userId = ctx.from.id;
+  const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+  const balance = parseFloat(res.rows[0]?.balance) || 0;
+
+  await ctx.reply(`✅ خرجت من لوحة الأدمن.\n💰 رصيدك: ${balance.toFixed(4)}$`,
+    Markup.keyboard([
       ['💰 رصيدك', '🎁 مصادر الربح'],
-      ['📤 طلب سحب', '👥 ريفيرال']
+      ['📤 طلب سحب', '👥 ريفيرال'],
+      ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا']
     ]).resize()
   );
 });
