@@ -483,15 +483,14 @@ bot.hears('🔗 قيم البوت من هنا', async (ctx) => {
 });
 
 // ← الحد الأدنى للسحب
-const MIN_WITHDRAW = 0.50;
+const MIN_WITHDRAW = 1.00; // يمكنك تعديل الحد الأدنى هنا
 
-// 📤 طلب سحب
+// 📤 بدء طلب السحب
 bot.hears('📤 طلب سحب', async (ctx) => {
     if (!ctx.session) ctx.session = {};
     const userId = ctx.from.id;
 
     try {
-        // جلب رصيد المستخدم
         const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
         const balance = parseFloat(res.rows[0]?.balance) || 0;
 
@@ -501,19 +500,18 @@ bot.hears('📤 طلب سحب', async (ctx) => {
 
         ctx.session.awaiting_withdraw = true;
         await ctx.reply(`🟢 رصيدك مؤهل للسحب.\nأرسل رقم محفظة Payeer (مثل: P12345678):`);
-
     } catch (err) {
         console.error('❌ طلب سحب:', err);
         await ctx.reply('حدث خطأ داخلي.');
     }
 });
 
-// معالجة نصوص عامة (طلب السحب)
+// 📥 معالجة رقم المحفظة وإتمام السحب
 bot.on('text', async (ctx, next) => {
     if (!ctx.session) ctx.session = {};
     const text = ctx.message?.text?.trim();
 
-    // تحقق من أن المستخدم في انتظار رقم المحفظة
+    // إذا المستخدم في وضع السحب
     if (ctx.session.awaiting_withdraw) {
         if (!/^P\d{8,}$/i.test(text)) {
             return ctx.reply('❌ رقم محفظة غير صالح. يجب أن يبدأ بـ P ويحتوي على 8 أرقام على الأقل.');
@@ -522,19 +520,19 @@ bot.on('text', async (ctx, next) => {
         const userId = ctx.from.id;
 
         try {
-            // جلب رصيد المستخدم مرة أخرى للتأكد
-            const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-            let balance = parseFloat(userRes.rows[0]?.balance) || 0;
+            // جلب الرصيد الحالي
+            const res = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+            const balance = parseFloat(res.rows[0]?.balance) || 0;
 
             if (balance < MIN_WITHDRAW) {
+                ctx.session.awaiting_withdraw = false;
                 return ctx.reply(`❌ الحد الأدنى للسحب هو ${MIN_WITHDRAW}$. رصيدك: ${balance.toFixed(4)}$`);
             }
 
-            // تحديد مبلغ السحب (كامل الرصيد تقريبًا)
-            const withdrawAmount = Math.floor(balance * 100) / 100;
+            const withdrawAmount = Math.floor(balance * 100) / 100; // تقريب لأقرب سنت
             const remaining = balance - withdrawAmount;
 
-            // تسجيل السحب في قاعدة البيانات
+            // تسجيل طلب السحب
             await client.query(
                 'INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)',
                 [userId, withdrawAmount, text.toUpperCase()]
@@ -551,10 +549,10 @@ bot.on('text', async (ctx, next) => {
             await ctx.reply('حدث خطأ داخلي.');
         }
 
-        return;
+        return; // مهم: لا تمرر الرسالة لبقية الهاندلرز
     }
 
-    // تابع باقي المعالجات النصية الأخرى
+    // إذا لم يكن في وضع السحب، استمر في باقي المعالجات
     next();
 });
 
