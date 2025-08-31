@@ -107,18 +107,6 @@ async function initSchema() {
       );
     `);
 
-    // جدول إرسال المهمات (فيه proof + status زي اللي قلت)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS task_submissions (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        task_id INT NOT NULL,
-        proof TEXT,
-        status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
     // جدول السحوبات
     await client.query(`
       CREATE TABLE IF NOT EXISTS withdrawals (
