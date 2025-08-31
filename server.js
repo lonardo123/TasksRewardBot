@@ -1,10 +1,6 @@
 require('dotenv').config();
 const { Client } = require('pg');
 const express = require('express');
-const { Telegraf } = require('telegraf');
-
-// تعريف البوت
-const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // === قاعدة البيانات ===
 const client = new Client({
@@ -87,7 +83,7 @@ app.get('/callback', async (req, res) => {
     return res.status(400).send('Invalid amount');
   }
 
-  const percentage = 0.60;
+  const percentage = 0.60; 
   const finalAmount = parsedAmount * percentage;
 
   // ✅ تحديد الشبكة
@@ -117,16 +113,6 @@ app.get('/callback', async (req, res) => {
 
     console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
 
-    // 💬 رسالة للمستخدم
-    try {
-      await bot.telegram.sendMessage(
-        user_id,
-        `🟢 تم إضافة ${finalAmount.toFixed(4)}$ إلى رصيدك من ${source} (Transaction: ${transaction_id})`
-      );
-    } catch (e) {
-      console.error(`❌ خطأ عند إرسال رسالة للمستخدم ${user_id}:`, e.message);
-    }
-
     // ✅ التحقق من وجود محيل للمستخدم
     const ref = await client.query(
       'SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1',
@@ -148,16 +134,6 @@ app.get('/callback', async (req, res) => {
       );
 
       console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
-
-      // 💬 رسالة للمحيل
-      try {
-        await bot.telegram.sendMessage(
-          referrerId,
-          `🎉 مكافأة إحالة: ${bonus.toFixed(4)}$ تم إضافتها إلى رصيدك من ربح المستخدم ${user_id}`
-        );
-      } catch (e) {
-        console.error(`❌ خطأ عند إرسال رسالة للمحيل ${referrerId}:`, e.message);
-      }
     }
 
     res.status(200).send('تمت المعالجة بنجاح');
@@ -166,6 +142,7 @@ app.get('/callback', async (req, res) => {
     res.status(500).send('Server Error');
   }
 });
+
 
 // === التشغيل ===
 (async () => {
