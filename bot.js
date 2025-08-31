@@ -527,7 +527,7 @@ bot.on('text', async (ctx, next) => {
       let balance = parseFloat(userRes.rows[0]?.balance) || 0;
 
       if (balance < 1.0) {
-        return ctx.reply(`❌ الحد الأدنى للسحب هو 1$. رصيدك: ${balance.toFixed(4)}$`);
+        return ctx.reply(`❌ الحد الأدنى للسحب هو 0.50$. رصيدك: ${balance.toFixed(4)}$`);
       }
 
       const withdrawAmount = Math.floor(balance * 100) / 100;
