@@ -336,18 +336,20 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
   );
 });
 
-// ✅ عرض المهمات (للمستخدمين)
+// ✅ عرض المهمات (للمستخدمين) — (معدل ليحسب حالة التقديم + نافذة 30 يوم)
 bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   try {
     const userId = ctx.from.id;
     const res = await client.query(
-      `SELECT t.id, t.title, t.description, t.price
+      `SELECT t.id, t.title, t.description, t.price,
+              ut.status, ut.created_at AS applied_at
        FROM tasks t
+       LEFT JOIN user_tasks ut ON ut.task_id = t.id AND ut.user_id = $1
        WHERE NOT EXISTS (
-         SELECT 1 FROM user_tasks ut
-         WHERE ut.task_id = t.id
-           AND ut.user_id = $1
-           AND ut.status IN ('pending','approved')
+         SELECT 1 FROM user_tasks ut2
+         WHERE ut2.task_id = t.id
+           AND ut2.user_id = $1
+           AND ut2.status IN ('pending','approved')
        )
        ORDER BY t.id DESC
        LIMIT 20`,
@@ -360,20 +362,51 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
 
     for (const t of res.rows) {
       const price = parseFloat(t.price) || 0;
-      const msg =
+
+      // بناء نص الرسالة
+      let msg =
         `📋 المهمة #${t.id}\n\n` +
         `🏷️ العنوان: ${t.title}\n` +
         `📖 الوصف: ${t.description}\n` +
-        `💰 السعر: ${price.toFixed(6)}$\n\n` +
-        `▶️ لإرسال إثبات المهمة: اضغط زر "📝 إرسال إثبات" أو اكتب /submit ${t.id}`;
+        `💰 السعر: ${price.toFixed(6)}$\n\n`;
 
-      await ctx.reply(msg, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]
-          ]
+      let buttons = [];
+
+      // لم يقدّم المستخدم أو حالة مرفوضة → نعرض زر "قدّم الآن"
+      if (!t.status || t.status === 'rejected') {
+        buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
+        msg += `▶️ للتقديم على المهمة اضغط "📌 قدّم الآن".`;
+      } else if (t.status === 'applied') {
+        // المستخدم قدّم بالفعل → نحسب 30 يوم من applied_at
+        if (t.applied_at) {
+          const appliedAt = new Date(t.applied_at);
+          const deadline = new Date(appliedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+          const now = new Date();
+
+          if (now >= deadline) {
+            // انتهت فترة الـ30 يوم → نظهر زر "إرسال إثبات"
+            buttons.push([{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]);
+            msg += `⏳ انتهت فترة الـ30 يوم، يمكنك الآن إرسال إثبات المهمة.`;
+          } else {
+            const remainingDays = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+            msg += `⏳ لديك ${remainingDays} يوم متبقى قبل إرسال الإثبات.`;
+          }
+        } else {
+          // سلامة: لو ما فيش applied_at لأي سبب، نعرض زر التقديم مجدداً
+          buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
+          msg += `▶️ للتقديم على المهمة اضغط "📌 قدّم الآن".`;
         }
-      });
+      } else {
+        // حالات أخرى (مثلاً: submitted) — نعرض رسالة حالة عامة
+        msg += `⏳ حالة التقديم: ${t.status || '—'}.`;
+      }
+
+      // إرسال الرسالة (مع الأزرار إذا كانت موجودة)
+      if (buttons.length > 0) {
+        await ctx.reply(msg, { reply_markup: { inline_keyboard: buttons } });
+      } else {
+        await ctx.reply(msg);
+      }
     }
   } catch (err) {
     console.error('❌ عرض المهمات:', err);
@@ -394,6 +427,33 @@ bot.action(/^submit_(\d+)$/, async (ctx) => {
   } catch (err) {
     console.error("❌ submit action error:", err.message, err.stack);
     await ctx.reply("⚠️ حدث خطأ، حاول مرة أخرى.");
+  }
+});
+
+// ✅ عند الضغط على زر "قدّم الآن"
+bot.action(/^apply_(\d+)$/, async (ctx) => {
+  try {
+    await ctx.answerCbQuery(); // يغلق الـ spinner على الزر
+    const taskId = Number(ctx.match[1]);
+    const userId = ctx.from.id;
+
+    // سجّل أن المستخدم قدّم (أو حدّث وقت التقديم إذا كان موجود)
+    await client.query(
+      `INSERT INTO user_tasks (user_id, task_id, status, created_at)
+       VALUES ($1, $2, 'applied', NOW())
+       ON CONFLICT (user_id, task_id) DO UPDATE
+         SET status = 'applied', created_at = NOW()`,
+      [userId, taskId]
+    );
+
+    await ctx.reply(
+      `📌 تم تسجيل تقديمك على المهمة رقم ${taskId}.\n` +
+      `⏳ متاح لك 30 يوم لتقديم الإثبات. بعد انتهاء المدة سيظهر لك زر "إرسال إثبات".`
+    );
+  } catch (err) {
+    console.error('❌ apply error:', err);
+    try { await ctx.answerCbQuery(); } catch(_) {}
+    await ctx.reply('⚠️ حدث خطأ أثناء التقديم.');
   }
 });
 
