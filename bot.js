@@ -996,6 +996,101 @@ bot.on('text', async (ctx, next) => {
   return; // لا نمرّر للـ next() لأننا عالجنا الرسالة
 });
 
+// ✏️ زر تعديل المهمة (يعين حالة انتظار التعديل)
+bot.action(/^edit_(\d+)$/, async (ctx) => {
+  if (!isAdmin(ctx)) {
+    await ctx.answerCbQuery('❌ غير مسموح');
+    return;
+  }
+  const taskId = ctx.match[1];
+  ctx.session.awaitingEdit = taskId;
+  await ctx.answerCbQuery();
+  await ctx.reply(
+    `✏️ أرسل المهمة الجديدة لـ #${taskId} بصيغة:\n\n` +
+    `العنوان | الوصف | السعر | المدة\n\n` +
+    `👉 المدة اكتبها بالدقائق أو الساعات أو الأيام.\n` +
+    `مثال:\ncoinpayu | اجمع رصيد وارفق رابط التسجيل https://... | 0.0500 | 3 أيام`
+  );
+});
+
+// 📌 استقبال التعديلات من الأدمن
+bot.on('text', async (ctx, next) => {
+  if (ctx.session && ctx.session.awaitingEdit) {
+    if (!isAdmin(ctx)) {
+      delete ctx.session.awaitingEdit;
+      return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
+    }
+
+    const raw = ctx.message.text || '';
+    const parts = raw.split('|').map(p => p.trim());
+
+    if (parts.length < 4) {
+      return ctx.reply(
+        '❌ صيغة خاطئة.\n' +
+        'استخدم: العنوان | الوصف | السعر | المدة\n' +
+        'مثال: coinpayu | اجمع رصيد | 0.0500 | 2 ساعات'
+      );
+    }
+
+    const title = parts[0];
+    const description = parts[1];
+    const rewardStr = parts[2];
+    const durationStr = parts[3]; // 🕒 المدة (نص)
+
+    // ✅ تحويل السعر
+    const numMatch = rewardStr.match(/[\d]+(?:[.,]\d+)*/);
+    if (!numMatch) {
+      return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010 أو 0.0500');
+    }
+    let cleanReward = numMatch[0].replace(',', '.');
+    const price = parseFloat(cleanReward);
+    if (isNaN(price) || price <= 0) {
+      return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010');
+    }
+
+    // ✅ تحويل المدة إلى ثواني
+    let durationSeconds = 0;
+    const num = parseInt(durationStr.match(/\d+/)?.[0] || "0");
+    if (/يوم/.test(durationStr)) {
+      durationSeconds = num * 86400;
+    } else if (/ساعة/.test(durationStr)) {
+      durationSeconds = num * 3600;
+    } else if (/دقيقة/.test(durationStr)) {
+      durationSeconds = num * 60;
+    } else {
+      durationSeconds = num; // fallback لو كتبها مباشرة بالثواني
+    }
+
+    if (durationSeconds <= 0) {
+      return ctx.reply('❌ المدة غير صالحة. مثال: 3 أيام أو 5 ساعات أو 120 دقيقة.');
+    }
+
+    try {
+      await client.query(
+        'UPDATE tasks SET title=$1, description=$2, price=$3, duration_seconds=$4 WHERE id=$5',
+        [title, description, price, durationSeconds, ctx.session.awaitingEdit]
+      );
+
+      await ctx.replyWithHTML(
+        `✅ تم تعديل المهمة #${ctx.session.awaitingEdit} بنجاح.\n\n` +
+        `🏷️ <b>العنوان:</b> ${title}\n` +
+        `📖 <b>الوصف:</b> ${description}\n` +
+        `💰 <b>السعر:</b> ${price.toFixed(4)}\n` +
+        `🕒 <b>المدة:</b> ${durationStr}`
+      );
+
+      delete ctx.session.awaitingEdit;
+    } catch (err) {
+      console.error('❌ تعديل مهمة: ', err.message);
+      ctx.reply('حدث خطأ أثناء تعديل المهمة.');
+    }
+
+    return;
+  }
+
+  return next();
+});
+
 // 🗑️ زر حذف المهمة
 bot.action(/^delete_(\d+)$/, async (ctx) => {
   if (!isAdmin(ctx)) {
