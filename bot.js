@@ -343,20 +343,21 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
   );
 });
 
-// 📝 عرض المهمات
+// ✅ عرض المهمات (للمستخدمين) — محدث: يعرض المدة، حالة التقديم، ويظهر "إرسال إثبات" بعد انتهاء المدة
 bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   try {
     const userId = ctx.from.id;
-
-    // استعلام المهمات مع استبعاد المهمات اللي المستخدم قدّم فيها أو أثبتها
     const res = await client.query(
-      `SELECT t.id, t.title, t.description, t.price, t.duration_seconds, t.created_at
+      `SELECT t.id, t.title, t.description, t.price, COALESCE(t.duration_seconds, 2592000) AS duration_seconds,
+              ut.status, ut.created_at AS applied_at
        FROM tasks t
+       LEFT JOIN user_tasks ut
+         ON ut.task_id = t.id AND ut.user_id = $1
        WHERE NOT EXISTS (
-         SELECT 1 FROM user_tasks ut
-         WHERE ut.task_id = t.id
-           AND ut.user_id = $1
-           AND ut.status IN ('pending','approved','submitted')
+         SELECT 1 FROM user_tasks ut2
+         WHERE ut2.task_id = t.id
+           AND ut2.user_id = $1
+           AND ut2.status IN ('pending','approved')
        )
        ORDER BY t.id DESC
        LIMIT 20`,
@@ -367,41 +368,82 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
       return ctx.reply('❌ لا توجد مهمات متاحة حالياً.');
     }
 
-    // دالة لتنسيق المدة
-    function formatDuration(seconds) {
-      if (!seconds) return 'غير محددة';
-      if (seconds < 60) return `${seconds} ثانية`;
-      if (seconds < 3600) return `${Math.floor(seconds / 60)} دقيقة`;
-      if (seconds < 86400) return `${Math.floor(seconds / 3600)} ساعة`;
-      return `${Math.floor(seconds / 86400)} يوم`;
-    }
+    // دالة لتحويل المدة لعرض ودقائق/ساعات/أيام
+    const formatDuration = (secs) => {
+      if (!secs) return 'غير محددة';
+      if (secs < 60) return `${secs} ثانية`;
+      if (secs < 3600) return `${Math.floor(secs / 60)} دقيقة`;
+      if (secs < 86400) return `${Math.floor(secs / 3600)} ساعة`;
+      return `${Math.floor(secs / 86400)} يوم`;
+    };
+
+    // دالة لعرض الوقت المتبقي بصيغة مناسبة
+    const formatRemaining = (ms) => {
+      if (ms <= 0) return 'انتهت';
+      const secs = Math.ceil(ms / 1000);
+      if (secs < 60) return `${secs} ثانية`;
+      if (secs < 3600) return `${Math.ceil(secs / 60)} دقيقة`;
+      if (secs < 86400) return `${Math.ceil(secs / 3600)} ساعة`;
+      return `${Math.ceil(secs / 86400)} يوم`;
+    };
 
     for (const t of res.rows) {
       const price = parseFloat(t.price) || 0;
-      const durationText = formatDuration(t.duration_seconds);
-
-      const msg =
+      const duration = Number(t.duration_seconds) || 2592000; // افتراضى 30 يوم
+      let msg =
         `📋 المهمة #${t.id}\n\n` +
         `🏷️ العنوان: ${t.title}\n` +
         `📖 الوصف: ${t.description}\n` +
         `💰 السعر: ${price.toFixed(6)}$\n` +
-        `⏱️ المدة: ${durationText}\n\n` +
-        `▶️ لإرسال إثبات المهمة: اضغط زر "📝 إرسال إثبات" أو اكتب /submit ${t.id}`;
+        `⏱️ مدة المهمة: ${formatDuration(duration)}\n\n`;
 
-      await ctx.reply(msg, {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }],
-            [{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]
-          ]
+      const buttons = [];
+
+      // حالة المستخدم بالنسبة للمهمة
+      const status = t.status; // قد تكون undefined, 'applied', 'rejected', ...
+      if (!status || status === 'rejected') {
+        // لم يقدّم بعد / رفض سابقاً → يمكنه التقديم الآن
+        msg += `▶️ اضغط "📌 قدّم الآن" لبدء العد.\n`;
+        buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
+      } else if (status === 'applied') {
+        // المستخدم قدّم → نحسب الوقت المتبقي منذ applied_at + duration
+        if (t.applied_at) {
+          const appliedAt = new Date(t.applied_at);
+          const deadline = new Date(appliedAt.getTime() + duration * 1000);
+          const now = new Date();
+
+          if (now >= deadline) {
+            // انتهت المدة → نعرض زر إرسال إثبات
+            msg += `⏳ انتهت المدة المحددة (${formatDuration(duration)}). الآن يمكنك إرسال الإثبات.`;
+            buttons.push([{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]);
+          } else {
+            // لسه فى المدة → نظهر الوقت المتبقى
+            const remaining = deadline - now;
+            msg += `⏳ الوقت المتبقي لإرسال الإثبات: ${formatRemaining(remaining)}.`;
+            // (لا نعرض زر إرسال إثبات حتى تنتهي المدة)
+          }
+        } else {
+          // للحماية: لو ما فيه applied_at، نطلب منه التقديم مجدداً
+          msg += `▶️ اضغط "📌 قدّم الآن" لبدء العد.`;
+          buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
         }
-      });
+      } else {
+        // حالات أخرى (مثلاً 'submitted' — لكن عادةُ يتم تحويلها إلى 'pending' عند الإرسال)
+        msg += `⏳ حالة التقديم: ${status}.`;
+      }
+
+      if (buttons.length > 0) {
+        await ctx.reply(msg, { reply_markup: { inline_keyboard: buttons } });
+      } else {
+        await ctx.reply(msg);
+      }
     }
   } catch (err) {
     console.error('❌ عرض المهمات:', err);
     ctx.reply('حدث خطأ أثناء عرض المهمات.');
   }
 });
+
 
 // ✅ عند الضغط على زر "إرسال إثبات"
 bot.action(/^submit_(\d+)$/, async (ctx) => {
@@ -419,12 +461,23 @@ bot.action(/^submit_(\d+)$/, async (ctx) => {
   }
 });
 
-// ✅ عند الضغط على زر "قدّم الآن"
+// ✅ عند الضغط على زر "قدّم الآن" — يسجل applied ويعرض المدة الفعلية للمهمة
 bot.action(/^apply_(\d+)$/, async (ctx) => {
   try {
     await ctx.answerCbQuery(); // يغلق الـ spinner على الزر
     const taskId = Number(ctx.match[1]);
     const userId = ctx.from.id;
+
+    // احصل مدة المهمة من جدول tasks
+    let durationSeconds = 30 * 24 * 60 * 60; // افتراض 30 يوم
+    try {
+      const tRes = await client.query('SELECT duration_seconds FROM tasks WHERE id = $1', [taskId]);
+      if (tRes.rows.length && tRes.rows[0].duration_seconds) {
+        durationSeconds = Number(tRes.rows[0].duration_seconds);
+      }
+    } catch (e) {
+      console.error('❌ خطأ جلب duration_seconds:', e);
+    }
 
     // سجّل أن المستخدم قدّم (أو حدّث وقت التقديم إذا كان موجود)
     await client.query(
@@ -435,9 +488,19 @@ bot.action(/^apply_(\d+)$/, async (ctx) => {
       [userId, taskId]
     );
 
+    // دالة لعرض المدة بصيغة صديقة للإنسان
+    const formatDuration = (secs) => {
+      if (!secs) return 'غير محددة';
+      if (secs < 60) return `${secs} ثانية`;
+      if (secs < 3600) return `${Math.floor(secs / 60)} دقيقة`;
+      if (secs < 86400) return `${Math.floor(secs / 3600)} ساعة`;
+      return `${Math.floor(secs / 86400)} يوم`;
+    };
+
     await ctx.reply(
       `📌 تم تسجيل تقديمك على المهمة رقم ${taskId}.\n` +
-      `⏳ متاح لك 30 يوم لتقديم الإثبات. بعد انتهاء المدة سيظهر لك زر "إرسال إثبات".`
+      `⏱️ مدة المهمة: ${formatDuration(durationSeconds)}.\n` +
+      `⏳ بعد انتهاء هذه المدة سيظهر لك زر "📝 إرسال إثبات" لإرسال الإثبات.`
     );
   } catch (err) {
     console.error('❌ apply error:', err);
