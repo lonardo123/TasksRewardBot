@@ -73,15 +73,22 @@ async function initSchema() {
     `);
 
     // جدول المهمات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        description TEXT,
-        price NUMERIC(12,6) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+await client.query(`
+  CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    price NUMERIC(12,6) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+// إضافة العمود duration_seconds لو مش موجود
+await client.query(`
+  ALTER TABLE tasks 
+  ADD COLUMN IF NOT EXISTS duration_seconds INT DEFAULT 2592000;
+`);
+
 
     // جدول إثباتات المهمات
     await client.query(`
@@ -341,16 +348,11 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   try {
     const userId = ctx.from.id;
     const res = await client.query(
-      `SELECT t.id, t.title, t.description, t.price,
+      `SELECT t.id, t.title, t.description, t.price, t.duration_seconds,
               ut.status, ut.created_at AS applied_at
        FROM tasks t
-       LEFT JOIN user_tasks ut ON ut.task_id = t.id AND ut.user_id = $1
-       WHERE NOT EXISTS (
-         SELECT 1 FROM user_tasks ut2
-         WHERE ut2.task_id = t.id
-           AND ut2.user_id = $1
-           AND ut2.status IN ('pending','approved')
-       )
+       LEFT JOIN user_tasks ut
+         ON ut.task_id = t.id AND ut.user_id = $1
        ORDER BY t.id DESC
        LIMIT 20`,
       [userId]
@@ -362,8 +364,6 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
 
     for (const t of res.rows) {
       const price = parseFloat(t.price) || 0;
-
-      // بناء نص الرسالة
       let msg =
         `📋 المهمة #${t.id}\n\n` +
         `🏷️ العنوان: ${t.title}\n` +
@@ -372,47 +372,41 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
 
       let buttons = [];
 
-      // لم يقدّم المستخدم أو حالة مرفوضة → نعرض زر "قدّم الآن"
-      if (!t.status || t.status === 'rejected') {
+      if (!t.status) {
+        // المستخدم لسه ماقدّمش
         buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
         msg += `▶️ للتقديم على المهمة اضغط "📌 قدّم الآن".`;
-      } else if (t.status === 'applied') {
-        // المستخدم قدّم بالفعل → نحسب 30 يوم من applied_at
-        if (t.applied_at) {
-          const appliedAt = new Date(t.applied_at);
-          const deadline = new Date(appliedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
-          const now = new Date();
+      } else {
+        // المستخدم قدّم بالفعل
+        const appliedAt = new Date(t.applied_at);
+        const duration = t.duration_seconds || 2592000; // افتراضي 30 يوم
+        const deadline = new Date(appliedAt.getTime() + duration * 1000);
+        const now = new Date();
 
-          if (now >= deadline) {
-            // انتهت فترة الـ30 يوم → نظهر زر "إرسال إثبات"
-            buttons.push([{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]);
-            msg += `⏳ انتهت فترة الـ30 يوم، يمكنك الآن إرسال إثبات المهمة.`;
-          } else {
-            const remainingDays = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
-            msg += `⏳ لديك ${remainingDays} يوم متبقى قبل إرسال الإثبات.`;
-          }
+        if (now >= deadline) {
+          // انتهت المدة → يسمح بإرسال إثبات
+          buttons.push([{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]);
+          msg += `⏳ انتهت مدة المهمة (${Math.floor(duration / 86400)} يوم). يمكنك الآن إرسال الإثبات.`;
         } else {
-          // سلامة: لو ما فيش applied_at لأي سبب، نعرض زر التقديم مجدداً
-          buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
-          msg += `▶️ للتقديم على المهمة اضغط "📌 قدّم الآن".`;
+          // لسه في فترة الانتظار
+          const remainingMs = deadline - now;
+          const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+          msg += `⏳ لديك ${remainingDays} يوم متبقى لإرسال الإثبات.`;
         }
-      } else {
-        // حالات أخرى (مثلاً: submitted) — نعرض رسالة حالة عامة
-        msg += `⏳ حالة التقديم: ${t.status || '—'}.`;
       }
 
-      // إرسال الرسالة (مع الأزرار إذا كانت موجودة)
-      if (buttons.length > 0) {
-        await ctx.reply(msg, { reply_markup: { inline_keyboard: buttons } });
-      } else {
-        await ctx.reply(msg);
-      }
+      await ctx.reply(msg, {
+        reply_markup: {
+          inline_keyboard: buttons
+        }
+      });
     }
   } catch (err) {
     console.error('❌ عرض المهمات:', err);
     ctx.reply('حدث خطأ أثناء عرض المهمات.');
   }
 });
+
 
 // ✅ عند الضغط على زر "إرسال إثبات"
 bot.action(/^submit_(\d+)$/, async (ctx) => {
@@ -676,13 +670,17 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
   }
 });
 
+// ➕ إضافة مهمة جديدة (محدّث: يدعم مدة خاصة لكل مهمة)
 bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
   if (!isAdmin(ctx)) return;
   ctx.session.awaitingAction = 'add_task';
-  ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر');
+  // نطلب الآن مدة اختياريّة كحقل رابع
+  ctx.reply('📌 أرسل المهمة الجديدة بصيغة: العنوان | الوصف | السعر | المدة (اختياري)\n' +
+            'مثال مدة: 3600s أو 60m أو 1h أو 5d\n' +
+            'مثال كامل: coinpayu | اجمع رصيد وارفق رابط التسجيل https://... | 0.0500 | 30d');
 });
 
-// إضافة مهمة - أدمن
+// إضافة مهمة - أدمن (مع دعم المدة الخاصة)
 bot.on('text', async (ctx, next) => {
   if (ctx.session && ctx.session.awaitingAction === 'add_task') {
     if (!isAdmin(ctx)) {
@@ -693,36 +691,96 @@ bot.on('text', async (ctx, next) => {
     const raw = ctx.message.text || '';
     const parts = raw.split('|').map(p => p.trim());
 
+    // نسمح بصيغة 3 أجزاء (بدون مدة) أو 4 أجزاء (بمدة)
     if (parts.length < 3) {
-      return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر\nمثال: coinpayu | اجمع رصيد وارفق رابط الموقع https://... | 0.0500');
+      return ctx.reply('❌ صيغة خاطئة. استخدم: العنوان | الوصف | السعر | المدة (اختياري)\n' +
+                       'مثال: coinpayu | اجمع رصيد وارفق رابط الموقع https://... | 0.0500 | 30d');
     }
 
+    // تحديد الحقول بناءً على طول الـ parts
     const title = parts[0];
-    const description = parts.slice(1, -1).join(' | ');
-    const rewardStr = parts[parts.length - 1];
+    let description = '';
+    let priceStr = '';
+    let durationStr = null;
 
-    const numMatch = rewardStr.match(/[\d]+(?:[.,]\d+)*/);
+    if (parts.length === 3) {
+      // الصيغة القديمة بدون مدة
+      description = parts[1];
+      priceStr = parts[2];
+    } else {
+      // parts.length >= 4 -> آخر عنصر هو المدة، والقبل الأخيرة هي السعر، والباقي وصف
+      durationStr = parts[parts.length - 1];
+      priceStr = parts[parts.length - 2];
+      description = parts.slice(1, parts.length - 2).join(' | ');
+    }
+
+    // ======= تحليل السعر كما في الكود الأصلي =======
+    const numMatch = priceStr.match(/[\d]+(?:[.,]\d+)*/);
     if (!numMatch) {
       return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010 أو 0.0500');
     }
-
     let cleanReward = numMatch[0].replace(',', '.');
     const price = parseFloat(cleanReward);
-
     if (isNaN(price) || price <= 0) {
       return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010');
     }
 
+    // ======= دالة مساعدة لتحويل نص المدة إلى ثوانى =======
+    const parseDurationToSeconds = (s) => {
+      if (!s) return null;
+      s = ('' + s).trim().toLowerCase();
+
+      // نمط بسيط: رقم + وحدة اختيارية (s,m,h,d) أو فقط رقم (يُعتبر ثواني)
+      const m = s.match(/^(\d+(?:[.,]\d+)?)(s|sec|secs|m|min|h|d)?$/);
+      if (!m) return null;
+      let num = m[1].replace(',', '.');
+      let val = parseFloat(num);
+      if (isNaN(val) || val < 0) return null;
+      const unit = m[2] || '';
+
+      switch (unit) {
+        case 's': case 'sec': case 'secs': return Math.round(val);
+        case 'm': case 'min': return Math.round(val * 60);
+        case 'h': return Math.round(val * 3600);
+        case 'd': return Math.round(val * 86400);
+        default: return Math.round(val); // بدون وحدة → ثواني
+      }
+    };
+
+    // ======= تحويل المدة أو وضع الافتراضى (30 يوم) =======
+    const DEFAULT_DURATION_SECONDS = 30 * 24 * 60 * 60; // 2592000
+    let durationSeconds = DEFAULT_DURATION_SECONDS;
+    if (durationStr) {
+      const parsed = parseDurationToSeconds(durationStr);
+      if (parsed === null || parsed <= 0) {
+        return ctx.reply('❌ صيغة المدة غير مفهومة. استخدم أمثلة: 3600s أو 60m أو 1h أو 5d');
+      }
+      durationSeconds = parsed;
+    }
+
+    // ======= إدخال المهمة في قاعدة البيانات مع duration_seconds =======
     try {
       const res = await client.query(
-        'INSERT INTO tasks (title, description, price) VALUES ($1,$2,$3) RETURNING id, title, price',
-        [title, description, price]
+        'INSERT INTO tasks (title, description, price, duration_seconds) VALUES ($1,$2,$3,$4) RETURNING id, title, price, duration_seconds',
+        [title, description, price, durationSeconds]
       );
+
+      // دالة لعرض المدة بصيغة صديقة للإنسان
+      const formatDuration = (secs) => {
+        if (!secs) return 'غير محددة';
+        if (secs % 86400 === 0) return `${secs / 86400} يوم`;
+        if (secs % 3600 === 0) return `${secs / 3600} ساعة`;
+        if (secs % 60 === 0) return `${secs / 60} دقيقة`;
+        return `${secs} ثانية`;
+      };
 
       const formattedDescription = description.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1">$1</a>');
 
       await ctx.replyWithHTML(
-        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n📝 <b>الوصف:</b> ${formattedDescription}\n💰 <b>السعر:</b> ${parseFloat(res.rows[0].price).toFixed(4)}`,
+        `✅ تم إضافة المهمة بنجاح.\n\n📌 <b>العنوان:</b> ${res.rows[0].title}\n` +
+        `📝 <b>الوصف:</b> ${formattedDescription}\n` +
+        `💰 <b>السعر:</b> ${parseFloat(res.rows[0].price).toFixed(4)}\n` +
+        `⏱️ <b>مدة المهمة:</b> ${formatDuration(res.rows[0].duration_seconds)}`,
         { disable_web_page_preview: true }
       );
 
