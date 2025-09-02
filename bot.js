@@ -343,16 +343,21 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
   );
 });
 
-// ✅ عرض المهمات (للمستخدمين) — (معدل ليحسب حالة التقديم + نافذة 30 يوم)
+// 📝 عرض المهمات
 bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
   try {
     const userId = ctx.from.id;
+
+    // استعلام المهمات مع استبعاد المهمات اللي المستخدم قدّم فيها أو أثبتها
     const res = await client.query(
-      `SELECT t.id, t.title, t.description, t.price, t.duration_seconds,
-              ut.status, ut.created_at AS applied_at
+      `SELECT t.id, t.title, t.description, t.price, t.duration_seconds, t.created_at
        FROM tasks t
-       LEFT JOIN user_tasks ut
-         ON ut.task_id = t.id AND ut.user_id = $1
+       WHERE NOT EXISTS (
+         SELECT 1 FROM user_tasks ut
+         WHERE ut.task_id = t.id
+           AND ut.user_id = $1
+           AND ut.status IN ('pending','approved','submitted')
+       )
        ORDER BY t.id DESC
        LIMIT 20`,
       [userId]
@@ -362,42 +367,33 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
       return ctx.reply('❌ لا توجد مهمات متاحة حالياً.');
     }
 
+    // دالة لتنسيق المدة
+    function formatDuration(seconds) {
+      if (!seconds) return 'غير محددة';
+      if (seconds < 60) return `${seconds} ثانية`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)} دقيقة`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)} ساعة`;
+      return `${Math.floor(seconds / 86400)} يوم`;
+    }
+
     for (const t of res.rows) {
       const price = parseFloat(t.price) || 0;
-      let msg =
+      const durationText = formatDuration(t.duration_seconds);
+
+      const msg =
         `📋 المهمة #${t.id}\n\n` +
         `🏷️ العنوان: ${t.title}\n` +
         `📖 الوصف: ${t.description}\n` +
-        `💰 السعر: ${price.toFixed(6)}$\n\n`;
-
-      let buttons = [];
-
-      if (!t.status) {
-        // المستخدم لسه ماقدّمش
-        buttons.push([{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }]);
-        msg += `▶️ للتقديم على المهمة اضغط "📌 قدّم الآن".`;
-      } else {
-        // المستخدم قدّم بالفعل
-        const appliedAt = new Date(t.applied_at);
-        const duration = t.duration_seconds || 2592000; // افتراضي 30 يوم
-        const deadline = new Date(appliedAt.getTime() + duration * 1000);
-        const now = new Date();
-
-        if (now >= deadline) {
-          // انتهت المدة → يسمح بإرسال إثبات
-          buttons.push([{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]);
-          msg += `⏳ انتهت مدة المهمة (${Math.floor(duration / 86400)} يوم). يمكنك الآن إرسال الإثبات.`;
-        } else {
-          // لسه في فترة الانتظار
-          const remainingMs = deadline - now;
-          const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
-          msg += `⏳ لديك ${remainingDays} يوم متبقى لإرسال الإثبات.`;
-        }
-      }
+        `💰 السعر: ${price.toFixed(6)}$\n` +
+        `⏱️ المدة: ${durationText}\n\n` +
+        `▶️ لإرسال إثبات المهمة: اضغط زر "📝 إرسال إثبات" أو اكتب /submit ${t.id}`;
 
       await ctx.reply(msg, {
         reply_markup: {
-          inline_keyboard: buttons
+          inline_keyboard: [
+            [{ text: "📌 قدّم الآن", callback_data: `apply_${t.id}` }],
+            [{ text: "📝 إرسال إثبات", callback_data: `submit_${t.id}` }]
+          ]
         }
       });
     }
@@ -406,7 +402,6 @@ bot.hears('📝 مهمات TasksRewardBot', async (ctx) => {
     ctx.reply('حدث خطأ أثناء عرض المهمات.');
   }
 });
-
 
 // ✅ عند الضغط على زر "إرسال إثبات"
 bot.action(/^submit_(\d+)$/, async (ctx) => {
@@ -797,19 +792,28 @@ bot.on('text', async (ctx, next) => {
   return next();
 });
 
-// 📝 عرض كل المهمات (للأدمن)
+// 📝 عرض كل المهمات (للأدمن) — محدث: يعرض المدة لكل مهمة
 bot.hears('📝 المهمات', async (ctx) => {
   if (!isAdmin(ctx)) return;
   try {
-    const res = await client.query('SELECT id, title, description, price FROM tasks ORDER BY id DESC');
+    const res = await client.query('SELECT id, title, description, price, duration_seconds FROM tasks ORDER BY id DESC');
     if (res.rows.length === 0) return ctx.reply('⚠️ لا توجد مهام حالياً.');
+
+    const formatDuration = (secs) => {
+      if (!secs) return 'غير محددة';
+      if (secs < 60) return `${secs} ثانية`;
+      if (secs < 3600) return `${Math.floor(secs / 60)} دقيقة`;
+      if (secs < 86400) return `${Math.floor(secs / 3600)} ساعة`;
+      return `${Math.floor(secs / 86400)} يوم`;
+    };
 
     for (const t of res.rows) {
       const price = parseFloat(t.price) || 0;
       const text = `📋 المهمة #${t.id}\n\n` +
                    `🏷️ العنوان: ${t.title}\n` +
                    `📖 الوصف: ${t.description}\n` +
-                   `💰 السعر: ${price.toFixed(4)}$`;
+                   `💰 السعر: ${price.toFixed(4)}$\n` +
+                   `⏱️ المدة: ${formatDuration(t.duration_seconds)}`;
 
       await ctx.reply(text, Markup.inlineKeyboard([
         [ Markup.button.callback(`✏️ تعديل ${t.id}`, `edit_${t.id}`) ],
@@ -822,16 +826,111 @@ bot.hears('📝 المهمات', async (ctx) => {
   }
 });
 
-// ✏️ زر تعديل المهمة (يعين حالة انتظار التعديل)
-bot.action(/^edit_(\d+)$/, async (ctx) => {
+// 📌 استلام بيانات التعديل (عند إرسال الأدمن للنص الجديد) — محدث لدعم المدة
+bot.on('text', async (ctx, next) => {
+  if (!ctx.session || !ctx.session.awaitingEdit) return next();
   if (!isAdmin(ctx)) {
-    await ctx.answerCbQuery('❌ غير مسموح');
-    return;
+    ctx.session.awaitingEdit = null;
+    return ctx.reply('❌ ليس لديك صلاحيات الأدمن.');
   }
-  const taskId = ctx.match[1];
-  ctx.session.awaitingEdit = taskId;
-  await ctx.answerCbQuery();
-  await ctx.reply(`✏️ أرسل المهمة الجديدة لـ #${taskId} بصيغة:\n\nالعنوان | الوصف | السعر\n\nمثال:\ncoinpayu | اجمع رصيد وارفق رابط التسجيل https://... | 0.0500`);
+
+  const taskId = ctx.session.awaitingEdit;
+  const raw = ctx.message.text || '';
+  const parts = raw.split('|').map(p => p.trim());
+
+  if (parts.length < 3) {
+    return ctx.reply('⚠️ الصيغة غير صحيحة. استخدم: العنوان | الوصف | السعر | المدة (اختياري)\nمثال:\ncoinpayu | سجل عبر الرابط https://... | 0.0500 | 10d');
+  }
+
+  const title = parts[0];
+  let description = '';
+  let priceStr = '';
+  let durationStr = null;
+
+  if (parts.length === 3) {
+    // الصيغة بدون مدة
+    description = parts[1];
+    priceStr = parts[2];
+  } else {
+    // آخر عنصر قد يكون المدة، والقبل أخيره السعر، والباقي وصف
+    durationStr = parts[parts.length - 1];
+    priceStr = parts[parts.length - 2];
+    description = parts.slice(1, parts.length - 2).join(' | ');
+  }
+
+  // ====== تحليل السعر (كما في الكود الأصلي) ======
+  const numMatch = priceStr.match(/[\d]+(?:[.,]\d+)*/);
+  if (!numMatch) {
+    return ctx.reply('❌ السعر غير صالح. استخدم مثلاً: 0.0500');
+  }
+  const price = parseFloat(numMatch[0].replace(',', '.'));
+  if (isNaN(price) || price <= 0) {
+    return ctx.reply('❌ السعر غير صالح. مثال صحيح: 0.0010 أو 0.0500');
+  }
+
+  // ====== دالة مساعدة لتحويل نص المدة إلى ثواني ======
+  const parseDurationToSeconds = (s) => {
+    if (!s) return null;
+    s = ('' + s).trim().toLowerCase();
+    const m = s.match(/^(\d+(?:[.,]\d+)?)(s|sec|secs|m|min|h|d)?$/);
+    if (!m) return null;
+    let num = m[1].replace(',', '.');
+    let val = parseFloat(num);
+    if (isNaN(val) || val < 0) return null;
+    const unit = m[2] || '';
+    switch (unit) {
+      case 's': case 'sec': case 'secs': return Math.round(val);
+      case 'm': case 'min': return Math.round(val * 60);
+      case 'h': return Math.round(val * 3600);
+      case 'd': return Math.round(val * 86400);
+      default: return Math.round(val); // بدون وحدة → نعتبرها ثواني
+    }
+  };
+
+  // ====== الحصول على قيمة المدة المراد حفظها ======
+  const DEFAULT_DURATION_SECONDS = 30 * 24 * 60 * 60; // 30 يوم افتراضي
+  let durationSeconds = null;
+
+  if (durationStr) {
+    const parsed = parseDurationToSeconds(durationStr);
+    if (parsed === null || parsed <= 0) {
+      return ctx.reply('❌ صيغة المدة غير مفهومة. أمثلة: 3600s أو 60m أو 1h أو 5d');
+    }
+    durationSeconds = parsed;
+  } else {
+    // لو الأدمن لم يحدد مدة: نحافظ على القيمة الحالية في DB
+    try {
+      const cur = await client.query('SELECT duration_seconds FROM tasks WHERE id=$1', [taskId]);
+      durationSeconds = (cur.rows[0] && cur.rows[0].duration_seconds) ? cur.rows[0].duration_seconds : DEFAULT_DURATION_SECONDS;
+    } catch (e) {
+      durationSeconds = DEFAULT_DURATION_SECONDS;
+    }
+  }
+
+  // ====== دالة لتنسيق المدة للعرض ======
+  const formatDuration = (secs) => {
+    if (!secs) return 'غير محددة';
+    if (secs < 60) return `${secs} ثانية`;
+    if (secs < 3600) return `${Math.floor(secs / 60)} دقيقة`;
+    if (secs < 86400) return `${Math.floor(secs / 3600)} ساعة`;
+    return `${Math.floor(secs / 86400)} يوم`;
+  };
+
+  // ====== تنفيذ التحديث في DB ======
+  try {
+    await client.query(
+      'UPDATE tasks SET title=$1, description=$2, price=$3, duration_seconds=$4 WHERE id=$5',
+      [title, description, price, durationSeconds, taskId]
+    );
+
+    ctx.session.awaitingEdit = null;
+    await ctx.reply(`✅ تم تعديل المهمة #${taskId} بنجاح.\n📌 العنوان: ${title}\n💰 السعر: ${price.toFixed(4)}$\n⏱️ المدة: ${formatDuration(durationSeconds)}`, { disable_web_page_preview: true });
+  } catch (err) {
+    console.error('❌ تعديل المهمة:', err);
+    await ctx.reply('حدث خطأ أثناء تعديل المهمة.');
+  }
+
+  return; // لا نمرّر للـ next() لأننا عالجنا الرسالة
 });
 
 // 🗑️ زر حذف المهمة
