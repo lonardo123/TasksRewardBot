@@ -1233,11 +1233,12 @@ bot.action(/^deny_(\d+)$/, async (ctx) => {
 bot.hears('📊 الإحصائيات', async (ctx) => {
   if (!isAdmin(ctx)) return;
   try {
-    const [users, earnings, paid, pending] = await Promise.all([
+    const [users, earnings, paid, pending, proofs] = await Promise.all([
       client.query('SELECT COUNT(*) AS c FROM users'),
       client.query('SELECT COALESCE(SUM(amount), 0) AS s FROM earnings'),
       client.query('SELECT COALESCE(SUM(amount), 0) AS s FROM withdrawals WHERE status = $1', ['paid']),
-      client.query('SELECT COUNT(*) AS c FROM withdrawals WHERE status = $1', ['pending'])
+      client.query('SELECT COUNT(*) AS c FROM withdrawals WHERE status = $1', ['pending']),
+      client.query("SELECT COUNT(*) AS c FROM user_tasks WHERE status = 'pending'")
     ]);
 
     await ctx.replyWithHTML(
@@ -1245,13 +1246,15 @@ bot.hears('📊 الإحصائيات', async (ctx) => {
       `👥 عدد المستخدمين: <b>${users.rows[0].c}</b>\n` +
       `💰 الأرباح الموزعة: <b>${Number(earnings.rows[0].s).toFixed(2)}$</b>\n` +
       `📤 المدفوعات: <b>${Number(paid.rows[0].s).toFixed(2)}$</b>\n` +
-      `⏳ طلبات معلقة: <b>${pending.rows[0].c}</b>`
+      `⏳ طلبات معلقة: <b>${pending.rows[0].c}</b>\n` +
+      `📝 إثباتات مهمات المستخدمين: <b>${proofs.rows[0].c}</b>`
     );
   } catch (err) {
     console.error('❌ خطأ في الإحصائيات:', err);
     await ctx.reply('حدث خطأ في جلب الإحصائيات.');
   }
 });
+
 
 // ➕ إضافة رصيد
 bot.hears('➕ إضافة رصيد', async (ctx) => {
