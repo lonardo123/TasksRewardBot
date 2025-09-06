@@ -1,12 +1,17 @@
 const { Telegraf, session, Markup } = require('telegraf');
 const { Client } = require('pg');
 require('dotenv').config();
+const express = require('express');
+const axios = require('axios'); // لتحميل أي سكربت خارجي (البوت)
+const app = express();
+const port = process.env.PORT || 3000;
 
 // ====== Debug env ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
 console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
+
 const userSessions = {};
 
 // ====== Postgres client ======
@@ -14,6 +19,7 @@ const client = new Client({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
+
 
 async function connectDB() {
   try {
