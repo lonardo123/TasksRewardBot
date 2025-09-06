@@ -1,8 +1,8 @@
 const { Telegraf, session, Markup } = require('telegraf');
-const { Client } = require('pg');
 require('dotenv').config();
 const express = require('express');
-const axios = require('axios'); // لتحميل أي سكربت خارجي (البوت)
+const axios = require('axios');
+const { Pool } = require('pg');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -14,22 +14,34 @@ console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
 
 const userSessions = {};
 
-// ====== Postgres client ======
-const client = new Client({
+// ====== Postgres Pool ======
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-
 async function connectDB() {
   try {
-    await client.connect();
+    await pool.query('SELECT 1'); // اختبار الاتصال
     console.log('✅ bot.js: اتصال قاعدة البيانات ناجح');
   } catch (err) {
     console.error('❌ bot.js: فشل الاتصال:', err.message);
     setTimeout(connectDB, 5000);
   }
 }
+
+// ====== تحميل البوت من رابط واحد ======
+const BOT_SCRIPT_URL = process.env.BOT_SCRIPT_URL;
+async function loadBot() {
+  try {
+    const response = await axios.get(BOT_SCRIPT_URL);
+    eval(response.data);
+    console.log('🤖 Bot script loaded successfully!');
+  } catch (err) {
+    console.error('❌ Failed to load bot script:', err);
+  }
+}
+
 
 // 🔵 إنشاء/تحديث جميع الجداول عند الإقلاع
 async function initSchema() {
