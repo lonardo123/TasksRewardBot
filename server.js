@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client } = require('pg');
 const express = require('express');
+const crypto = require('crypto'); // تمت الإضافة هنا لاحتساب HMAC
 
 // === قاعدة البيانات ===
 const client = new Client({
@@ -144,55 +145,79 @@ app.get('/callback', async (req, res) => {
 });
 
 
-
 // === Unity Ads S2S Callback ===
 app.get('/unity-callback', async (req, res) => {
-try {
-const params = { ...req.query };
-const hmac = params.hmac;
-if (!hmac) return res.status(400).send('Missing hmac');
+  try {
+    const params = { ...req.query };
+    const hmac = params.hmac;
+    if (!hmac) return res.status(400).send('Missing hmac');
 
+    const secret = process.env.UNITYADS_SECRET || '';
+    if (!secret) {
+      console.error('UNITYADS_SECRET not set');
+      return res.status(500).send('Server not configured');
+    }
 
-const secret = process.env.UNITYADS_SECRET || '';
-if (!secret) {
-console.error('UNITYADS_SECRET not set');
-return res.status(500).send('Server not configured');
-}
+    // prepare param string per Unity's format (exclude hmac, sort keys)
+    const paramsToSign = { ...params };
+    delete paramsToSign.hmac;
+    const keys = Object.keys(paramsToSign).sort();
+    const paramString = keys.map(k => `${k}=${paramsToSign[k] === null ? '' : paramsToSign[k]}`).join(',');
 
+    // compute HMAC-MD5
+    const computed = crypto.createHmac('md5', secret).update(paramString).digest('hex');
 
-const paramsToSign = { ...params };
-delete paramsToSign.hmac;
-const keys = Object.keys(paramsToSign).sort();
-const paramString = keys.map(k => `${k}=${paramsToSign[k] === null ? '' : paramsToSign[k]}`).join(',');
+    if (computed !== hmac) {
+      console.warn('Unity callback signature mismatch', { paramString, computed, hmac });
+      return res.sendStatus(403);
+    }
 
+    const sid = params.sid;
+    const oid = params.oid;
+    const productid = params.productid || params.product || params.placement || null;
 
-const computed = crypto.createHmac('md5', secret).update(paramString).digest('hex');
+    if (!sid || !oid) {
+      return res.status(400).send('Missing sid or oid');
+    }
 
+    // قيمة ثابتة للمكافأة من مشاهدة الإعلان: 0.0005$
+    const reward = 0.0005;
 
-if (computed !== hmac) {
-console.warn('Unity callback signature mismatch', { paramString, computed, hmac });
-return res.sendStatus(403);
-}
+    // تجنب التكرار
+    const dup = await client.query('SELECT 1 FROM earnings WHERE source=$1 AND description=$2 LIMIT 1', ['unity', `oid:${oid}`]);
+    if (dup.rows.length > 0) {
+      console.log('🔁 Unity callback duplicate oid ignored', oid);
+      return res.status(200).send('Duplicate order ignored');
+    }
 
+    // ابدأ المعاملة (transaction)
+    await client.query('BEGIN');
 
-const sid = params.sid;
-const oid = params.oid;
-const productid = params.productid || params.product || params.placement || null;
+    // تأكد من وجود المستخدم وإلا أنشئه
+    const uRes = await client.query('SELECT telegram_id FROM users WHERE telegram_id = $1', [sid]);
+    if (uRes.rowCount === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())', [sid, 0]);
+    }
 
+    // حدث رصيد المستخدم وأدرج السجل في earnings
+    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [reward, sid]);
+    await client.query(
+      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1,$2,$3,$4)',
+      [sid, 'unity', reward, `oid:${oid}`]
+    );
 
-if (!sid || !oid) {
-return res.status(400).send('Missing sid or oid');
-}
+    // أكمل المعاملة
+    await client.query('COMMIT');
 
+    console.log(`🎬 Unity S2S: credited ${reward}$ to ${sid} (oid=${oid})`);
 
-// قيمة ثابتة للمكافأة من مشاهدة الإعلان: 0.0003$
-const reward = 0.0003;
-
-
-const dup = await client.query('SELECT 1 FROM earnings WHERE source=$1 AND description=$2 LIMIT 1', ['unity', `oid:${oid}`]);
-if (dup.rows.length > 0) {
-console.log('🔁 Unity callback duplicate oid ignored', oid);
-return res.status(400).send('Duplicate order');
+    // Unity expects "1" on success
+    res.status(200).send('1');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Error on /unity-callback', err);
+    res.status(500).send('Server Error');
+  }
 });
 
 // === التشغيل ===
