@@ -329,13 +329,13 @@ bot.hears('👥 ريفيرال', async (ctx) => {
 bot.hears('🎁 مصادر الربح', async (ctx) => {
   const userId = ctx.from.id;
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
-  
+  const adUrl = `https://perceptive-victory-production.up.railway.app/ad.html?user_id=${userId}`;
 
   await ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      
+      [{ text: '🎬 شاهد إعلان (Unity)', web_app: { url: adUrl } }]
     ])
   );
 
