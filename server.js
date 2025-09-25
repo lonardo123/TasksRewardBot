@@ -144,6 +144,57 @@ app.get('/callback', async (req, res) => {
 });
 
 
+
+// === Unity Ads S2S Callback ===
+app.get('/unity-callback', async (req, res) => {
+try {
+const params = { ...req.query };
+const hmac = params.hmac;
+if (!hmac) return res.status(400).send('Missing hmac');
+
+
+const secret = process.env.UNITYADS_SECRET || '';
+if (!secret) {
+console.error('UNITYADS_SECRET not set');
+return res.status(500).send('Server not configured');
+}
+
+
+const paramsToSign = { ...params };
+delete paramsToSign.hmac;
+const keys = Object.keys(paramsToSign).sort();
+const paramString = keys.map(k => `${k}=${paramsToSign[k] === null ? '' : paramsToSign[k]}`).join(',');
+
+
+const computed = crypto.createHmac('md5', secret).update(paramString).digest('hex');
+
+
+if (computed !== hmac) {
+console.warn('Unity callback signature mismatch', { paramString, computed, hmac });
+return res.sendStatus(403);
+}
+
+
+const sid = params.sid;
+const oid = params.oid;
+const productid = params.productid || params.product || params.placement || null;
+
+
+if (!sid || !oid) {
+return res.status(400).send('Missing sid or oid');
+}
+
+
+// قيمة ثابتة للمكافأة من مشاهدة الإعلان: 0.0003$
+const reward = 0.0003;
+
+
+const dup = await client.query('SELECT 1 FROM earnings WHERE source=$1 AND description=$2 LIMIT 1', ['unity', `oid:${oid}`]);
+if (dup.rows.length > 0) {
+console.log('🔁 Unity callback duplicate oid ignored', oid);
+return res.status(400).send('Duplicate order');
+});
+
 // === التشغيل ===
 (async () => {
   await connectDB();
