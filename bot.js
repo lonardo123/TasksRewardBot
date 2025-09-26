@@ -335,7 +335,7 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      [{ text: '🎬 شاهد إعلان (Unity)', web_app: { url: adUrl } }]
+      [{ text: '🎬 مشاهدة الإعلان واحصل على المكافئة', web_app: { url: adUrl } }]
     ])
   );
 
