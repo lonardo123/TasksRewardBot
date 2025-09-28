@@ -1,0 +1,10 @@
+<script>
+  const urlParams = new URLSearchParams(window.location.search);
+  const userId = urlParams.get('user_id');
+  if (userId) {
+    chrome.storage.local.set({ userId }, () => {
+      alert('✅ تم ربط حسابك بنجاح مع TasksRewardBot!');
+      window.close();
+    });
+  }
+</script>
