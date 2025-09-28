@@ -308,7 +308,6 @@ bot.hears('💰 رصيدك', async (ctx) => {
 bot.hears('👥 ريفيرال', async (ctx) => {
   const userId = ctx.from.id;
   const botUsername = 'TasksRewardBot';
-  const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
   try {
     const countRes = await client.query('SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1', [userId]);
@@ -336,7 +335,6 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      [{ text: '🎬 مشاهدة الإعلان واحصل على المكافئة', web_app: { url: adUrl } }]
     ])
   );
 
