@@ -1,10 +1,30 @@
-<script>
-  const urlParams = new URLSearchParams(window.location.search);
-  const userId = urlParams.get('user_id');
-  if (userId) {
-    chrome.storage.local.set({ userId }, () => {
-      alert('✅ تم ربط حسابك بنجاح مع TasksRewardBot!');
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ربط حساب TasksRewardBot</title>
+  <meta charset="UTF-8">
+</head>
+<body>
+  <h2>جارٍ ربط حسابك...</h2>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('user_id');
+    if (userId) {
+      // محاولة حفظ user_id في إضافة كروم (إذا كانت مثبتة)
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.set({ userId: userId }, () => {
+          alert('✅ تم ربط حسابك بنجاح مع TasksRewardBot!');
+          window.close();
+        });
+      } else {
+        // إذا لم تكن الإضافة مثبتة، نعرض رسالة
+        alert('⚠️ يرجى تثبيت إضافة TasksRewardBot أولًا .');
+        window.close();
+      }
+    } else {
+      alert('❌ خطأ: user_id غير موجود');
       window.close();
-    });
-  }
-</script>
+    }
+  </script>
+</body>
+</html>
