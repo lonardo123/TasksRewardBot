@@ -1412,6 +1412,17 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   );
 });
 
+// 🎬 فيديوهاتي
+bot.hears('🎬 فيديوهاتي', async (ctx) => {
+  const userId = ctx.from.id;
+  const url = `https://perceptive-victory-production.up.railway.app/my-videos.html?user_id=${userId}`;
+  await ctx.reply('🎬 اضغط على الزر لعرض وإدارة فيديوهاتك:', 
+    Markup.inlineKeyboard([
+      [Markup.button.webApp('فيديوهاتي', url)]
+    ])
+  );
+});
+
 bot.command('pay', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = Number((ctx.message.text.split(' ')[1] || '').trim());
