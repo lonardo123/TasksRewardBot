@@ -50,6 +50,16 @@ async function connectDB() {
         referee_id BIGINT,
         created_at TIMESTAMP DEFAULT NOW()
       );
+      
+      CREATE TABLE IF NOT EXISTS user_videos (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        video_url TEXT NOT NULL,
+        duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
+        views_count INT DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW()
+      );      
     `);
 
     console.log('✅ الجداول أُنشئت أو موجودة مسبقًا');
@@ -216,6 +226,144 @@ app.get('/unity-callback', async (req, res) => {
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Error on /unity-callback', err);
+    res.status(500).send('Server Error');
+  }
+});
+
+app.get('/api/my-videos', async (req, res) => {
+  const { user_id } = req.query;
+  if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
+  try {
+    const videos = await client.query(
+      'SELECT id, title, video_url, duration_seconds, views_count FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC',
+      [user_id]
+    );
+    res.json(videos.rows);
+  } catch (err) {
+    console.error('Error in /api/my-videos:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// إضافة فيديو جديد
+app.post('/api/add-video', async (req, res) => {
+  const { user_id, title, video_url, duration_seconds } = req.body;
+  if (!user_id || !title || !video_url || !duration_seconds) {
+    return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+  }
+  const duration = parseInt(duration_seconds);
+  if (duration < 50) {
+    return res.status(400).json({ error: 'المدة يجب أن تكون 50 ثانية على الأقل' });
+  }
+  const cost = duration * 0.00002;
+
+  try {
+    const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
+    if (user.rows.length === 0) {
+      return res.status(400).json({ error: 'المستخدم غير موجود' });
+    }
+    if (parseFloat(user.rows[0].balance) < cost) {
+      return res.status(400).json({ error: 'رصيدك غير كافٍ' });
+    }
+
+    await client.query('BEGIN');
+    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
+    await client.query(
+      'INSERT INTO user_videos (user_id, title, video_url, duration_seconds) VALUES ($1, $2, $3, $4)',
+      [user_id, title, video_url, duration]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, cost });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error in /api/add-video:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// حذف فيديو
+app.post('/api/delete-video', async (req, res) => {
+  const { user_id, video_id } = req.body;
+  if (!user_id || !video_id) return res.status(400).json({ error: 'user_id و video_id مطلوبان' });
+  try {
+    const result = await client.query(
+      'DELETE FROM user_videos WHERE id = $1 AND user_id = $2',
+      [video_id, user_id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'الفيديو غير موجود' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error in /api/delete-video:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// جلب الفيديوهات العامة للمشاهدة
+app.get('/api/public-videos', async (req, res) => {
+  try {
+    const videos = await client.query(`
+      SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id,
+             u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
+      FROM user_videos uv
+      JOIN users u ON uv.user_id = u.telegram_id
+      WHERE u.balance >= (uv.duration_seconds * 0.00002)
+      ORDER BY uv.views_count ASC, uv.created_at DESC
+      LIMIT 10
+    `);
+    const available = videos.rows.filter(v => v.has_enough_balance);
+    res.json(available);
+  } catch (err) {
+    console.error('Error in /api/public-videos:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// مكافأة المشاهدة
+app.get('/video-callback', async (req, res) => {
+  const { user_id, video_id } = req.query;
+  if (!user_id || !video_id) return res.status(400).send('Missing user_id or video_id');
+
+  try {
+    const video = await client.query(
+      'SELECT user_id AS owner_id, duration_seconds FROM user_videos WHERE id = $1',
+      [video_id]
+    );
+    if (video.rows.length === 0) return res.status(400).send('الفيديو غير موجود');
+
+    const { owner_id, duration_seconds } = video.rows[0];
+    const reward = duration_seconds * 0.00001;
+    const cost = duration_seconds * 0.00002;
+
+    await client.query('BEGIN');
+
+    const ownerBalance = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [owner_id]);
+    if (ownerBalance.rows.length === 0 || parseFloat(ownerBalance.rows[0].balance) < cost) {
+      await client.query('ROLLBACK');
+      return res.status(400).send('رصيد صاحب الفيديو غير كافٍ');
+    }
+    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, owner_id]);
+
+    const viewerExists = await client.query('SELECT 1 FROM users WHERE telegram_id = $1', [user_id]);
+    if (viewerExists.rows.length === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
+    }
+    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [reward, user_id]);
+
+    await client.query(
+      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+      [user_id, 'user_video', reward, `user_video:${video_id}`]
+    );
+
+    await client.query('UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1', [video_id]);
+
+    await client.query('COMMIT');
+    console.log(`✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id}`);
+    res.status(200).send('Success');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error in /video-callback:', err);
     res.status(500).send('Server Error');
   }
 });
