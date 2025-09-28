@@ -274,11 +274,12 @@ bot.start(async (ctx) => {
     await ctx.replyWithHTML(
       `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
       Markup.keyboard([
-        ['💰 رصيدك', '🎁 مصادر الربح'],
-        ['📤 طلب سحب', '👥 ريفيرال'],
-        ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا'],
-        ['📩 تواصل معنا على فيسبوك']
-      ]).resize()
+  ['💰 رصيدك', '🎁 مصادر الربح'],
+  ['📤 طلب سحب', '👥 ريفيرال'],
+  ['📝 مهمات TasksRewardBot', '🎬 فيديوهاتي'],
+  ['🔗 قيم البوت من هنا'],
+  ['📩 تواصل معنا على فيسبوك']
+]).resize()
     );
 
     await ctx.replyWithHTML(
@@ -1401,12 +1402,13 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   const balance = parseFloat(res.rows[0]?.balance) || 0;
 
   await ctx.reply(`✅ خرجت من لوحة الأدمن.\n💰 رصيدك: ${balance.toFixed(4)}$`,
-    Markup.keyboard([
-      ['💰 رصيدك', '🎁 مصادر الربح'],
-      ['📤 طلب سحب', '👥 ريفيرال'],
-      ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا'],
-        ['📩 تواصل معنا على فيسبوك']
-    ]).resize()
+   Markup.keyboard([
+  ['💰 رصيدك', '🎁 مصادر الربح'],
+  ['📤 طلب سحب', '👥 ريفيرال'],
+  ['📝 مهمات TasksRewardBot', '🎬 فيديوهاتي'],
+  ['🔗 قيم البوت من هنا'],
+  ['📩 تواصل معنا على فيسبوك']
+]).resize()
   );
 });
 
