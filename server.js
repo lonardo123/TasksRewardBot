@@ -105,47 +105,6 @@ app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 
-/* ============================================================
-   API: my-videos / add-video / delete-video / public-videos
-   ============================================================ */
-
-/**
- * GET /api/my-videos?user_id=...
- * يرجع قائمة فيديوهات المستخدم (id, title, video_url, duration_seconds, views_count, keywords[])
- */
-app.get('/api/my-videos', async (req, res) => {
-  const { user_id } = req.query;
-  if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
-
-  try {
-    const videos = await client.query(
-      'SELECT id, title, video_url, duration_seconds, views_count, keywords FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC',
-      [user_id]
-    );
-
-    // نحول الكلمات المفتاحية من نص JSON → Array (أو [] إن كانت null/فارغة)
-    const mapped = videos.rows.map(v => ({
-      id: v.id,
-      title: v.title,
-      video_url: v.video_url,
-      duration_seconds: v.duration_seconds,
-      views_count: v.views_count,
-      keywords: v.keywords ? JSON.parse(v.keywords) : []
-    }));
-
-    return res.json(mapped);
-  } catch (err) {
-    console.error('Error in /api/my-videos:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
-/**
- * POST /api/add-video
- * body: { user_id, title, video_url, duration_seconds, keywords }
- * يتحقق من الرصيد ويخصم التكلفة داخل معاملة (transaction)
- * يفرض حد أقصى 4 فيديوهات لكل مستخدم على مستوى السيرفر
- */
 app.post('/api/add-video', async (req, res) => {
   const { user_id, title, video_url, duration_seconds, keywords } = req.body;
   if (!user_id || !title || !video_url || !duration_seconds) {
