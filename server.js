@@ -104,7 +104,138 @@ app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 
-// مثال endpoint عام (بقي كما هو ممكن استخدامه للتحقق)
+/* ============================================================
+   New API endpoints for the web UI and extension integration
+   ============================================================ */
+
+/**
+ * GET /api/my-videos?user_id=...
+ * يرجع قائمة فيديوهات المستخدم (id, title, video_url, duration_seconds, views_count)
+ */
+app.get('/api/my-videos', async (req, res) => {
+  const { user_id } = req.query;
+  if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
+
+  try {
+    const videos = await client.query(
+      'SELECT id, title, video_url, duration_seconds, views_count FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC',
+      [user_id]
+    );
+    return res.json(videos.rows);
+  } catch (err) {
+    console.error('Error in /api/my-videos:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /api/add-video
+ * body: { user_id, title, video_url, duration_seconds }
+ * يتحقق من الرصيد ويخصم التكلفة داخل معاملة (transaction)
+ */
+app.post('/api/add-video', async (req, res) => {
+  const { user_id, title, video_url, duration_seconds } = req.body;
+  if (!user_id || !title || !video_url || !duration_seconds) {
+    return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+  }
+
+  const duration = parseInt(duration_seconds, 10);
+  if (isNaN(duration) || duration < 50) {
+    return res.status(400).json({ error: 'المدة يجب أن تكون 50 ثانية على الأقل' });
+  }
+
+  // تكلفة نشر الفيديو (يمكن تعديل المعادلة حسب نظامك)
+  const cost = duration * 0.00002;
+
+  try {
+    // جلب رصيد المستخدم
+    const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
+    if (user.rows.length === 0) {
+      return res.status(400).json({ error: 'المستخدم غير موجود' });
+    }
+
+    if (parseFloat(user.rows[0].balance) < cost) {
+      return res.status(400).json({ error: 'رصيدك غير كافٍ' });
+    }
+
+    // تنفيذ داخل معاملة
+    await client.query('BEGIN');
+    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
+    await client.query(
+      'INSERT INTO user_videos (user_id, title, video_url, duration_seconds) VALUES ($1, $2, $3, $4)',
+      [user_id, title, video_url, duration]
+    );
+    await client.query('COMMIT');
+
+    return res.json({ success: true, cost });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Error in /api/add-video:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * POST /api/delete-video
+ * body: { user_id, video_id }
+ * يحذف الفيديو فقط إن كان المالك هو user_id
+ */
+app.post('/api/delete-video', async (req, res) => {
+  const { user_id, video_id } = req.body;
+  if (!user_id || !video_id) return res.status(400).json({ error: 'user_id و video_id مطلوبان' });
+
+  try {
+    const result = await client.query(
+      'DELETE FROM user_videos WHERE id = $1 AND user_id = $2',
+      [video_id, user_id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'الفيديو غير موجود أو لا تملك صلاحية الحذف' });
+    }
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Error in /api/delete-video:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/**
+ * GET /api/public-videos
+ * يرجع قائمة فيديوهات متاحة للمشاهدة (التي لدى أصحابها رصيد كافٍ)
+ * الترتيب: الأقل مشاهدة أولاً ثم الأحدث
+ */
+app.get('/api/public-videos', async (req, res) => {
+  try {
+    const videos = await client.query(`
+      SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id,
+             u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
+      FROM user_videos uv
+      JOIN users u ON uv.user_id = u.telegram_id
+      WHERE u.balance >= (uv.duration_seconds * 0.00002)
+      ORDER BY uv.views_count ASC, uv.created_at DESC
+      LIMIT 50
+    `);
+    // نعيد فقط الصفوف التي فعلاً لديها رصيد كافٍ (شرط WHERE كافٍ لكن نحافظ على التحقق)
+    const available = videos.rows.filter(v => v.has_enough_balance);
+    // نُعيد الحقول الأساسية للعميل (id => video_id تناسب الكود على الواجهة)
+    const mapped = available.map(v => ({
+      id: v.id,
+      title: v.title,
+      video_url: v.video_url,
+      duration_seconds: v.duration_seconds,
+      user_id: v.user_id
+    }));
+    return res.json(mapped);
+  } catch (err) {
+    console.error('Error in /api/public-videos:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+/* ============================================================
+   Existing callbacks and other endpoints (kept & slightly improved)
+   ============================================================ */
+
 app.get('/callback', async (req, res) => {
   const { user_id, amount, transaction_id, secret, network } = req.query;
 
@@ -141,11 +272,8 @@ app.get('/callback', async (req, res) => {
     // ابدأ معاملة
     await client.query('BEGIN');
 
-    // تحديث رصيد المستخدم
-    await client.query(
-      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
-      [finalAmount, user_id]
-    );
+    // تحديث رصيد المستخدم (إذا لم يكن موجوداً، لا نحاول الإنشاء هنا لأن المنطق قد يكون مختلف)
+    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [finalAmount, user_id]);
 
     // سجل في earnings
     await client.query(
@@ -154,17 +282,16 @@ app.get('/callback', async (req, res) => {
     );
 
     // منحه مكافأة للمحيل إن وُجد
-    const ref = await client.query(
-      'SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1',
-      [user_id]
-    );
+    const ref = await client.query('SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1', [user_id]);
 
     if (ref.rows.length > 0) {
       const referrerId = ref.rows[0].referrer_id;
       const bonus = parsedAmount * 0.03;
       await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [bonus, referrerId]);
-      await client.query('INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1,$2,$3,$4,NOW())',
-                        [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]);
+      await client.query(
+        'INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1,$2,$3,$4,NOW())',
+        [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]
+      );
       console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
     }
 
