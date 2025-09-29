@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>فيديوهاتي - TasksRewardBot</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f7fa; }
-    .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
-    button, input { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-    .video-item { border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f7fa; direction: rtl; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+    button, input { padding: 10px; margin: 5px 0; box-sizing: border-box; }
     .hidden { display: none; }
     .keywords { margin-top: 10px; }
     .keywords input { width: calc(100% - 40px); display: inline-block; }
@@ -16,17 +15,22 @@
     #messageBox { margin-top: 15px; padding: 10px; border-radius: 5px; display: none; }
     #messageBox.error { background: #fdecea; color: #d93025; border: 1px solid #f5c2c7; }
     #messageBox.success { background: #e6f4ea; color: #188038; border: 1px solid #a8dab5; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #f2f2f2; }
+    td button { padding: 5px 10px; }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>فيديوهاتي</h2>
     <button id="addBtn">➕ إضافة فيديو جديد</button>
+    <button id="listBtn">📋 قائمة فيديوهاتي</button>
     
     <div id="addForm" class="hidden">
-      <input type="text" id="title" placeholder="اسم الفيديو">
-      <input type="url" id="url" placeholder="رابط الفيديو (من يوتيوب)">
-      <input type="number" id="duration" min="50" placeholder="مدة الفيديو بالثواني (50+)" step="1">
+      <input type="text" id="title" placeholder="اسم الفيديو" style="width:100%">
+      <input type="url" id="url" placeholder="رابط الفيديو (من يوتيوب)" style="width:100%">
+      <input type="number" id="duration" min="50" placeholder="مدة الفيديو بالثواني (50+)" step="1" style="width:100%">
       
       <!-- خانات الكلمات المفتاحية -->
       <div class="keywords">
@@ -44,23 +48,40 @@
       <div id="messageBox"></div>
     </div>
 
-    <div id="videosList"></div>
+    <!-- جدول الفيديوهات -->
+    <div id="videosSection" class="hidden">
+      <h3>📋 قائمة فيديوهاتي</h3>
+      <table id="videosTable">
+        <thead>
+          <tr>
+            <th>العنوان</th>
+            <th>المدة (ث)</th>
+            <th>المشاهدات</th>
+            <th>الكلمات المفتاحية</th>
+            <th>إجراءات</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
     const userId = new URLSearchParams(window.location.search).get('user_id');
-    const videosList = document.getElementById('videosList');
     const addBtn = document.getElementById('addBtn');
+    const listBtn = document.getElementById('listBtn');
     const addForm = document.getElementById('addForm');
     const keywordsContainer = document.getElementById('keywordsContainer');
     const addKeywordBtn = document.getElementById('addKeywordBtn');
     const messageBox = document.getElementById('messageBox');
+    const videosSection = document.getElementById('videosSection');
+    const videosTableBody = document.querySelector('#videosTable tbody');
 
-    let currentVideos = []; // نخزن الفيديوهات الحالية هنا
+    let currentVideos = [];
 
     function showMessage(text, type) {
       messageBox.textContent = text;
-      messageBox.className = ''; // نفرغ الكلاسات
+      messageBox.className = '';
       messageBox.style.display = 'block';
       if (type === 'error') {
         messageBox.classList.add('error');
@@ -69,7 +90,7 @@
       }
     }
 
-    // إضافة خانات كلمات مفتاحية جديدة (حتى 5)
+    // إضافة خانة كلمات مفتاحية جديدة
     addKeywordBtn.addEventListener('click', () => {
       const currentInputs = keywordsContainer.querySelectorAll('input.keyword').length;
       if (currentInputs >= 5) {
@@ -83,30 +104,54 @@
       keywordsContainer.appendChild(input);
     });
 
-    // عند الضغط على إضافة فيديو جديد
+    // إظهار نموذج إضافة فيديو
     addBtn.addEventListener('click', () => {
       if (currentVideos.length >= 4) {
         showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.', 'error');
         return;
       }
       addForm.classList.remove('hidden');
+      videosSection.classList.add('hidden');
+    });
+
+    // إظهار جدول الفيديوهات
+    listBtn.addEventListener('click', () => {
+      videosSection.classList.remove('hidden');
+      addForm.classList.add('hidden');
+      loadVideos();
     });
 
     document.getElementById('cancelBtn').addEventListener('click', () => addForm.classList.add('hidden'));
 
-    // تحميل الفيديوهات من السيرفر
+    // تحميل الفيديوهات
     async function loadVideos() {
-      const res = await fetch(`/api/my-videos?user_id=${userId}`);
-      const videos = await res.json();
-      currentVideos = videos; // نخزنها للاستخدام في التحقق
-      videosList.innerHTML = videos.map(v => `
-        <div class="video-item">
-          <strong>${v.title}</strong><br>
-          <small>المدة: ${v.duration_seconds} ثانية | المشاهدات: ${v.views_count}</small><br>
-          ${v.keywords ? `<small>🔑 الكلمات المفتاحية: ${v.keywords.join(', ')}</small><br>` : ''}
-          <button onclick="deleteVideo(${v.id})">🗑️ حذف</button>
-        </div>
-      `).join('');
+      try {
+        const res = await fetch(`/api/my-videos?user_id=${userId}`);
+        let videos = await res.json();
+
+        // تأكد أن keywords مصفوفة
+        videos = videos.map(v => {
+          if (typeof v.keywords === 'string') {
+            try { v.keywords = JSON.parse(v.keywords); } catch { v.keywords = []; }
+          }
+          if (!Array.isArray(v.keywords)) v.keywords = [];
+          return v;
+        });
+
+        currentVideos = videos;
+
+        videosTableBody.innerHTML = videos.map(v => `
+          <tr>
+            <td>${v.title}</td>
+            <td>${v.duration_seconds}</td>
+            <td>${v.views_count}</td>
+            <td>${v.keywords.length > 0 ? v.keywords.join(', ') : '-'}</td>
+            <td><button onclick="deleteVideo(${v.id})">🗑️ حذف</button></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showMessage('فشل تحميل الفيديوهات', 'error');
+      }
     }
 
     // إضافة فيديو جديد
@@ -120,7 +165,6 @@
       const url = document.getElementById('url').value;
       const duration = document.getElementById('duration').value;
 
-      // جمع الكلمات المفتاحية
       const keywordInputs = document.querySelectorAll('.keyword');
       const keywords = Array.from(keywordInputs)
         .map(inp => inp.value.trim())
@@ -135,24 +179,28 @@
         return;
       }
 
-      const res = await fetch('/api/add-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          user_id: userId, 
-          title, 
-          video_url: url, 
-          duration_seconds: duration,
-          keywords
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showMessage(`تمت الإضافة! تم خصم ${data.cost}$ من رصيدك.`, 'success');
-        addForm.classList.add('hidden');
-        loadVideos();
-      } else {
-        showMessage('خطأ: ' + (data.error || 'حدث خطأ غير متوقع'), 'error');
+      try {
+        const res = await fetch('/api/add-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            user_id: userId, 
+            title, 
+            video_url: url, 
+            duration_seconds: duration,
+            keywords
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showMessage(`تمت الإضافة! تم خصم ${data.cost}$ من رصيدك.`, 'success');
+          addForm.classList.add('hidden');
+          loadVideos();
+        } else {
+          showMessage('خطأ: ' + (data.error || 'حدث خطأ غير متوقع'), 'error');
+        }
+      } catch (err) {
+        showMessage('فشل الاتصال بالسيرفر', 'error');
       }
     });
 
@@ -172,6 +220,7 @@
       }
     };
 
+    // تحميل الفيديوهات عند الدخول
     loadVideos();
   </script>
 </body>
