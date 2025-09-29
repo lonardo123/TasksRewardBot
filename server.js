@@ -198,11 +198,39 @@ app.post('/api/add-video', async (req, res) => {
   }
 });
 
-/**
- * POST /api/delete-video
- * body: { user_id, video_id }
- * يحذف الفيديو فقط إن كان المالك هو user_id
- */
+// ✅ جلب فيديوهات المستخدم
+app.get('/api/my-videos', async (req, res) => {
+  const { user_id } = req.query;
+  if (!user_id) {
+    return res.status(400).json({ error: 'user_id مطلوب' });
+  }
+
+  try {
+    const result = await client.query(`
+      SELECT id, title, video_url, duration_seconds, views_count, created_at, keywords
+      FROM user_videos
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+    `, [user_id]);
+
+    // معالجة الكلمات المفتاحية (jsonb) بحيث ترجع Array
+    const videos = result.rows.map(v => ({
+      id: v.id,
+      title: v.title,
+      video_url: v.video_url,
+      duration_seconds: v.duration_seconds,
+      views_count: v.views_count,
+      created_at: v.created_at,
+      keywords: v.keywords ? v.keywords : []  // jsonb ممكن يكون null
+    }));
+
+    return res.json(videos);
+  } catch (err) {
+    console.error('Error in /api/my-videos:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.post('/api/delete-video', async (req, res) => {
   const { user_id, video_id } = req.body;
   if (!user_id || !video_id) return res.status(400).json({ error: 'user_id و video_id مطلوبان' });
