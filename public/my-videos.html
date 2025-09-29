@@ -13,6 +13,9 @@
     .keywords { margin-top: 10px; }
     .keywords input { width: calc(100% - 40px); display: inline-block; }
     .keywords button { width: 35px; display: inline-block; padding: 10px; }
+    #messageBox { margin-top: 15px; padding: 10px; border-radius: 5px; display: none; }
+    #messageBox.error { background: #fdecea; color: #d93025; border: 1px solid #f5c2c7; }
+    #messageBox.success { background: #e6f4ea; color: #188038; border: 1px solid #a8dab5; }
   </style>
 </head>
 <body>
@@ -36,6 +39,9 @@
 
       <button id="submitBtn">إضافة الفيديو</button>
       <button id="cancelBtn">إلغاء</button>
+
+      <!-- صندوق عرض الرسائل -->
+      <div id="messageBox"></div>
     </div>
 
     <div id="videosList"></div>
@@ -48,14 +54,26 @@
     const addForm = document.getElementById('addForm');
     const keywordsContainer = document.getElementById('keywordsContainer');
     const addKeywordBtn = document.getElementById('addKeywordBtn');
+    const messageBox = document.getElementById('messageBox');
 
     let currentVideos = []; // نخزن الفيديوهات الحالية هنا
+
+    function showMessage(text, type) {
+      messageBox.textContent = text;
+      messageBox.className = ''; // نفرغ الكلاسات
+      messageBox.style.display = 'block';
+      if (type === 'error') {
+        messageBox.classList.add('error');
+      } else if (type === 'success') {
+        messageBox.classList.add('success');
+      }
+    }
 
     // إضافة خانات كلمات مفتاحية جديدة (حتى 5)
     addKeywordBtn.addEventListener('click', () => {
       const currentInputs = keywordsContainer.querySelectorAll('input.keyword').length;
       if (currentInputs >= 5) {
-        alert('يمكنك إضافة 5 كلمات مفتاحية فقط كحد أقصى');
+        showMessage('يمكنك إضافة 5 كلمات مفتاحية فقط كحد أقصى', 'error');
         return;
       }
       const input = document.createElement('input');
@@ -68,7 +86,7 @@
     // عند الضغط على إضافة فيديو جديد
     addBtn.addEventListener('click', () => {
       if (currentVideos.length >= 4) {
-        alert('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.');
+        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.', 'error');
         return;
       }
       addForm.classList.remove('hidden');
@@ -94,7 +112,7 @@
     // إضافة فيديو جديد
     document.getElementById('submitBtn').addEventListener('click', async () => {
       if (currentVideos.length >= 4) {
-        alert('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.');
+        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.', 'error');
         return;
       }
 
@@ -108,8 +126,14 @@
         .map(inp => inp.value.trim())
         .filter(val => val.length > 0);
 
-      if (!title || !url || !duration) return alert('املأ جميع الحقول');
-      if (duration < 50) return alert('المدة يجب أن تكون 50 ثانية على الأقل');
+      if (!title || !url || !duration) {
+        showMessage('املأ جميع الحقول', 'error');
+        return;
+      }
+      if (duration < 50) {
+        showMessage('المدة يجب أن تكون 50 ثانية على الأقل', 'error');
+        return;
+      }
 
       const res = await fetch('/api/add-video', {
         method: 'POST',
@@ -119,16 +143,16 @@
           title, 
           video_url: url, 
           duration_seconds: duration,
-          keywords // نرسلها للسيرفر كمصفوفة
+          keywords
         })
       });
       const data = await res.json();
       if (data.success) {
-        alert(`تمت الإضافة! تم خصم ${data.cost}$ من رصيدك.`);
+        showMessage(`تمت الإضافة! تم خصم ${data.cost}$ من رصيدك.`, 'success');
         addForm.classList.add('hidden');
         loadVideos();
       } else {
-        alert('خطأ: ' + data.error);
+        showMessage('خطأ: ' + (data.error || 'حدث خطأ غير متوقع'), 'error');
       }
     });
 
@@ -144,7 +168,7 @@
       if (data.success) {
         loadVideos();
       } else {
-        alert('خطأ: ' + data.error);
+        showMessage('خطأ: ' + data.error, 'error');
       }
     };
 
