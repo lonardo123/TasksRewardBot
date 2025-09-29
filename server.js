@@ -207,13 +207,13 @@ app.get('/api/my-videos', async (req, res) => {
 
   try {
     const result = await client.query(`
-      SELECT id, title, video_url, duration_seconds, views_count, created_at, keywords
+      SELECT id, title, video_url, duration_seconds, views_count, created_at,
+             COALESCE(keywords, '[]'::jsonb) AS keywords
       FROM user_videos
       WHERE user_id = $1
       ORDER BY created_at DESC
     `, [user_id]);
 
-    // معالجة الكلمات المفتاحية (jsonb) بحيث ترجع Array
     const videos = result.rows.map(v => ({
       id: v.id,
       title: v.title,
@@ -221,7 +221,7 @@ app.get('/api/my-videos', async (req, res) => {
       duration_seconds: v.duration_seconds,
       views_count: v.views_count,
       created_at: v.created_at,
-      keywords: v.keywords ? v.keywords : []  // jsonb ممكن يكون null
+      keywords: Array.isArray(v.keywords) ? v.keywords : []   // نتأكد إنها Array
     }));
 
     return res.json(videos);
