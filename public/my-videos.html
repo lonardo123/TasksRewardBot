@@ -199,8 +199,13 @@
         body: JSON.stringify({ user_id: userId, video_id: videoId })
       });
       const data = await res.json();
-      if (data.success) loadVideos();
-      else showMessage('خطأ: ' + data.error, 'error');
+      if (data.success) {
+  loadVideos();
+} else {
+  // نخفي أي روابط في رسالة الخطأ
+  const cleanError = (data.error || 'حدث خطأ غير متوقع').replace(/https?:\/\/\S+/g, '');
+  showMessage('خطأ: ' + cleanError.trim(), 'error');
+}
     };
   </script>
 </body>
