@@ -193,7 +193,7 @@
 
       if (event.data === YT.PlayerState.ENDED) {
         if (watched >= minWatch) {
-          rewardUser(video);
+          rewardUser(video, watched);
         } else {
           statusEl.textContent = "❌ لم تشاهد الفيديو بالكامل.";
           resetPlayer();
@@ -201,9 +201,12 @@
       }
     }
 
-    async function rewardUser(video) {
+    async function rewardUser(video, watchedMs) {
       try {
-        const res = await fetch(`/video-callback?user_id=${userId}&video_id=${video.video_id}`);
+        const watchedSeconds = Math.floor(watchedMs / 1000);
+        const res = await fetch(
+          `/video-callback?user_id=${userId}&video_id=${video.video_id}&watched_seconds=${watchedSeconds}&source=ad2`
+        );
         if (res.ok) {
           statusEl.textContent = `💰 تم إضافة ${video.reward}$ إلى رصيدك!`;
           currentVideoIndex++;
