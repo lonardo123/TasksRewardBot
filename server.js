@@ -1,76 +1,97 @@
 require('dotenv').config();
 const { Client } = require('pg');
 const express = require('express');
-const crypto = require('crypto'); // تمت الإضافة هنا لاحتساب HMAC
+const crypto = require('crypto'); // لحساب والتحقق من HMAC
 
-// === قاعدة البيانات ===
+// === إعداد قاعدة البيانات (Postgres Client)
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
+// التقاط أخطاء غير متوقعة على مستوى العميل
+client.on('error', (err) => {
+  console.error('PG client error:', err);
+});
+
+// دالة لإنشاء/التأكد من الجداول والأعمدة (تنفيذ متسلسل لتجنب مشكلات multi-statement)
+async function ensureTables() {
+  // أنشئ جدول users
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      telegram_id BIGINT UNIQUE,
+      balance NUMERIC(12,6) DEFAULT 0,
+      payeer_wallet VARCHAR,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // أنشئ جدول user_videos
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS user_videos (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      video_url TEXT NOT NULL,
+      duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
+      views_count INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // أنشئ جدول earnings (مهيأ ليشمل watched_seconds, video_id, created_at)
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS earnings (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT,
+      source VARCHAR(50),
+      amount NUMERIC(12,6),
+      description TEXT,
+      watched_seconds INTEGER,
+      video_id VARCHAR(255),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+
+  // أنشئ جدول withdrawals
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS withdrawals (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT,
+      amount NUMERIC(12,6),
+      payeer_wallet VARCHAR,
+      status VARCHAR(20) DEFAULT 'pending',
+      requested_at TIMESTAMPTZ DEFAULT NOW(),
+      processed_at TIMESTAMPTZ,
+      admin_note TEXT
+    );
+  `);
+
+  // أنشئ جدول referrals
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id SERIAL PRIMARY KEY,
+      referrer_id BIGINT,
+      referee_id BIGINT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
+}
+
+// دالة لربط DB مع محاولة إعادة للاتصال عند الخطأ
 async function connectDB() {
   try {
     await client.connect();
     console.log('✅ اتصال قاعدة البيانات ناجح');
 
-    // ✅ إنشاء الجداول إذا لم تكن موجودة
-    await client.query(`
-  CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    telegram_id BIGINT UNIQUE,
-    balance DECIMAL(10,2) DEFAULT 0,
-    payeer_wallet VARCHAR,
-    created_at TIMESTAMP DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS earnings (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT,
-    source VARCHAR(50),
-    amount DECIMAL(10,2),
-    description TEXT,
-    timestamp TIMESTAMP DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS withdrawals (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT,
-    amount DECIMAL(10,2),
-    payeer_wallet VARCHAR,
-    status VARCHAR(20) DEFAULT 'pending',
-    requested_at TIMESTAMP DEFAULT NOW(),
-    processed_at TIMESTAMP,
-    admin_note TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS referrals (
-    id SERIAL PRIMARY KEY,
-    referrer_id BIGINT,
-    referee_id BIGINT,
-    created_at TIMESTAMP DEFAULT NOW()
-  );
-  
-  CREATE TABLE IF NOT EXISTS user_videos (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    video_url TEXT NOT NULL,
-    duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-    views_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT NOW()
-  );      
-
-  -- ✅ تعديلات جدول earnings
-  ALTER TABLE earnings ADD COLUMN IF NOT EXISTS watched_seconds INTEGER;
-  ALTER TABLE earnings ADD COLUMN IF NOT EXISTS video_id VARCHAR(255);
-  ALTER TABLE earnings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
-`);
-
-console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
+    // تأكد من الجداول
+    await ensureTables();
+    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
   } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
-    setTimeout(connectDB, 5000); // إعادة المحاولة
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
+    // إعادة المحاولة بعد 5 ثوانٍ
+    setTimeout(connectDB, 5000);
   }
 }
 
