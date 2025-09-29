@@ -10,6 +10,9 @@
     button, input { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
     .video-item { border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px; }
     .hidden { display: none; }
+    .keywords { margin-top: 10px; }
+    .keywords input { width: calc(100% - 40px); display: inline-block; }
+    .keywords button { width: 35px; display: inline-block; padding: 10px; }
   </style>
 </head>
 <body>
@@ -21,6 +24,16 @@
       <input type="text" id="title" placeholder="اسم الفيديو">
       <input type="url" id="url" placeholder="رابط الفيديو (من يوتيوب)">
       <input type="number" id="duration" min="50" placeholder="مدة الفيديو بالثواني (50+)" step="1">
+      
+      <!-- خانات الكلمات المفتاحية -->
+      <div class="keywords">
+        <label><strong>الكلمات المفتاحية (حتى 5):</strong></label>
+        <div id="keywordsContainer">
+          <input type="text" class="keyword" placeholder="كلمة مفتاحية 1">
+        </div>
+        <button type="button" id="addKeywordBtn">➕</button>
+      </div>
+
       <button id="submitBtn">إضافة الفيديو</button>
       <button id="cancelBtn">إلغاء</button>
     </div>
@@ -33,33 +46,81 @@
     const videosList = document.getElementById('videosList');
     const addBtn = document.getElementById('addBtn');
     const addForm = document.getElementById('addForm');
+    const keywordsContainer = document.getElementById('keywordsContainer');
+    const addKeywordBtn = document.getElementById('addKeywordBtn');
 
-    addBtn.addEventListener('click', () => addForm.classList.remove('hidden'));
+    let currentVideos = []; // نخزن الفيديوهات الحالية هنا
+
+    // إضافة خانات كلمات مفتاحية جديدة (حتى 5)
+    addKeywordBtn.addEventListener('click', () => {
+      const currentInputs = keywordsContainer.querySelectorAll('input.keyword').length;
+      if (currentInputs >= 5) {
+        alert('يمكنك إضافة 5 كلمات مفتاحية فقط كحد أقصى');
+        return;
+      }
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'keyword';
+      input.placeholder = `كلمة مفتاحية ${currentInputs + 1}`;
+      keywordsContainer.appendChild(input);
+    });
+
+    // عند الضغط على إضافة فيديو جديد
+    addBtn.addEventListener('click', () => {
+      if (currentVideos.length >= 4) {
+        alert('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.');
+        return;
+      }
+      addForm.classList.remove('hidden');
+    });
+
     document.getElementById('cancelBtn').addEventListener('click', () => addForm.classList.add('hidden'));
 
+    // تحميل الفيديوهات من السيرفر
     async function loadVideos() {
       const res = await fetch(`/api/my-videos?user_id=${userId}`);
       const videos = await res.json();
+      currentVideos = videos; // نخزنها للاستخدام في التحقق
       videosList.innerHTML = videos.map(v => `
         <div class="video-item">
           <strong>${v.title}</strong><br>
           <small>المدة: ${v.duration_seconds} ثانية | المشاهدات: ${v.views_count}</small><br>
+          ${v.keywords ? `<small>🔑 الكلمات المفتاحية: ${v.keywords.join(', ')}</small><br>` : ''}
           <button onclick="deleteVideo(${v.id})">🗑️ حذف</button>
         </div>
       `).join('');
     }
 
+    // إضافة فيديو جديد
     document.getElementById('submitBtn').addEventListener('click', async () => {
+      if (currentVideos.length >= 4) {
+        alert('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.');
+        return;
+      }
+
       const title = document.getElementById('title').value;
       const url = document.getElementById('url').value;
       const duration = document.getElementById('duration').value;
+
+      // جمع الكلمات المفتاحية
+      const keywordInputs = document.querySelectorAll('.keyword');
+      const keywords = Array.from(keywordInputs)
+        .map(inp => inp.value.trim())
+        .filter(val => val.length > 0);
+
       if (!title || !url || !duration) return alert('املأ جميع الحقول');
       if (duration < 50) return alert('المدة يجب أن تكون 50 ثانية على الأقل');
 
       const res = await fetch('/api/add-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, title, video_url: url, duration_seconds: duration })
+        body: JSON.stringify({ 
+          user_id: userId, 
+          title, 
+          video_url: url, 
+          duration_seconds: duration,
+          keywords // نرسلها للسيرفر كمصفوفة
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -71,6 +132,7 @@
       }
     });
 
+    // حذف فيديو
     window.deleteVideo = async (videoId) => {
       if (!confirm('هل أنت متأكد من الحذف؟')) return;
       const res = await fetch('/api/delete-video', {
