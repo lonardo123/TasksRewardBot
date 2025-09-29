@@ -27,7 +27,7 @@ async function ensureTables() {
     );
   `);
 
-  // أنشئ جدول user_videos
+  // أنشئ جدول user_videos مع عمود keywords (نخزن JSON string)
   await client.query(`
     CREATE TABLE IF NOT EXISTS user_videos (
       id SERIAL PRIMARY KEY,
@@ -36,6 +36,7 @@ async function ensureTables() {
       video_url TEXT NOT NULL,
       duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
       views_count INT DEFAULT 0,
+      keywords TEXT,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
@@ -105,12 +106,12 @@ app.get('/', (req, res) => {
 });
 
 /* ============================================================
-   New API endpoints for the web UI and extension integration
+   API: my-videos / add-video / delete-video / public-videos
    ============================================================ */
 
 /**
  * GET /api/my-videos?user_id=...
- * يرجع قائمة فيديوهات المستخدم (id, title, video_url, duration_seconds, views_count)
+ * يرجع قائمة فيديوهات المستخدم (id, title, video_url, duration_seconds, views_count, keywords[])
  */
 app.get('/api/my-videos', async (req, res) => {
   const { user_id } = req.query;
@@ -118,10 +119,21 @@ app.get('/api/my-videos', async (req, res) => {
 
   try {
     const videos = await client.query(
-      'SELECT id, title, video_url, duration_seconds, views_count FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC',
+      'SELECT id, title, video_url, duration_seconds, views_count, keywords FROM user_videos WHERE user_id = $1 ORDER BY created_at DESC',
       [user_id]
     );
-    return res.json(videos.rows);
+
+    // نحول الكلمات المفتاحية من نص JSON → Array (أو [] إن كانت null/فارغة)
+    const mapped = videos.rows.map(v => ({
+      id: v.id,
+      title: v.title,
+      video_url: v.video_url,
+      duration_seconds: v.duration_seconds,
+      views_count: v.views_count,
+      keywords: v.keywords ? JSON.parse(v.keywords) : []
+    }));
+
+    return res.json(mapped);
   } catch (err) {
     console.error('Error in /api/my-videos:', err);
     return res.status(500).json({ error: 'Server error' });
@@ -130,11 +142,12 @@ app.get('/api/my-videos', async (req, res) => {
 
 /**
  * POST /api/add-video
- * body: { user_id, title, video_url, duration_seconds }
+ * body: { user_id, title, video_url, duration_seconds, keywords }
  * يتحقق من الرصيد ويخصم التكلفة داخل معاملة (transaction)
+ * يفرض حد أقصى 4 فيديوهات لكل مستخدم على مستوى السيرفر
  */
 app.post('/api/add-video', async (req, res) => {
-  const { user_id, title, video_url, duration_seconds } = req.body;
+  const { user_id, title, video_url, duration_seconds, keywords } = req.body;
   if (!user_id || !title || !video_url || !duration_seconds) {
     return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
   }
@@ -144,10 +157,17 @@ app.post('/api/add-video', async (req, res) => {
     return res.status(400).json({ error: 'المدة يجب أن تكون 50 ثانية على الأقل' });
   }
 
-  // تكلفة نشر الفيديو (يمكن تعديل المعادلة حسب نظامك)
+  // تكلفة نشر الفيديو
   const cost = duration * 0.00002;
 
   try {
+    // تحقق عدد فيديوهات المستخدم (حد أقصى 4)
+    const countRes = await client.query('SELECT COUNT(*) AS cnt FROM user_videos WHERE user_id = $1', [user_id]);
+    const existingCount = parseInt(countRes.rows[0].cnt, 10);
+    if (existingCount >= 4) {
+      return res.status(400).json({ error: 'وصلت للحد الأقصى (4) من الفيديوهات. احذف فيديوًا قبل إضافة آخر.' });
+    }
+
     // جلب رصيد المستخدم
     const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
     if (user.rows.length === 0) {
@@ -158,12 +178,15 @@ app.post('/api/add-video', async (req, res) => {
       return res.status(400).json({ error: 'رصيدك غير كافٍ' });
     }
 
-    // تنفيذ داخل معاملة
+    // نحول keywords إلى JSON string للتخزين (نتأكد أنها مصفوفة أو نستخدم [])
+    const keywordsArray = Array.isArray(keywords) ? keywords : [];
+    const keywordsJson = JSON.stringify(keywordsArray);
+
     await client.query('BEGIN');
     await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
     await client.query(
-      'INSERT INTO user_videos (user_id, title, video_url, duration_seconds) VALUES ($1, $2, $3, $4)',
-      [user_id, title, video_url, duration]
+      'INSERT INTO user_videos (user_id, title, video_url, duration_seconds, keywords) VALUES ($1, $2, $3, $4, $5)',
+      [user_id, title, video_url, duration, keywordsJson]
     );
     await client.query('COMMIT');
 
@@ -203,11 +226,12 @@ app.post('/api/delete-video', async (req, res) => {
  * GET /api/public-videos
  * يرجع قائمة فيديوهات متاحة للمشاهدة (التي لدى أصحابها رصيد كافٍ)
  * الترتيب: الأقل مشاهدة أولاً ثم الأحدث
+ * يُرجع keywords كمصفوفة
  */
 app.get('/api/public-videos', async (req, res) => {
   try {
     const videos = await client.query(`
-      SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id,
+      SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id, uv.keywords,
              u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
       FROM user_videos uv
       JOIN users u ON uv.user_id = u.telegram_id
@@ -215,22 +239,27 @@ app.get('/api/public-videos', async (req, res) => {
       ORDER BY uv.views_count ASC, uv.created_at DESC
       LIMIT 50
     `);
-    // نعيد فقط الصفوف التي فعلاً لديها رصيد كافٍ (شرط WHERE كافٍ لكن نحافظ على التحقق)
+
+    // نعيد فقط الصفوف التي فعلاً لديها رصيد كافٍ
     const available = videos.rows.filter(v => v.has_enough_balance);
-    // نُعيد الحقول الأساسية للعميل (id => video_id تناسب الكود على الواجهة)
+
+    // نُعيد الحقول الأساسية للعميل مع تحويل keywords إلى مصفوفة
     const mapped = available.map(v => ({
       id: v.id,
       title: v.title,
       video_url: v.video_url,
       duration_seconds: v.duration_seconds,
-      user_id: v.user_id
+      user_id: v.user_id,
+      keywords: v.keywords ? JSON.parse(v.keywords) : []
     }));
+
     return res.json(mapped);
   } catch (err) {
     console.error('Error in /api/public-videos:', err);
     return res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 /* ============================================================
    Existing callbacks and other endpoints (kept & slightly improved)
