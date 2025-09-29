@@ -140,7 +140,11 @@
             <td>${v.title}</td>
             <td>${v.duration_seconds}</td>
             <td>${v.views_count}</td>
-            <td>${v.keywords ? v.keywords.join(', ') : ''}</td>
+            <td>
+              ${(v.keywords && v.keywords.length > 0) 
+                ? `🔑 ${v.keywords.join(', ')}` 
+                : 'لا توجد كلمات مفتاحية'}
+            </td>
             <td><button onclick="deleteVideo(${v.id})">🗑️ حذف</button></td>
           </tr>
         `;
@@ -179,7 +183,7 @@
       if (data.success) {
         showMessage(`تمت الإضافة! تم خصم ${data.cost}$ من رصيدك.`, 'success');
         addForm.classList.add('hidden');
-        videosSection.classList.remove('hidden'); // ✅ عرض الجدول مباشرة
+        videosSection.classList.remove('hidden');
         loadVideos();
       } else {
         showMessage('خطأ: ' + (data.error || 'حدث خطأ غير متوقع'), 'error');
