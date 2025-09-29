@@ -192,21 +192,29 @@
 
     // حذف فيديو
     window.deleteVideo = async (videoId) => {
-      if (!confirm('هل أنت متأكد من الحذف؟')) return;
+    // ✅ نافذة تأكيد (فيها نعم / لا فقط)
+    if (!confirm('هل أنت متأكد من الحذف؟')) return;
+
+    try {
       const res = await fetch('/api/delete-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, video_id: videoId })
       });
+
       const data = await res.json();
+
       if (data.success) {
-  loadVideos();
-} else {
-  // نخفي أي روابط في رسالة الخطأ
-  const cleanError = (data.error || 'حدث خطأ غير متوقع').replace(/https?:\/\/\S+/g, '');
-  showMessage('خطأ: ' + cleanError.trim(), 'error');
-}
-    };
-  </script>
+        loadVideos(); // تحديث القائمة بعد الحذف
+      } else {
+        // ✅ إزالة أي روابط من رسالة الخطأ
+        const cleanError = (data.error || 'حدث خطأ غير متوقع').replace(/https?:\/\/\S+/g, '');
+        showMessage('خطأ: ' + cleanError.trim(), 'error');
+      }
+    } catch (err) {
+      showMessage('خطأ في الاتصال بالخادم', 'error');
+    }
+  };
+</script>
 </body>
 </html>
