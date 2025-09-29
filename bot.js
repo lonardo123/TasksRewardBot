@@ -41,15 +41,17 @@ async function initSchema() {
 
     // جدول الأرباح
     await client.query(`
-      CREATE TABLE IF NOT EXISTS earnings (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        source VARCHAR(100),
-        amount NUMERIC(12,6) NOT NULL,
-        description TEXT,
-        timestamp TIMESTAMP DEFAULT NOW()
-      );
-    `);
+    CREATE TABLE IF NOT EXISTS earnings (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT,
+      source VARCHAR(50),
+      amount NUMERIC(12,6),
+      description TEXT,
+      watched_seconds INTEGER,
+      video_id VARCHAR(255),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
     // جدول الإحالات
     await client.query(`
@@ -328,13 +330,18 @@ bot.hears('👥 ريفيرال', async (ctx) => {
 // 🎁 مصادر الربح
 bot.hears('🎁 مصادر الربح', async (ctx) => {
   const userId = ctx.from.id;
+
+  // رابط TimeWall
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
-  const adUrl = `https://perceptive-victory-production.up.railway.app/ad.html?user_id=${userId}`;
+
+  // رابط صفحة شرح الإضافة (تضع ملف extension.html في مجلد public)
+  const extensionUrl = `https://perceptive-victory-production.up.railway.app/extension.html?user_id=${userId}`;
 
   await ctx.reply(
     'اختر مصدر ربح:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
+      [Markup.button.url('🎬 الربح من مشاهدات يوتيوب', extensionUrl)],
     ])
   );
 
