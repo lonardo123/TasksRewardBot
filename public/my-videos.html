@@ -12,7 +12,7 @@
     table { width: 100%; border-collapse: collapse; margin-top: 15px; }
     th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
     th { background: #f0f0f0; }
-    #messageBox { margin-top: 15px; padding: 10px; border-radius: 5px; display: none; }
+    #messageBox { margin: 15px 0; padding: 10px; border-radius: 5px; display: none; }
     #messageBox.error { background: #fdecea; color: #d93025; border: 1px solid #f5c2c7; }
     #messageBox.success { background: #e6f4ea; color: #188038; border: 1px solid #a8dab5; }
   </style>
@@ -20,6 +20,10 @@
 <body>
   <div class="container">
     <h2>فيديوهاتي</h2>
+
+    <!-- ✅ صندوق عرض الرسائل تحت العنوان مباشرة -->
+    <div id="messageBox"></div>
+
     <button id="addBtn">➕ إضافة فيديو جديد</button>
     <button id="listBtn">📋 قائمة فيديوهاتي</button>
     
@@ -40,9 +44,6 @@
 
       <button id="submitBtn">إضافة الفيديو</button>
       <button id="cancelBtn">إلغاء</button>
-
-      <!-- صندوق عرض الرسائل -->
-      <div id="messageBox"></div>
     </div>
 
     <!-- جدول الفيديوهات -->
@@ -181,7 +182,7 @@
       });
       const data = await res.json();
       if (data.success) {
-        showMessage(`تمت الإضافة! تم خصم ${data.cost}$ من رصيدك.`, 'success');
+        showMessage('✅ تمت الإضافة بنجاح', 'success');
         addForm.classList.add('hidden');
         videosSection.classList.remove('hidden');
         loadVideos();
@@ -191,28 +192,27 @@
     });
 
     // حذف فيديو
-   window.deleteVideo = async (videoId) => {
-  // ❌ بدون confirm() نهائياً
-  try {
-    const res = await fetch('/api/delete-video', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: userId, video_id: videoId })
-    });
+    window.deleteVideo = async (videoId) => {
+      try {
+        const res = await fetch('/api/delete-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, video_id: videoId })
+        });
 
-    const data = await res.json();
+        const data = await res.json();
 
-    if (data.success) {
-      loadVideos();
-      showMessage('✅ تم الحذف بنجاح', 'success'); // تظهر أسفل الجدول
-    } else {
-      const cleanError = (data.error || 'حدث خطأ غير متوقع').replace(/https?:\/\/\S+/g, '');
-      showMessage('خطأ: ' + cleanError.trim(), 'error');
-    }
-  } catch (err) {
-    showMessage('خطأ في الاتصال بالخادم', 'error');
-  }
-};
-</script>
+        if (data.success) {
+          loadVideos();
+          showMessage('✅ تم الحذف بنجاح', 'success');
+        } else {
+          const cleanError = (data.error || 'حدث خطأ غير متوقع').replace(/https?:\/\/\S+/g, '');
+          showMessage('خطأ: ' + cleanError.trim(), 'error');
+        }
+      } catch (err) {
+        showMessage('خطأ في الاتصال بالخادم', 'error');
+      }
+    };
+  </script>
 </body>
 </html>
