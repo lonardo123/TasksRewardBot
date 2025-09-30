@@ -209,12 +209,6 @@ app.post('/api/delete-video', async (req, res) => {
   }
 });
 
-/**
- * GET /api/public-videos
- * يرجع قائمة فيديوهات متاحة للمشاهدة (التي لدى أصحابها رصيد كافٍ)
- * الترتيب: الأقل مشاهدة أولاً ثم الأحدث
- * يُرجع keywords كمصفوفة
- */
 app.get('/api/public-videos', async (req, res) => {
   try {
     const videos = await client.query(`
@@ -227,18 +221,34 @@ app.get('/api/public-videos', async (req, res) => {
       LIMIT 50
     `);
 
-    // نعيد فقط الصفوف التي فعلاً لديها رصيد كافٍ
     const available = videos.rows.filter(v => v.has_enough_balance);
 
-    // نُعيد الحقول الأساسية للعميل مع تحويل keywords إلى مصفوفة
-    const mapped = available.map(v => ({
-      id: v.id,
-      title: v.title,
-      video_url: v.video_url,
-      duration_seconds: v.duration_seconds,
-      user_id: v.user_id,
-      keywords: v.keywords ? JSON.parse(v.keywords) : []
-    }));
+    const mapped = available.map(v => {
+  let keywords = [];
+
+  if (v.keywords) {
+    try {
+      // تأكد أن القيمة نصية قبل التحليل
+      if (typeof v.keywords === 'string') {
+        keywords = JSON.parse(v.keywords);
+      } else if (Array.isArray(v.keywords)) {
+        keywords = v.keywords;
+      }
+    } catch (parseErr) {
+      console.warn(`⚠️ keywords غير صالحة للفيديو ID ${v.id}:`, v.keywords);
+      keywords = []; // أو استخدم [v.video_url] كخيار احتياطي
+    }
+  }
+
+  return {
+    id: v.id,
+    title: v.title,
+    video_url: v.video_url,
+    duration_seconds: v.duration_seconds,
+    user_id: v.user_id,
+    keywords: keywords.length > 0 ? keywords : [v.video_url?.split('v=')[1] || '']
+  };
+});
 
     return res.json(mapped);
   } catch (err) {
