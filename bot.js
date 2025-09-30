@@ -309,17 +309,38 @@ bot.hears('💰 رصيدك', async (ctx) => {
 // 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح
 bot.hears('👥 ريفيرال', async (ctx) => {
   const userId = ctx.from.id;
-  const botUsername = 'TasksRewardBot';
+  const botUsername = 'TasksRewardBot'; // اسم البوت
 
   try {
-    const countRes = await client.query('SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1', [userId]);
+    // إنشاء رابط الإحالة الخاص بالمستخدم
+    const refLink = `https://t.me/${botUsername}?start=${userId}`;
+
+    // إجمالي عدد الإحالات
+    const countRes = await client.query(
+      'SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1',
+      [userId]
+    );
     const refsCount = Number(countRes.rows[0]?.c || 0);
 
-    const earnRes = await client.query('SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1', [userId]);
+    // إجمالي أرباح الإحالات
+    const earnRes = await client.query(
+      'SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1',
+      [userId]
+    );
     const refEarnings = Number(earnRes.rows[0]?.s || 0);
 
+    // الرد على المستخدم
     await ctx.replyWithHTML(
-`👥 <b>برنامج الإحالة</b>\nهذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:\n🔗 <code>${refLink}</code>\n\n💡 <b>كيف تُحتسب أرباح الإحالة؟</b>\nتحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك .\n\n📊 <b>إحصاءاتك</b>\n- عدد الإحالات: <b>${refsCount}</b>`
+`👥 <b>برنامج الإحالة</b>
+هذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:
+🔗 <code>${refLink}</code>
+
+💡 <b>كيف تُحتسب أرباح الإحالة؟</b>
+تحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك.
+
+📊 <b>إحصاءاتك</b>
+- عدد الإحالات: <b>${refsCount}</b>
+- إجمالي الأرباح: <b>${refEarnings}$</b>`
     );
   } catch (e) {
     console.error('❌ ريفيرال:', e);
