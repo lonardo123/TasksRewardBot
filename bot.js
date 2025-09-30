@@ -313,7 +313,7 @@ bot.hears('👥 ريفيرال', async (ctx) => {
 
   try {
     // إنشاء رابط الإحالة الخاص بالمستخدم
-    const refLink = `https://t.me/${botUsername}?start=${userId}`;
+    const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
 
     // إجمالي عدد الإحالات
     const countRes = await client.query(
