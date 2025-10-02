@@ -444,19 +444,16 @@ app.get('/unity-callback', async (req, res) => {
   }
 });
 
-// Video callback API (باستخدام secret عادي من query)
-app.get('/video-callback', async (req, res) => {
-  let { user_id, video_id, watched_seconds, secret } = req.query;
+app.post('/api/report-watch', async (req, res) => {
+  const { user_id, video_id, watched_seconds } = req.body;
 
   if (!user_id || !video_id) {
-    return res.status(400).send('Missing user_id or video_id');
+    return res.status(400).json({ success: false, message: 'Missing user_id or video_id' });
   }
 
   try {
-    // التحقق من السر
-    if (secret !== process.env.CALLBACK_SECRET) {
-      return res.status(403).send('Forbidden: Invalid Secret');
-    }
+    // ❌ لا نتحقق من secret القادم من العميل
+    // ✅ السر موجود داخليًا على السيرفر فقط (process.env.CALLBACK_SECRET)
 
     // جلب بيانات الفيديو
     const videoRes = await client.query(
@@ -465,7 +462,7 @@ app.get('/video-callback', async (req, res) => {
     );
 
     if (videoRes.rows.length === 0) {
-      return res.status(400).send('الفيديو غير موجود');
+      return res.status(400).json({ success: false, message: 'الفيديو غير موجود' });
     }
 
     const { owner_id, duration_seconds } = videoRes.rows[0];
@@ -485,7 +482,7 @@ app.get('/video-callback', async (req, res) => {
       parseFloat(ownerBalanceRes.rows[0].balance) < cost
     ) {
       await client.query('ROLLBACK');
-      return res.status(400).send('رصيد صاحب الفيديو غير كافٍ');
+      return res.status(400).json({ success: false, message: 'رصيد صاحب الفيديو غير كافٍ' });
     }
 
     // خصم تكلفة المشاهدة من صاحب الفيديو
@@ -539,15 +536,16 @@ app.get('/video-callback', async (req, res) => {
       `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
     );
 
-    return res.status(200).send('Success');
+    return res.status(200).json({ success: true, reward });
   } catch (err) {
     try {
       await client.query('ROLLBACK');
     } catch (_) {}
-    console.error('Error in /video-callback:', err);
-    return res.status(500).send('Server Error');
+    console.error('Error in /api/report-watch:', err);
+    return res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
+
 
 // === بدء التشغيل ===
 (async () => {
