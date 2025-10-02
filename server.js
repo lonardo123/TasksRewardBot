@@ -279,14 +279,15 @@ app.get('/callback', async (req, res) => {
     return res.status(400).send('Invalid amount');
   }
 
-  const percentage = 0.60;
+  const percentage = 0.60; 
   const finalAmount = parsedAmount * percentage;
+
+  // ✅ تحديد الشبكة
   const source = network === 'bitcotasks' ? 'bitcotasks' : 'offer';
 
   try {
-    // تحقق من تكرار المعاملة
     const existing = await client.query(
-      'SELECT 1 FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
+      'SELECT * FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
       [user_id, source, `Transaction: ${transaction_id}`]
     );
 
@@ -295,37 +296,44 @@ app.get('/callback', async (req, res) => {
       return res.status(200).send('Duplicate transaction ignored');
     }
 
-    // ابدأ معاملة
-    await client.query('BEGIN');
-
-    // تحديث رصيد المستخدم (إذا لم يكن موجوداً، لا نحاول الإنشاء هنا لأن المنطق قد يكون مختلف)
-    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [finalAmount, user_id]);
-
-    // سجل في earnings
+    // ✅ تحديث رصيد المستخدم
     await client.query(
-      'INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
+      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+      [finalAmount, user_id]
+    );
+
+    await client.query(
+      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
       [user_id, source, finalAmount, `Transaction: ${transaction_id}`]
     );
 
-    // منحه مكافأة للمحيل إن وُجد
-    const ref = await client.query('SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1', [user_id]);
+    console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
+
+    // ✅ التحقق من وجود محيل للمستخدم
+    const ref = await client.query(
+      'SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1',
+      [user_id]
+    );
 
     if (ref.rows.length > 0) {
       const referrerId = ref.rows[0].referrer_id;
-      const bonus = parsedAmount * 0.03;
-      await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [bonus, referrerId]);
+      const bonus = parsedAmount * 0.03; // 3% للمحيل
+
       await client.query(
-        'INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1,$2,$3,$4,NOW())',
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+        [bonus, referrerId]
+      );
+
+      await client.query(
+        'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
         [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]
       );
+
       console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
     }
 
-    await client.query('COMMIT');
-    console.log(`🟢 [${source}] أضيف ${finalAmount}$ للمستخدم ${user_id} (Transaction: ${transaction_id})`);
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
     console.error('Callback Error:', err);
     res.status(500).send('Server Error');
   }
