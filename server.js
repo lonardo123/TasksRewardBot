@@ -444,7 +444,111 @@ app.get('/unity-callback', async (req, res) => {
   }
 });
 
-app.get('/video-callback', async (req, res) => { let { user_id, video_id, watched_seconds, secret } = req.query; if (!user_id || !video_id) { return res.status(400).send('Missing user_id or video_id'); } try { // التحقق من السر if (secret !== process.env.CALLBACK_SECRET) { return res.status(403).send('Forbidden: Invalid Secret'); } // جلب بيانات الفيديو const videoRes = await client.query( 'SELECT user_id AS owner_id, duration_seconds FROM user_videos WHERE id = $1', [video_id] ); if (videoRes.rows.length === 0) { return res.status(400).send('الفيديو غير موجود'); } const { owner_id, duration_seconds } = videoRes.rows[0]; const reward = duration_seconds * 0.00001; const cost = duration_seconds * 0.00002; await client.query('BEGIN'); // تحقق من رصيد صاحب الفيديو const ownerBalanceRes = await client.query( 'SELECT balance FROM users WHERE telegram_id = $1', [owner_id] ); if ( ownerBalanceRes.rows.length === 0 || parseFloat(ownerBalanceRes.rows[0].balance) < cost ) { await client.query('ROLLBACK'); return res.status(400).send('رصيد صاحب الفيديو غير كافٍ'); } // خصم تكلفة المشاهدة من صاحب الفيديو await client.query( 'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, owner_id] ); // تأكد إذا المشاهد موجود أو أضفه const viewerExists = await client.query( 'SELECT 1 FROM users WHERE telegram_id = $1', [user_id] ); if (viewerExists.rows.length === 0) { await client.query( 'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())', [user_id, 0] ); } // إضافة المكافأة للمشاهد await client.query( 'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [reward, user_id] ); // إضافة سجل للأرباح await client.query( INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id, created_at) VALUES ($1, $2, $3, $4, $5, $6, NOW()), [ user_id, 'user_video', reward, user_video:${video_id}, watched_seconds ? parseInt(watched_seconds) : null, video_id ] ); // تحديث عداد المشاهدات للفيديو await client.query( 'UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1', [video_id] ); await client.query('COMMIT'); console.log( ✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds} ); return res.status(200).send('Success'); } catch (err) { try { await client.query('ROLLBACK'); } catch (_) {} console.error('Error in /video-callback:', err); return res.status(500).send('Server Error'); } });
+app.get('/video-callback', async (req, res) => {
+    let { user_id, video_id, watched_seconds, secret } = req.query;
+
+    if (!user_id || !video_id) {
+        return res.status(400).send('Missing user_id or video_id');
+    }
+
+    try {
+        // التحقق من السر
+        if (secret !== process.env.CALLBACK_SECRET) {
+            return res.status(403).send('Forbidden: Invalid Secret');
+        }
+
+        // جلب بيانات الفيديو
+        const videoRes = await client.query(
+            'SELECT user_id AS owner_id, duration_seconds FROM user_videos WHERE id = $1',
+            [video_id]
+        );
+
+        if (videoRes.rows.length === 0) {
+            return res.status(400).send('الفيديو غير موجود');
+        }
+
+        const { owner_id, duration_seconds } = videoRes.rows[0];
+
+        const reward = duration_seconds * 0.00001;
+        const cost = duration_seconds * 0.00002;
+
+        await client.query('BEGIN');
+
+        // تحقق من رصيد صاحب الفيديو
+        const ownerBalanceRes = await client.query(
+            'SELECT balance FROM users WHERE telegram_id = $1',
+            [owner_id]
+        );
+
+        if (
+            ownerBalanceRes.rows.length === 0 ||
+            parseFloat(ownerBalanceRes.rows[0].balance) < cost
+        ) {
+            await client.query('ROLLBACK');
+            return res.status(400).send('رصيد صاحب الفيديو غير كافٍ');
+        }
+
+        // خصم تكلفة المشاهدة من صاحب الفيديو
+        await client.query(
+            'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2',
+            [cost, owner_id]
+        );
+
+        // تأكد إذا المشاهد موجود أو أضفه
+        const viewerExists = await client.query(
+            'SELECT 1 FROM users WHERE telegram_id = $1',
+            [user_id]
+        );
+
+        if (viewerExists.rows.length === 0) {
+            await client.query(
+                'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+                [user_id, 0]
+            );
+        }
+
+        // إضافة المكافأة للمشاهد
+        await client.query(
+            'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+            [reward, user_id]
+        );
+
+        // إضافة سجل للأرباح
+        await client.query(
+            `INSERT INTO earnings 
+            (user_id, source, amount, description, watched_seconds, video_id, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+            [
+                user_id,
+                'user_video',
+                reward,
+                `user_video:${video_id}`,
+                watched_seconds ? parseInt(watched_seconds) : null,
+                video_id
+            ]
+        );
+
+        // تحديث عداد المشاهدات للفيديو
+        await client.query(
+            'UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1',
+            [video_id]
+        );
+
+        await client.query('COMMIT');
+
+        console.log(
+            `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
+        );
+
+        return res.status(200).send('Success');
+    } catch (err) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (_) {}
+        console.error('Error in /video-callback:', err);
+        return res.status(500).send('Server Error');
+    }
+});
 
 // === بدء التشغيل ===
 (async () => {
