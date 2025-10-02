@@ -53,7 +53,6 @@ async function initSchema() {
   );
 `);
 
-
     // جدول الإحالات
     await client.query(`
       CREATE TABLE IF NOT EXISTS referrals (
