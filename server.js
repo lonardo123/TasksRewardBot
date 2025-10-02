@@ -265,51 +265,74 @@ app.get('/api/public-videos', async (req, res) => {
 app.get('/callback', async (req, res) => {
   const { user_id, amount, transaction_id, secret, network } = req.query;
 
-  // التحقق من السر
+  // ✅ التحقق من السر
   if (secret !== process.env.CALLBACK_SECRET) {
     return res.status(403).send('Forbidden: Invalid Secret');
   }
 
+  // ✅ التحقق من وجود transaction_id
   if (!transaction_id) {
     return res.status(400).send('Missing transaction_id');
   }
 
+  // ✅ التحقق من المبلغ
   const parsedAmount = parseFloat(amount);
   if (isNaN(parsedAmount)) {
     return res.status(400).send('Invalid amount');
   }
 
+  // نسبة العمولة (60%)
   const percentage = 0.60; 
   const finalAmount = parsedAmount * percentage;
 
-  // ✅ تحديد الشبكة
+  // ✅ تحديد الشبكة (bitcotasks أو offer)
   const source = network === 'bitcotasks' ? 'bitcotasks' : 'offer';
 
   try {
+    await client.query('BEGIN');
+
+    // ✅ التحقق من عدم تكرار العملية
     const existing = await client.query(
       'SELECT * FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
       [user_id, source, `Transaction: ${transaction_id}`]
     );
 
     if (existing.rows.length > 0) {
+      await client.query('ROLLBACK');
       console.log(`🔁 عملية مكررة تم تجاهلها: ${transaction_id}`);
       return res.status(200).send('Duplicate transaction ignored');
     }
 
-    // ✅ تحديث رصيد المستخدم
-    await client.query(
-      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
-      [finalAmount, user_id]
+    // ✅ تأكد أن المستخدم موجود أو أضفه
+    const userCheck = await client.query(
+      'SELECT balance FROM users WHERE telegram_id = $1',
+      [user_id]
     );
 
+    if (userCheck.rows.length === 0) {
+      // لو المستخدم مش موجود → إنشاؤه برصيد أولي
+      await client.query(
+        'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+        [user_id, finalAmount]
+      );
+    } else {
+      // لو موجود → تحديث رصيده
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+        [finalAmount, user_id]
+      );
+    }
+
+    // ✅ إضافة سجل الأرباح
     await client.query(
-      'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+      `INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id, created_at) 
+       VALUES ($1, $2, $3, $4, NULL, NULL, NOW())`,
       [user_id, source, finalAmount, `Transaction: ${transaction_id}`]
     );
 
     console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
 
-    // ✅ التحقق من وجود محيل للمستخدم
+    // ✅ التحقق من وجود محيل
     const ref = await client.query(
       'SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1',
       [user_id]
@@ -319,25 +342,44 @@ app.get('/callback', async (req, res) => {
       const referrerId = ref.rows[0].referrer_id;
       const bonus = parsedAmount * 0.03; // 3% للمحيل
 
-      await client.query(
-        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
-        [bonus, referrerId]
+      // تحديث رصيد المحيل
+      const refCheck = await client.query(
+        'SELECT balance FROM users WHERE telegram_id = $1',
+        [referrerId]
       );
 
+      if (refCheck.rows.length === 0) {
+        // لو المحيل مش موجود → إنشاؤه برصيد أولي
+        await client.query(
+          'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+          [referrerId, bonus]
+        );
+      } else {
+        await client.query(
+          'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+          [bonus, referrerId]
+        );
+      }
+
+      // إضافة سجل أرباح للمحيل
       await client.query(
-        'INSERT INTO earnings (user_id, source, amount, description) VALUES ($1, $2, $3, $4)',
+        `INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id, created_at) 
+         VALUES ($1, $2, $3, $4, NULL, NULL, NOW())`,
         [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]
       );
 
       console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
     }
 
+    await client.query('COMMIT');
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Callback Error:', err);
     res.status(500).send('Server Error');
   }
 });
+
 
 // === Unity Ads S2S Callback (كما كان، مع بعض الحماية البسيطة)
 app.get('/unity-callback', async (req, res) => {
