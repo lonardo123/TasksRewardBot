@@ -444,18 +444,16 @@ app.get('/unity-callback', async (req, res) => {
   }
 });
 
+// API جديد لتسجيل مشاهدة الفيديوهات بطريقة آمنة
 app.post('/api/report-watch', async (req, res) => {
-  const { user_id, video_id, watched_seconds } = req.body;
+  let { user_id, video_id, watched_seconds } = req.body;
 
   if (!user_id || !video_id) {
     return res.status(400).json({ success: false, message: 'Missing user_id or video_id' });
   }
 
   try {
-    // ❌ لا نتحقق من secret القادم من العميل
-    // ✅ السر موجود داخليًا على السيرفر فقط (process.env.CALLBACK_SECRET)
-
-    // جلب بيانات الفيديو
+    // جلب بيانات الفيديو من قاعدة البيانات
     const videoRes = await client.query(
       'SELECT user_id AS owner_id, duration_seconds FROM user_videos WHERE id = $1',
       [video_id]
@@ -466,12 +464,12 @@ app.post('/api/report-watch', async (req, res) => {
     }
 
     const { owner_id, duration_seconds } = videoRes.rows[0];
-    const reward = duration_seconds * 0.00001;
-    const cost = duration_seconds * 0.00002;
+    const reward = duration_seconds * 0.00001; // ربح المشاهد
+    const cost = duration_seconds * 0.00002;   // تكلفة صاحب الفيديو
 
     await client.query('BEGIN');
 
-    // تحقق من رصيد صاحب الفيديو
+    // التحقق من رصيد صاحب الفيديو
     const ownerBalanceRes = await client.query(
       'SELECT balance FROM users WHERE telegram_id = $1',
       [owner_id]
@@ -485,13 +483,13 @@ app.post('/api/report-watch', async (req, res) => {
       return res.status(400).json({ success: false, message: 'رصيد صاحب الفيديو غير كافٍ' });
     }
 
-    // خصم تكلفة المشاهدة من صاحب الفيديو
+    // خصم التكلفة من صاحب الفيديو
     await client.query(
       'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2',
       [cost, owner_id]
     );
 
-    // تأكد إذا المشاهد موجود أو أضفه
+    // إضافة المستخدم المشاهد إذا لم يكن موجود
     const viewerExists = await client.query(
       'SELECT 1 FROM users WHERE telegram_id = $1',
       [user_id]
@@ -504,13 +502,13 @@ app.post('/api/report-watch', async (req, res) => {
       );
     }
 
-    // إضافة المكافأة للمشاهد
+    // إضافة الربح للمشاهد
     await client.query(
       'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
       [reward, user_id]
     );
 
-    // إضافة سجل للأرباح
+    // تسجيل العملية في جدول الأرباح
     await client.query(
       `INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
@@ -524,7 +522,7 @@ app.post('/api/report-watch', async (req, res) => {
       ]
     );
 
-    // تحديث عداد المشاهدات للفيديو
+    // زيادة عدد المشاهدات للفيديو
     await client.query(
       'UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1',
       [video_id]
@@ -536,7 +534,8 @@ app.post('/api/report-watch', async (req, res) => {
       `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
     );
 
-    return res.status(200).json({ success: true, reward });
+    return res.status(200).json({ success: true, reward, message: 'Success' });
+
   } catch (err) {
     try {
       await client.query('ROLLBACK');
