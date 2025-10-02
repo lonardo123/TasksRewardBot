@@ -402,9 +402,9 @@ app.get('/unity-callback', async (req, res) => {
   }
 });
 
-// Video callback API
+// Video callback API (معدل بدون source في التوقيع)
 app.get('/video-callback', async (req, res) => {
-  let { user_id, video_id, watched_seconds, source, signature } = req.query;
+  let { user_id, video_id, watched_seconds, signature } = req.query;
 
   if (!user_id || !video_id) {
     return res.status(400).send('Missing user_id or video_id');
@@ -414,13 +414,13 @@ app.get('/video-callback', async (req, res) => {
     const secret = process.env.CALLBACK_SECRET;
 
     if (secret) {
-      // لازم كل البراميترز مع السر
-      if (!watched_seconds || !source || !signature) {
-        return res.status(400).send('Missing required parameters (watched_seconds, source or signature) with CALLBACK_SECRET set');
+      // لازم يكون عندنا watched_seconds + signature
+      if (!watched_seconds || !signature) {
+        return res.status(400).send('Missing required parameters (watched_seconds or signature) with CALLBACK_SECRET set');
       }
 
-      // payload لازم يبقى نص بالظبط
-      const payload = `${user_id}:${video_id}:${watched_seconds}:${source}`;
+      // payload الجديد بدون source
+      const payload = `${user_id}:${video_id}:${watched_seconds}`;
       const expectedSignature = crypto
         .createHmac('sha256', secret)
         .update(payload)
@@ -437,9 +437,8 @@ app.get('/video-callback', async (req, res) => {
         return res.status(403).send('Invalid signature');
       }
     } else {
-      // لو مفيش secret
+      // fallback لو مفيش secret
       watched_seconds = watched_seconds || null;
-      source = source || 'YouTube';
     }
 
     // جلب بيانات الفيديو
@@ -503,7 +502,7 @@ app.get('/video-callback', async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
       [
         user_id,
-        source || 'user_video',
+        'user_video',
         reward,
         `user_video:${video_id}`,
         watched_seconds ? parseInt(watched_seconds) : null,
@@ -520,7 +519,7 @@ app.get('/video-callback', async (req, res) => {
     await client.query('COMMIT');
 
     console.log(
-      `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — source=${source} watched_seconds=${watched_seconds}`
+      `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
     );
 
     return res.status(200).send('Success');
