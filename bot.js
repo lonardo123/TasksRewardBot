@@ -41,17 +41,18 @@ async function initSchema() {
 
     // جدول الأرباح
     await client.query(`
-    CREATE TABLE IF NOT EXISTS earnings (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT,
-      source VARCHAR(50),
-      amount NUMERIC(12,6),
-      description TEXT,
-      watched_seconds INTEGER,
-      video_id VARCHAR(255),
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
+  CREATE TABLE IF NOT EXISTS earnings (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT,
+    source VARCHAR(50),
+    amount NUMERIC(12,6),
+    description TEXT,
+    watched_seconds INTEGER,
+    video_id INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`);
+
 
     // جدول الإحالات
     await client.query(`
