@@ -402,43 +402,18 @@ app.get('/unity-callback', async (req, res) => {
   }
 });
 
-// Video callback API (معدل بدون source في التوقيع)
+// Video callback API (باستخدام secret عادي من query)
 app.get('/video-callback', async (req, res) => {
-  let { user_id, video_id, watched_seconds, signature } = req.query;
+  let { user_id, video_id, watched_seconds, secret } = req.query;
 
   if (!user_id || !video_id) {
     return res.status(400).send('Missing user_id or video_id');
   }
 
   try {
-    const secret = process.env.CALLBACK_SECRET;
-
-    if (secret) {
-      // لازم يكون عندنا watched_seconds + signature
-      if (!watched_seconds || !signature) {
-        return res.status(400).send('Missing required parameters (watched_seconds or signature) with CALLBACK_SECRET set');
-      }
-
-      // payload الجديد بدون source
-      const payload = `${user_id}:${video_id}:${watched_seconds}`;
-      const expectedSignature = crypto
-        .createHmac('sha256', secret)
-        .update(payload)
-        .digest('hex');
-
-      if (signature !== expectedSignature) {
-        console.warn('video-callback: invalid signature', {
-          user_id,
-          video_id,
-          payload,
-          signature,
-          expectedSignature: expectedSignature.slice(0, 8) + '...'
-        });
-        return res.status(403).send('Invalid signature');
-      }
-    } else {
-      // fallback لو مفيش secret
-      watched_seconds = watched_seconds || null;
+    // التحقق من السر
+    if (secret !== process.env.CALLBACK_SECRET) {
+      return res.status(403).send('Forbidden: Invalid Secret');
     }
 
     // جلب بيانات الفيديو
