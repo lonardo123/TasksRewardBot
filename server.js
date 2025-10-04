@@ -101,6 +101,60 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+// === ✅ نقطة النهاية الجديدة: جلب بيانات المستخدم مع الرصيد الحقيقي ===
+app.get('/api/user/profile', async (req, res) => {
+  const { user_id } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({
+      status: "error",
+      message: "user_id is required"
+    });
+  }
+
+  try {
+    const result = await client.query(
+      'SELECT telegram_id, balance FROM users WHERE telegram_id = $1',
+      [user_id]
+    );
+
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      return res.json({
+        status: "success",
+        data: {
+          user_id: user.telegram_id.toString(),
+          fullname: `User ${user.telegram_id}`,
+          balance: parseFloat(user.balance), // ← الرصيد كما هو (رقم عشري)
+          membership: "Free"
+        }
+      });
+    } else {
+      // إنشاء مستخدم جديد برصيد 0
+      await client.query(
+        'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+        [user_id, 0]
+      );
+
+      return res.json({
+        status: "success",
+         {
+          user_id: user_id.toString(),
+          fullname: `User ${user_id}`,
+          balance: 0.0, // ← رصيد حقيقي وليس نقاط
+          membership: "Free"
+        }
+      });
+    }
+  } catch (err) {
+    console.error('Error in /api/user/profile:', err);
+    return res.status(500).json({
+      status: "error",
+      message: "Server error"
+    });
+  }
+});
+
 app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
