@@ -100,9 +100,60 @@ async function connectDB() {
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));
-
 app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
+});
+
+app.post('/api/add-video', async (req, res) => {
+  const { user_id, title, video_url, duration_seconds, keywords } = req.body;
+  if (!user_id || !title || !video_url || !duration_seconds) {
+    return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+  }
+
+  const duration = parseInt(duration_seconds, 10);
+  if (isNaN(duration) || duration < 50) {
+    return res.status(400).json({ error: 'المدة يجب أن تكون 50 ثانية على الأقل' });
+  }
+
+  // تكلفة نشر الفيديو
+  const cost = duration * 0.00002;
+
+  try {
+    // تحقق عدد فيديوهات المستخدم (حد أقصى 4)
+    const countRes = await client.query('SELECT COUNT(*) AS cnt FROM user_videos WHERE user_id = $1', [user_id]);
+    const existingCount = parseInt(countRes.rows[0].cnt, 10);
+    if (existingCount >= 4) {
+      return res.status(400).json({ error: 'وصلت للحد الأقصى (4) من الفيديوهات. احذف فيديوًا قبل إضافة آخر.' });
+    }
+
+    // جلب رصيد المستخدم
+    const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
+    if (user.rows.length === 0) {
+      return res.status(400).json({ error: 'المستخدم غير موجود' });
+    }
+
+    if (parseFloat(user.rows[0].balance) < cost) {
+      return res.status(400).json({ error: 'رصيدك غير كافٍ' });
+    }
+
+    // نحول keywords إلى JSON string للتخزين (نتأكد أنها مصفوفة أو نستخدم [])
+    const keywordsArray = Array.isArray(keywords) ? keywords : [];
+    const keywordsJson = JSON.stringify(keywordsArray);
+
+    await client.query('BEGIN');
+    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
+    await client.query(
+      'INSERT INTO user_videos (user_id, title, video_url, duration_seconds, keywords) VALUES ($1, $2, $3, $4, $5)',
+      [user_id, title, video_url, duration, keywordsJson]
+    );
+    await client.query('COMMIT');
+
+    return res.json({ success: true, cost });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    console.error('Error in /api/add-video:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
 });
 
 app.get('/api/user/profile', async (req, res) => {
@@ -158,57 +209,6 @@ app.get('/api/user/profile', async (req, res) => {
   }
 });
 
-app.post('/api/add-video', async (req, res) => {
-  const { user_id, title, video_url, duration_seconds, keywords } = req.body;
-  if (!user_id || !title || !video_url || !duration_seconds) {
-    return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
-  }
-
-  const duration = parseInt(duration_seconds, 10);
-  if (isNaN(duration) || duration < 50) {
-    return res.status(400).json({ error: 'المدة يجب أن تكون 50 ثانية على الأقل' });
-  }
-
-  // تكلفة نشر الفيديو
-  const cost = duration * 0.00002;
-
-  try {
-    // تحقق عدد فيديوهات المستخدم (حد أقصى 4)
-    const countRes = await client.query('SELECT COUNT(*) AS cnt FROM user_videos WHERE user_id = $1', [user_id]);
-    const existingCount = parseInt(countRes.rows[0].cnt, 10);
-    if (existingCount >= 4) {
-      return res.status(400).json({ error: 'وصلت للحد الأقصى (4) من الفيديوهات. احذف فيديوًا قبل إضافة آخر.' });
-    }
-
-    // جلب رصيد المستخدم
-    const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
-    if (user.rows.length === 0) {
-      return res.status(400).json({ error: 'المستخدم غير موجود' });
-    }
-
-    if (parseFloat(user.rows[0].balance) < cost) {
-      return res.status(400).json({ error: 'رصيدك غير كافٍ' });
-    }
-
-    // نحول keywords إلى JSON string للتخزين (نتأكد أنها مصفوفة أو نستخدم [])
-    const keywordsArray = Array.isArray(keywords) ? keywords : [];
-    const keywordsJson = JSON.stringify(keywordsArray);
-
-    await client.query('BEGIN');
-    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
-    await client.query(
-      'INSERT INTO user_videos (user_id, title, video_url, duration_seconds, keywords) VALUES ($1, $2, $3, $4, $5)',
-      [user_id, title, video_url, duration, keywordsJson]
-    );
-    await client.query('COMMIT');
-
-    return res.json({ success: true, cost });
-  } catch (err) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
-    console.error('Error in /api/add-video:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
 
 // ✅ جلب فيديوهات المستخدم
 app.get('/api/my-videos', async (req, res) => {
