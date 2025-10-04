@@ -101,7 +101,10 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
-// === ✅ نقطة النهاية الجديدة: جلب بيانات المستخدم مع الرصيد الحقيقي ===
+app.get('/', (req, res) => {
+  res.send('✅ السيرفر يعمل! Postback جاهز.');
+});
+
 app.get('/api/user/profile', async (req, res) => {
   const { user_id } = req.query;
 
@@ -153,10 +156,6 @@ app.get('/api/user/profile', async (req, res) => {
       message: "Server error"
     });
   }
-});
-
-app.get('/', (req, res) => {
-  res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 
 app.post('/api/add-video', async (req, res) => {
