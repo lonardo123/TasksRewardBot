@@ -670,24 +670,22 @@ app.get('/api/lang/full/', async (req, res) => {
 app.get('/api/worker', (req, res) => {
   res.json({
     status: 'ready',
-    task: {
-      "id": 10,
-  "title": "الجدار الجليدي ويأجوج ومأجوج",
-  "video_url": "https://www.youtube.com/watch?v=IleBL4LrkQA",
-  "duration_seconds": 120,
-  "user_id": "6940442249",
-  "viewing_method": "Direct",
-  "like": true,
-  "subscribe": false,
-  "comment": false,
-  "comment_like": false,
-  "filtering": false,
-  "daily_budget": null,
-  "total_budget": null,
-  "reward": "0.001200"
-    }
+    tasks: [
+      {
+        id: 10,
+        title: "الجدار الجليدي ويأجوج ومأجوج",
+        url: "https://www.youtube.com/watch?v=IleBL4LrkQA",
+        duration: 120,
+        actions: {
+          like: true,
+          subscribe: false,
+          comment: false
+        }
+      }
+    ]
   });
 });
+
 
 app.get('/api/report', (req, res) => {
   res.json({ status: 'ok' });
