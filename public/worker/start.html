@@ -1,17 +1,40 @@
 <!doctype html>
-<html lang="en">
+<html lang="ar">
 <head>
   <meta charset="utf-8" />
   <title>Worker Start</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    /* أنماط بسيطة مطابقة لما يتوقعه Start.js */
+    /* أنماط بسيطة */
     #loader-wrapper { display:block; padding:20px; text-align:center; }
-    #loader, #infoloader { display:inline-block; width:28px; height:28px; border-radius:50%; background:#ccc; margin-right:8px; vertical-align:middle; }
-    #message { display:block; margin-top:10px; font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#333; }
-    #ViewGripConsole { position:fixed; z-index:9999; bottom:10px; left:50%; transform:translateX(-50%); background:#222; color:#fff; padding:10px; border-radius:10px; max-height:200px; overflow:auto; font-family:"Roboto Mono",monospace; }
-    .countdown-timer{ height:3px; background:rgba(157,160,164,.7); border-radius:3px; margin-top:8px; overflow:visible }
-    .timer-progress{ height:100%; width:0; background:red; border-radius:3px; transition:width .1s linear; position:relative; }
+    #loader, #infoloader {
+      display:inline-block; width:28px; height:28px;
+      border-radius:50%; background:#ccc;
+      margin-right:8px; vertical-align:middle;
+    }
+    #message {
+      display:block; margin-top:10px;
+      font-family:Arial,Helvetica,sans-serif;
+      font-size:14px; color:#333;
+    }
+    #ViewGripConsole {
+      position:fixed; z-index:9999; bottom:10px; left:50%;
+      transform:translateX(-50%);
+      background:#222; color:#fff;
+      padding:10px; border-radius:10px;
+      max-height:200px; overflow:auto;
+      font-family:"Roboto Mono",monospace;
+      display:none;
+    }
+    .countdown-timer{
+      height:3px; background:rgba(157,160,164,.7);
+      border-radius:3px; margin-top:8px; overflow:visible
+    }
+    .timer-progress{
+      height:100%; width:0; background:red;
+      border-radius:3px; transition:width .1s linear;
+      position:relative;
+    }
   </style>
 </head>
 <body>
@@ -21,15 +44,17 @@
     <div id="message">Initializing worker...</div>
   </div>
 
-  <!-- This container is created by Start.js if not exists, but having it avoids race conditions -->
-  <div id="ViewGripConsole" style="display:none;">
+  <div id="ViewGripConsole">
     <span class="viewgrip">@viewgrip:</span>
     <span id="TextMessage">Waiting...</span>
   </div>
 
+  <!-- ✅ تحميل Start.js مباشرة من مجلدك -->
+  <script src="/assets/js/core/Start.js"></script>
+
   <script>
-    // صفحة خفيفة لا تحمل Start.js - الامتداد سيحقنه تلقائياً.
-    console.log('Worker start page loaded — extension should inject Start.js if installed.');
+    // تأكيد تحميل الصفحة
+    console.log('✅ Worker start page loaded — Start.js included manually.');
   </script>
 </body>
 </html>
