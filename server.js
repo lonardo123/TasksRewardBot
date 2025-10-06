@@ -666,6 +666,12 @@ app.get('/api/lang/full/', async (req, res) => {
   }
 });
 
+// ✅ توجيه /worker/start إلى ملف HTML في public
+app.get('/worker/start', (req, res) => {
+  res.sendFile(__dirname + '/public/worker/start.html');
+});
+
+
 // === بدء التشغيل ===
 (async () => {
   await connectDB();
