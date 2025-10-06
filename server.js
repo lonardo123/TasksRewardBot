@@ -667,6 +667,34 @@ app.get('/api/lang/full/', async (req, res) => {
   }
 });
 
+app.get('/api/worker', (req, res) => {
+  res.json({
+    status: 'ready',
+    task: {
+      video_id: 10,
+      url: 'https://www.youtube.com/watch?v=IleBL4LrkQA',
+      duration: 120
+    }
+  });
+});
+
+app.get('/api/report', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.get('/api/check', (req, res) => {
+  res.json({ status: 'active' });
+});
+
+app.get('/api/redirect', (req, res) => {
+  res.json({ status: 'noop' });
+});
+
+app.get('/api/notify', (req, res) => {
+  res.json({ status: 'none' });
+});
+
+
 // ✅ /api/auth — يتحقق فقط من وجود المستخدم بدون إنشائه
 app.get('/api/auth', async (req, res) => {
   try {
