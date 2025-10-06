@@ -603,6 +603,69 @@ app.get('/video-callback', async (req, res) => {
     }
 });
 
+// ✅ نقطة API جديدة لإرجاع الترجمات والبيانات للفيديوهات
+app.get('/api/lang/full/', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+
+    // 🈶 ترجمة واجهة الاستخدام (مثال)
+    const translations = {
+      start_button: "ابدأ المشاهدة",
+      stop_button: "إيقاف",
+      balance_label: "رصيدك",
+      coins_label: "العملات",
+      membership_label: "العضوية",
+      loading_text: "جارِ تحميل المهام...",
+      error_text: "حدث خطأ أثناء الاتصال بالخادم"
+    };
+
+    // 🎥 جلب فيديوهات متاحة للمشاهدة (من user_videos)
+    const videosRes = await client.query(`
+      SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id,
+             COALESCE(uv.keywords, '[]') AS keywords,
+             u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
+      FROM user_videos uv
+      JOIN users u ON uv.user_id = u.telegram_id
+      WHERE u.balance >= (uv.duration_seconds * 0.00002)
+      ORDER BY uv.views_count ASC, uv.created_at DESC
+      LIMIT 50
+    `);
+
+    // 🧩 تنسيق الفيديوهات
+    const videos = videosRes.rows.map(v => {
+      let keywords = [];
+      try {
+        keywords = typeof v.keywords === 'string' ? JSON.parse(v.keywords) : [];
+      } catch (_) {
+        keywords = [];
+      }
+      return {
+        id: v.id,
+        title: v.title,
+        url: v.video_url,
+        duration_seconds: v.duration_seconds,
+        user_id: v.user_id,
+        keywords: Array.isArray(keywords) && keywords.length > 0 ? keywords : [v.video_url?.split('v=')[1] || '']
+      };
+    });
+
+    // 🕒 بيانات إضافية
+    const payload = {
+      lang: translations,
+      videos,
+      server_time: new Date().toISOString()
+    };
+
+    // 🔒 الإضافة الأصلية تتوقع Base64
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
+
+    return res.json({ langData: encoded });
+  } catch (err) {
+    console.error('Error in /api/lang/full/:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // === بدء التشغيل ===
 (async () => {
   await connectDB();
