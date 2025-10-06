@@ -671,6 +671,43 @@ app.get('/worker/start', (req, res) => {
   res.sendFile(__dirname + '/public/worker/start.html');
 });
 
+// ✅ دعم مسار /api/auth الذي يحتاجه Start.js
+app.get('/api/auth', async (req, res) => {
+  try {
+    // يمكن قراءة user_id من query أو تعيين guest افتراضيًا
+    const user_id = req.query.user_id || 'guest';
+
+    // جلب المستخدم من قاعدة البيانات
+    const result = await client.query(
+      'SELECT telegram_id, balance FROM users WHERE telegram_id = $1',
+      [user_id]
+    );
+
+    let user = result.rows[0];
+    if (!user) {
+      // إنشاء مستخدم جديد إذا لم يكن موجودًا
+      await client.query(
+        'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+        [user_id, 0]
+      );
+      user = { telegram_id: user_id, balance: 0 };
+    }
+
+    // إنشاء استجابة مماثلة لما تتوقعه الإضافة
+    const response = {
+      fullname: `User ${user.telegram_id}`,
+      uniqueID: user.telegram_id.toString(),
+      coins: parseFloat(user.balance),
+      balance: parseFloat(user.balance),
+      membership: 'Free',
+    };
+
+    return res.json(response);
+  } catch (err) {
+    console.error('Error in /api/auth:', err);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // === بدء التشغيل ===
 (async () => {
