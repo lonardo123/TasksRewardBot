@@ -603,6 +603,61 @@ app.get('/video-callback', async (req, res) => {
     }
 });
 
+// ✅ بدء العامل للمستخدم (Worker Start Endpoint)
+app.get("/worker/start", async (req, res) => {
+  const userId = req.query.user_id; 
+
+  if (!userId) {
+    return res.status(400).send("⚠️ Missing user_id");
+  }
+
+  try {
+    // ✅ استدعاء دالة جلب الفيديوهات المتاحة لهذا المستخدم
+    const videos = await startWorkerForUser(userId);
+
+    // ✅ إرجاع النتيجة بصيغة JSON واضحة
+    res.json({
+      status: "success",
+      user_id: userId,
+      total_videos: videos.length,
+      videos: videos,
+    });
+  } catch (err) {
+    console.error("❌ Worker start error:", err);
+    res.status(500).json({
+      status: "error",
+      message: "⚠️ Failed to fetch available videos.",
+      error: String(err),
+    });
+  }
+});
+
+// ⚙️ دالة جلب الفيديوهات المتاحة من المسار العام
+async function startWorkerForUser(userId) {
+  console.log(`🧠 Fetching available videos for user ${userId}...`);
+
+  // استدعاء endpoint الداخلي لجلب الفيديوهات
+  const fetch = (await import("node-fetch")).default;
+
+  const apiUrl = `https://perceptive-victory-production.up.railway.app/api/public-videos?user_id=${userId}`;
+
+  const response = await fetch(apiUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch videos. Status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  // تأكد أن النتيجة عبارة عن مصفوفة
+  if (!Array.isArray(data)) {
+    console.warn("⚠️ Unexpected response format from /api/public-videos");
+    return [];
+  }
+
+  console.log(`✅ Retrieved ${data.length} videos for user ${userId}`);
+  return data;
+}
+
 // === بدء التشغيل ===
 (async () => {
   await connectDB();
