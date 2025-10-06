@@ -1,7 +1,8 @@
 require('dotenv').config();
 const { Client } = require('pg');
 const express = require('express');
-const crypto = require('crypto'); // لحساب والتحقق من HMAC
+const crypto = require('crypto'); 
+const path = require('path'); 
 
 // === إعداد قاعدة البيانات (Postgres Client)
 const client = new Client({
@@ -705,7 +706,6 @@ app.get('/api/auth', async (req, res) => {
 });
 
 // ✅ تأكيد عرض صفحة /worker/start
-import path from 'path'; // أو استخدم const path = require('path'); في الأعلى
 app.get('/worker/start', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/worker/start.html'));
 });
