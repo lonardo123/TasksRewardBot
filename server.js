@@ -704,6 +704,11 @@ app.get('/api/auth', async (req, res) => {
   }
 });
 
+// ✅ تأكيد عرض صفحة /worker/start
+import path from 'path'; // أو استخدم const path = require('path'); في الأعلى
+app.get('/worker/start', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/worker/start.html'));
+});
 
 // === بدء التشغيل ===
 (async () => {
