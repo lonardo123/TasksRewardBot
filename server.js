@@ -646,217 +646,185 @@ app.get('/api/auth', async (req, res) => {
   }
 });
 
-/* ============================================================
-   🟢 1. /api/worker — جلب الفيديوهات المتاحة للمشاهدة
-   ============================================================ */
-app.get('/api/worker', async (req, res) => {
-  try {
-    const { user_id } = req.query;
-
-    // تأكد من وجود user_id
-    if (!user_id) return res.status(400).json({ error: "user_id مطلوب" });
-
-    // جلب فيديوهات متاحة للمشاهدة
-    const videosRes = await client.query(`
-      SELECT id, title, video_url, duration_seconds, user_id, keywords, reward
-      FROM user_videos
-      WHERE reward > 0
-      ORDER BY created_at DESC
-      LIMIT 50
-    `);
-
-    const videos = videosRes.rows.map(v => ({
-      id: v.id,
-      title: v.title,
-      url: v.video_url,
-      duration_seconds: v.duration_seconds,
-      user_id: v.user_id,
-      reward: Number(v.reward),
-      keywords: typeof v.keywords === 'string' ? JSON.parse(v.keywords) : v.keywords || []
-    }));
-
-    return res.json({ success: true, videos });
-  } catch (err) {
-    console.error('Error in /api/worker:', err);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
-
-/* ============================================================
-   🌐 /api/lang/full — النصوص والترجمات + قائمة الفيديوهات
-   ============================================================ */
-app.get('/api/lang/full', async (req, res) => {
-  try {
-    const { user_id, lang } = req.query;
-
-    // 🌍 اختيار اللغة (افتراضي: الإنجليزية)
-    const translations =
-      lang === 'ar'
-        ? {
-            start_button: "ابدأ المشاهدة",
-            stop_button: "إيقاف",
-            balance_label: "رصيدك",
-            coins_label: "العملات",
-            membership_label: "العضوية",
-            loading_text: "جارٍ تحميل المهام...",
-            error_text: "حدث خطأ أثناء الاتصال بالخادم"
-          }
-        : {
-            start_button: "Start Watching",
-            stop_button: "Stop",
-            balance_label: "Your Balance",
-            coins_label: "Coins",
-            membership_label: "Membership",
-            loading_text: "Loading tasks...",
-            error_text: "An error occurred while connecting to the server"
-          };
-
-    // 🎥 جلب الفيديوهات من قاعدة البيانات
-    const videosRes = await client.query(`
-      SELECT id, title, video_url, duration_seconds, user_id, keywords, reward
-      FROM user_videos
-      WHERE reward > 0
-      ORDER BY created_at DESC
-      LIMIT 50
-    `);
-
-    const videos = videosRes.rows.map(v => ({
-      id: v.id,
-      title: v.title,
-      url: v.video_url,
-      duration_seconds: v.duration_seconds,
-      user_id: v.user_id,
-      reward: Number(v.reward),
-      keywords: typeof v.keywords === 'string' ? JSON.parse(v.keywords) : v.keywords || []
-    }));
-
-    // 🧩 البيانات التي يتوقعها الامتداد
-    const payload = {
-      lang: translations,
-      videos,
-      server_time: new Date().toISOString()
-    };
-
-    // 🔒 الإضافة تتوقع Base64
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
-    res.json({ langData: encoded });
-  } catch (err) {
-    console.error('Error in /api/lang/full:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-/* ============================================================
-   🟢 3. /api/check — تحقق من حالة المستخدم أو الجلسة
-   ============================================================ */
+/* ============================
+   🔹 /api/check — فحص حالة المستخدم
+============================ */
 app.get('/api/check', async (req, res) => {
   try {
     const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
 
-    const result = await client.query(
-      'SELECT telegram_id, balance, membership FROM users WHERE telegram_id = $1',
-      [user_id]
-    );
+    const userRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
 
-    if (result.rowCount === 0) {
-      return res.json({ exists: false });
+    if (userRes.rows.length === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
+      return res.json({ success: true, message: 'تم إنشاء المستخدم الجديد', balance: 0 });
     }
 
-    const user = result.rows[0];
+    const user = userRes.rows[0];
     res.json({
-      exists: true,
-      user_id: user.telegram_id,
-      balance: Number(user.balance),
-      membership: user.membership
+      success: true,
+      user_id,
+      balance: parseFloat(user.balance || 0),
+      message: 'المستخدم موجود وجاهز'
     });
   } catch (err) {
-    console.error('Error in /api/check:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ /api/check:', err);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
   }
 });
 
 
-/* ============================================================
-   🟢 4. /api/redirect — إعادة توجيه العامل إلى رابط الفيديو
-   ============================================================ */
-app.get('/api/redirect', async (req, res) => {
+/* ============================
+   🔹 /api/worker — جلب فيديوهات للمشاهدة
+============================ */
+app.post('/api/worker', async (req, res) => {
   try {
-    const { video_id } = req.query;
-    if (!video_id) return res.status(400).send('video_id مطلوب');
+    const { user_id } = req.body;
+    if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
 
-    const videoRes = await client.query('SELECT video_url FROM user_videos WHERE id = $1', [video_id]);
-    if (videoRes.rowCount === 0) return res.status(404).send('الفيديو غير موجود');
+    // تأكد من وجود المستخدم
+    const userCheck = await client.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
+    if (userCheck.rows.length === 0) {
+      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
+    }
 
-    const videoUrl = videoRes.rows[0].video_url;
-    res.redirect(videoUrl);
+    // جلب فيديوهات ليست للمستخدم نفسه ولدى أصحابها رصيد كافٍ
+    const videosRes = await client.query(`
+      SELECT uv.*, u.balance AS owner_balance
+      FROM user_videos uv
+      JOIN users u ON uv.user_id = u.telegram_id
+      WHERE uv.user_id != $1
+        AND u.balance >= (uv.duration_seconds * 0.00002)
+      ORDER BY uv.views_count ASC, uv.created_at DESC
+      LIMIT 20
+    `, [user_id]);
+
+    const videos = videosRes.rows.map(v => ({
+      id: v.id,
+      title: v.title,
+      video_url: v.video_url,
+      duration_seconds: v.duration_seconds,
+      user_id: v.user_id,
+      viewing_method: v.viewing_method || "Direct",
+      like: v.like || false,
+      subscribe: v.subscribe || false,
+      comment: v.comment || false,
+      comment_like: v.comment_like || false,
+      filtering: v.filtering || false,
+      reward: v.duration_seconds * 0.00001
+    }));
+
+    res.json({
+      success: true,
+      videos,
+      count: videos.length
+    });
   } catch (err) {
-    console.error('Error in /api/redirect:', err);
-    res.status(500).send('Server error');
+    console.error('❌ /api/worker:', err);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
   }
 });
 
 
-/* ============================================================
-   🟢 5. /api/report — تسجيل إنجاز المشاهدة والمكافأة
-   ============================================================ */
+/* ============================
+   🔹 /api/report — تسجيل مشاهدة وتحديث الرصيد
+============================ */
 app.post('/api/report', async (req, res) => {
   try {
-    const { user_id, video_id, duration, status } = req.body;
-    if (!user_id || !video_id) return res.status(400).json({ error: 'user_id و video_id مطلوبان' });
+    const { user_id, video_id, watched_seconds } = req.body;
+    if (!user_id || !video_id || !watched_seconds)
+      return res.status(400).json({ error: 'user_id, video_id, watched_seconds مطلوبة' });
 
-    const videoRes = await client.query('SELECT reward FROM user_videos WHERE id = $1', [video_id]);
-    if (videoRes.rowCount === 0) return res.status(404).json({ error: 'الفيديو غير موجود' });
+    const videoRes = await client.query(`
+      SELECT uv.*, u.balance AS owner_balance
+      FROM user_videos uv
+      JOIN users u ON uv.user_id = u.telegram_id
+      WHERE uv.id = $1
+    `, [video_id]);
 
-    const reward = Number(videoRes.rows[0].reward) || 0.0005;
+    if (videoRes.rows.length === 0)
+      return res.status(404).json({ error: 'الفيديو غير موجود' });
+
+    const video = videoRes.rows[0];
+    const owner_id = video.user_id;
+    const duration = Math.min(video.duration_seconds, watched_seconds);
+
+    const advertiserCost = duration * 0.00002;
+    const workerReward = duration * 0.00001;
+
+    if (parseFloat(video.owner_balance) < advertiserCost)
+      return res.status(400).json({ error: 'رصيد المعلن غير كافٍ لدفع تكلفة المشاهدة' });
 
     await client.query('BEGIN');
 
-    await client.query(
-      'UPDATE users SET balance = balance + $1, coins = coins + $1 WHERE telegram_id = $2',
-      [reward, user_id]
-    );
+    await client.query(`UPDATE users SET balance = balance - $1 WHERE telegram_id = $2`, [advertiserCost, owner_id]);
+    await client.query(`UPDATE users SET balance = balance + $1 WHERE telegram_id = $2`, [workerReward, user_id]);
+    await client.query(`UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1`, [video_id]);
 
-    await client.query(
-      `INSERT INTO user_reports (user_id, video_id, duration, reward, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())`,
-      [user_id, video_id, duration || 0, reward, status || 'completed']
-    );
+    await client.query(`
+      INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [user_id, 'watch', workerReward, 'Watching video', duration, video_id]);
 
     await client.query('COMMIT');
-    res.json({ success: true, reward_added: reward });
+
+    res.json({
+      success: true,
+      duration,
+      advertiserCost,
+      workerReward,
+      message: 'تم تسجيل المشاهدة وتحديث الأرصدة بنجاح'
+    });
+
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('Error in /api/report:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ /api/report:', err);
+    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
   }
 });
 
 
-/* ============================================================
-   🟢 6. /api/notify — إشعار المستخدم بحدث معين
-   ============================================================ */
-app.post('/api/notify', async (req, res) => {
+/* ============================
+   🔹 /api/lang/full — ترجمة واجهة الإضافة
+============================ */
+app.get('/api/lang/full', async (req, res) => {
   try {
-    const { user_id, title, message } = req.body;
-    if (!user_id || !message)
-      return res.status(400).json({ error: 'user_id و message مطلوبان' });
+    const translations = {
+      start_button: "ابدأ المشاهدة",
+      stop_button: "إيقاف",
+      balance_label: "رصيدك",
+      coins_label: "العملات",
+      membership_label: "العضوية",
+      loading_text: "جارٍ تحميل المهام...",
+      error_text: "حدث خطأ أثناء الاتصال بالخادم"
+    };
 
-    // يمكن هنا لاحقًا إرسال إشعار تلغرام فعلي أو حفظه بقاعدة البيانات
-    await client.query(
-      `INSERT INTO notifications (user_id, title, message, created_at)
-       VALUES ($1, $2, $3, NOW())`,
-      [user_id, title || 'Notification', message]
-    );
+    const payload = {
+      lang: translations,
+      server_time: new Date().toISOString()
+    };
 
-    res.json({ success: true, sent: true });
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
+    res.json({ langData: encoded });
+
   } catch (err) {
-    console.error('Error in /api/notify:', err);
+    console.error('❌ /api/lang/full:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
+
+/* ============================
+   🔹 /api/notify — إشعار بسيط للعميل
+============================ */
+app.get('/api/notify', (req, res) => {
+  res.json({
+    success: true,
+    message: "📢 لا توجد إشعارات جديدة حاليًا. استمر في المشاهدة لزيادة أرباحك!",
+    timestamp: new Date().toISOString()
+  });
+});
 
 
 
