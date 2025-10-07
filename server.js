@@ -28,19 +28,28 @@ async function ensureTables() {
     );
   `);
 
-  // أنشئ جدول user_videos مع عمود keywords (نخزن JSON string)
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS user_videos (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      video_url TEXT NOT NULL,
-      duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-      views_count INT DEFAULT 0,
-      keywords TEXT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
+  // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
+await client.query(`
+  CREATE TABLE IF NOT EXISTS user_videos (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    video_url TEXT NOT NULL,
+    duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
+    views_count INT DEFAULT 0,
+    keywords TEXT,                     -- قائمة الكلمات المفتاحية بصيغة JSON
+    viewing_method VARCHAR(50) DEFAULT 'keyword',  -- طريقة العرض (keyword, direct, channel...)
+    like VARCHAR(10) DEFAULT 'no',      -- الإعجاب: yes / no / random
+    subscribe VARCHAR(10) DEFAULT 'no', -- الاشتراك: yes / no / random
+    comment VARCHAR(10) DEFAULT 'no',   -- التعليق: yes / no / random
+    comment_like VARCHAR(10) DEFAULT 'no', -- إعجاب بالتعليق: yes / no / random
+    filtering VARCHAR(10) DEFAULT 'no', -- تصفية الحركة: yes / no
+    daily_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية اليومية
+    total_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية الإجمالية
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`);
+
 
   // أنشئ جدول earnings (مهيأ ليشمل watched_seconds, video_id, created_at)
 await client.query(`
