@@ -683,48 +683,84 @@ app.post('/api/worker', async (req, res) => {
     const { user_id } = req.body;
     if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
 
-    // تأكد من وجود المستخدم
+    // 🧩 تأكد من وجود المستخدم (العامل)
     const userCheck = await client.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
     if (userCheck.rows.length === 0) {
       await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
     }
 
-    // جلب فيديوهات ليست للمستخدم نفسه ولدى أصحابها رصيد كافٍ
+    // 🎥 جلب الفيديوهات المتاحة من المعلنين فقط (ليست للعامل نفسه)
     const videosRes = await client.query(`
-      SELECT uv.*, u.balance AS owner_balance
+      SELECT 
+        uv.id,
+        uv.user_id,
+        uv.title,
+        uv.video_url,
+        uv.duration_seconds,
+        uv.views_count,
+        uv.keywords,
+        uv.viewing_method,
+        uv.like,
+        uv.subscribe,
+        uv.comment,
+        uv.comment_like,
+        uv.filtering,
+        uv.daily_budget,
+        uv.total_budget,
+        u.balance AS owner_balance
       FROM user_videos uv
       JOIN users u ON uv.user_id = u.telegram_id
       WHERE uv.user_id != $1
         AND u.balance >= (uv.duration_seconds * 0.00002)
       ORDER BY uv.views_count ASC, uv.created_at DESC
-      LIMIT 20
+      LIMIT 20;
     `, [user_id]);
 
+    // 🧠 تنسيق النتائج المرسلة للعامل
     const videos = videosRes.rows.map(v => ({
       id: v.id,
+      user_id: v.user_id,
       title: v.title,
       video_url: v.video_url,
       duration_seconds: v.duration_seconds,
-      user_id: v.user_id,
-      viewing_method: v.viewing_method || "Direct",
-      like: v.like || false,
-      subscribe: v.subscribe || false,
-      comment: v.comment || false,
-      comment_like: v.comment_like || false,
-      filtering: v.filtering || false,
-      reward: v.duration_seconds * 0.00001
+      views_count: v.views_count || 0,
+      keywords: (() => {
+        try {
+          return Array.isArray(v.keywords) ? v.keywords : JSON.parse(v.keywords || '[]');
+        } catch {
+          return [];
+        }
+      })(),
+      viewing_method: v.viewing_method || 'keyword',
+      like: v.like || 'no',
+      subscribe: v.subscribe || 'no',
+      comment: v.comment || 'no',
+      comment_like: v.comment_like || 'no',
+      filtering: v.filtering || 'no',
+      daily_budget: v.daily_budget || 0,
+      total_budget: v.total_budget || 0,
+
+      // 💰 المكافأة للعامل تُحسب بناءً على مدة الفيديو
+      reward_per_second: 0.00001,
+      reward_total: parseFloat((v.duration_seconds * 0.00001).toFixed(6)),
+
+      // 💸 تكلفة المعلن
+      cost_to_owner: parseFloat((v.duration_seconds * 0.00002).toFixed(6))
     }));
 
-    res.json({
+    // 🚀 إرسال النتيجة
+    return res.json({
       success: true,
       videos,
       count: videos.length
     });
+
   } catch (err) {
-    console.error('❌ /api/worker:', err);
+    console.error('❌ خطأ في /api/worker:', err);
     res.status(500).json({ error: 'خطأ داخلي في الخادم' });
   }
 });
+
 
 
 /* ============================
