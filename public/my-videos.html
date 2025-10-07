@@ -5,49 +5,109 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>فيديوهاتي - TasksRewardBot</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #f5f7fa; direction: rtl; text-align: right; }
-    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
-    button, input { padding: 10px; margin: 5px 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f7fa;
+      direction: rtl;
+      text-align: right;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+    }
+    button, input {
+      padding: 10px;
+      margin: 5px 0;
+      box-sizing: border-box;
+    }
     .hidden { display: none; }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
     th { background: #f0f0f0; }
-    #messageBox { margin: 15px 0; padding: 10px; border-radius: 5px; display: none; }
-    #messageBox.error { background: #fdecea; color: #d93025; border: 1px solid #f5c2c7; }
-    #messageBox.success { background: #e6f4ea; color: #188038; border: 1px solid #a8dab5; }
+    #messageBox {
+      margin: 15px 0;
+      padding: 10px;
+      border-radius: 5px;
+      display: none;
+    }
+    #messageBox.error {
+      background: #fdecea;
+      color: #d93025;
+      border: 1px solid #f5c2c7;
+    }
+    #messageBox.success {
+      background: #e6f4ea;
+      color: #188038;
+      border: 1px solid #a8dab5;
+    }
+    label {
+      font-weight: bold;
+    }
+    .small {
+      font-size: 13px;
+      color: #666;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>فيديوهاتي</h2>
-
-    <!-- ✅ صندوق عرض الرسائل تحت العنوان مباشرة -->
+    <h2>🎬 فيديوهاتي</h2>
     <div id="messageBox"></div>
 
     <button id="addBtn">➕ إضافة فيديو جديد</button>
-    <button id="listBtn">📋 قائمة فيديوهاتي</button>
+    <button id="listBtn">📋 عرض قائمة الفيديوهات</button>
     
     <!-- نموذج الإضافة -->
     <div id="addForm" class="hidden">
+      <h3>إضافة فيديو</h3>
       <input type="text" id="title" placeholder="اسم الفيديو" style="width:100%">
       <input type="url" id="url" placeholder="رابط الفيديو (من يوتيوب)" style="width:100%">
       <input type="number" id="duration" min="50" placeholder="مدة الفيديو بالثواني (50+)" step="1" style="width:100%">
       
-      <!-- خانات الكلمات المفتاحية -->
-      <div class="keywords">
-        <label><strong>الكلمات المفتاحية (حتى 5):</strong></label>
-        <div id="keywordsContainer">
-          <input type="text" class="keyword" placeholder="كلمة مفتاحية 1" style="width:80%">
-        </div>
-        <button type="button" id="addKeywordBtn">➕</button>
+      <hr>
+      <label>🔑 الكلمات المفتاحية (حتى 5):</label>
+      <div id="keywordsContainer">
+        <input type="text" class="keyword" placeholder="كلمة مفتاحية 1" style="width:80%">
       </div>
+      <button type="button" id="addKeywordBtn">➕ أضف كلمة</button>
 
-      <button id="submitBtn">إضافة الفيديو</button>
-      <button id="cancelBtn">إلغاء</button>
+      <hr>
+      <label>🎯 طريقة المشاهدة:</label>
+      <input type="text" value="keyword" disabled style="width:100%; background:#eee;">
+      <div class="small">يتم استخدام المشاهدة عبر الكلمات المفتاحية تلقائيًا.</div>
+
+      <hr>
+      <label>👍 الإعجاب:</label>
+      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+
+      <label>📢 الاشتراك:</label>
+      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+
+      <label>💬 التعليق:</label>
+      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+
+      <label>❤️ إعجاب التعليقات:</label>
+      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+
+      <button id="submitBtn">✅ إضافة الفيديو</button>
+      <button id="cancelBtn">❌ إلغاء</button>
     </div>
 
     <!-- جدول الفيديوهات -->
     <div id="videosSection" class="hidden">
+      <h3>📋 قائمة الفيديوهات</h3>
       <table>
         <thead>
           <tr>
@@ -68,12 +128,11 @@
     const addBtn = document.getElementById('addBtn');
     const listBtn = document.getElementById('listBtn');
     const addForm = document.getElementById('addForm');
+    const videosSection = document.getElementById('videosSection');
     const keywordsContainer = document.getElementById('keywordsContainer');
     const addKeywordBtn = document.getElementById('addKeywordBtn');
-    const messageBox = document.getElementById('messageBox');
-    const videosSection = document.getElementById('videosSection');
     const videosTableBody = document.getElementById('videosTableBody');
-
+    const messageBox = document.getElementById('messageBox');
     let currentVideos = [];
 
     function showMessage(text, type) {
@@ -84,7 +143,6 @@
       else if (type === 'success') messageBox.classList.add('success');
     }
 
-    // زر إضافة كلمات مفتاحية
     addKeywordBtn.addEventListener('click', () => {
       const currentInputs = keywordsContainer.querySelectorAll('input.keyword').length;
       if (currentInputs >= 5) {
@@ -99,31 +157,25 @@
       keywordsContainer.appendChild(input);
     });
 
-    // زر إظهار نموذج الإضافة
     addBtn.addEventListener('click', () => {
       if (currentVideos.length >= 4) {
-        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.', 'error');
+        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات.', 'error');
         return;
       }
       addForm.classList.remove('hidden');
       videosSection.classList.add('hidden');
     });
 
-    // زر إلغاء
     document.getElementById('cancelBtn').addEventListener('click', () => addForm.classList.add('hidden'));
-
-    // زر قائمة الفيديوهات
     listBtn.addEventListener('click', () => {
-      videosSection.classList.remove('hidden');
       addForm.classList.add('hidden');
+      videosSection.classList.remove('hidden');
       loadVideos();
     });
 
-    // تحميل الفيديوهات
     async function loadVideos() {
       const res = await fetch(`/api/my-videos?user_id=${userId}`);
       let videos = await res.json();
-
       if (!Array.isArray(videos)) videos = [];
       currentVideos = videos;
 
@@ -140,77 +192,71 @@
           <tr>
             <td>${v.title}</td>
             <td>${v.duration_seconds}</td>
-            <td>${v.views_count}</td>
-            <td>
-              ${(v.keywords && v.keywords.length > 0) 
-                ? `🔑 ${v.keywords.join(', ')}` 
-                : 'لا توجد كلمات مفتاحية'}
-            </td>
+            <td>${v.views_count || 0}</td>
+            <td>${v.keywords && v.keywords.length ? v.keywords.join(', ') : 'لا توجد كلمات'}</td>
             <td><button onclick="deleteVideo(${v.id})">🗑️ حذف</button></td>
           </tr>
         `;
       }).join('');
     }
 
-    // إضافة فيديو
     document.getElementById('submitBtn').addEventListener('click', async () => {
       if (currentVideos.length >= 4) {
-        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات. يرجى حذف فيديو من قائمتك أولاً.', 'error');
+        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات.', 'error');
         return;
       }
 
-      const title = document.getElementById('title').value;
-      const url = document.getElementById('url').value;
-      const duration = document.getElementById('duration').value;
-
+      const title = document.getElementById('title').value.trim();
+      const url = document.getElementById('url').value.trim();
+      const duration = parseInt(document.getElementById('duration').value);
       const keywordInputs = document.querySelectorAll('.keyword');
-      const keywords = Array.from(keywordInputs).map(inp => inp.value.trim()).filter(val => val.length > 0);
+      const keywords = Array.from(keywordInputs).map(i => i.value.trim()).filter(v => v);
 
-      if (!title || !url || !duration) {
-        showMessage('املأ جميع الحقول', 'error');
-        return;
-      }
-      if (duration < 50) {
-        showMessage('المدة يجب أن تكون 50 ثانية على الأقل', 'error');
-        return;
-      }
+      if (!title || !url || !duration) return showMessage('املأ جميع الحقول المطلوبة', 'error');
+      if (duration < 50) return showMessage('المدة يجب أن تكون 50 ثانية على الأقل', 'error');
+
+      const videoData = {
+        user_id: userId,
+        title,
+        video_url: url,
+        duration_seconds: duration,
+        keywords,
+        viewing_method: "keyword",
+        like: "no",
+        subscribe: "no",
+        comment: "no",
+        comment_like: "no"
+      };
 
       const res = await fetch('/api/add-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, title, video_url: url, duration_seconds: duration, keywords })
+        body: JSON.stringify(videoData)
       });
       const data = await res.json();
+
       if (data.success) {
-        showMessage('✅ تمت الإضافة بنجاح', 'success');
+        showMessage('✅ تمت إضافة الفيديو بنجاح', 'success');
         addForm.classList.add('hidden');
         videosSection.classList.remove('hidden');
         loadVideos();
       } else {
-        showMessage('خطأ: ' + (data.error || 'حدث خطأ غير متوقع'), 'error');
+        showMessage('❌ فشل في الإضافة: ' + (data.error || ''), 'error');
       }
     });
 
-    // حذف فيديو
     window.deleteVideo = async (videoId) => {
-      try {
-        const res = await fetch('/api/delete-video', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: userId, video_id: videoId })
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          loadVideos();
-          showMessage('✅ تم الحذف بنجاح', 'success');
-        } else {
-          const cleanError = (data.error || 'حدث خطأ غير متوقع').replace(/https?:\/\/\S+/g, '');
-          showMessage('خطأ: ' + cleanError.trim(), 'error');
-        }
-      } catch (err) {
-        showMessage('خطأ في الاتصال بالخادم', 'error');
+      const res = await fetch('/api/delete-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, video_id: videoId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showMessage('🗑️ تم الحذف بنجاح', 'success');
+        loadVideos();
+      } else {
+        showMessage('❌ فشل في حذف الفيديو', 'error');
       }
     };
   </script>
