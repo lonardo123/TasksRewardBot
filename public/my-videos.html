@@ -1,113 +1,146 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>فيديوهاتي - TasksRewardBot</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f5f7fa;
-      direction: rtl;
-      text-align: right;
+    :root{
+      --bg:#f5f7fb; --card:#fff; --muted:#6b7280; --accent:#0ea5a4; --danger:#ef4444;
+      --radius:10px; --pad:18px; --mono: "Roboto Mono", monospace;
     }
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
+    body{font-family: "Noto Kufi Arabic", "Segoe UI", Tahoma, Arial; background:var(--bg); margin:0; padding:24px; color:#111;}
+    .wrap{max-width:980px;margin:0 auto;}
+    .header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:0 4px 18px rgba(15,23,42,0.06);padding:var(--pad);margin-bottom:16px}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    button{background:#111;color:#fff;border:0;padding:10px 14px;border-radius:8px;cursor:pointer}
+    button.ghost{background:transparent;color:#111;border:1px solid #e5e7eb}
+    .hidden{display:none}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], input[type=url], input[type=number], select, textarea{
+      width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px;box-sizing:border-box;
     }
-    button, input {
-      padding: 10px;
-      margin: 5px 0;
-      box-sizing: border-box;
-    }
-    .hidden { display: none; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
-    }
-    th { background: #f0f0f0; }
-    #messageBox {
-      margin: 15px 0;
-      padding: 10px;
-      border-radius: 5px;
-      display: none;
-    }
-    #messageBox.error {
-      background: #fdecea;
-      color: #d93025;
-      border: 1px solid #f5c2c7;
-    }
-    #messageBox.success {
-      background: #e6f4ea;
-      color: #188038;
-      border: 1px solid #a8dab5;
-    }
-    label {
-      font-weight: bold;
-    }
-    .small {
-      font-size: 13px;
-      color: #666;
-    }
+    .grid{display:grid;grid-template-columns:1fr 320px;gap:14px;align-items:start}
+    .full{grid-column:1/-1}
+    .keywords-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+    .keywords-row input{flex:1}
+    .pill{display:inline-block;background:#f3f4f6;padding:6px 10px;border-radius:999px;margin:4px;font-size:13px;color:#111}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th, td{border:1px solid #eef2f7;padding:8px;text-align:center;font-size:14px}
+    th{background:#f8fafc}
+    .msg{padding:12px;border-radius:8px;margin-bottom:12px;display:none}
+    .msg.error{background:#fff5f5;color:var(--danger);border:1px solid #fecaca}
+    .msg.success{background:#ecfdf5;color:#065f46;border:1px solid #bbf7d0}
+    .small{font-size:13px;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .input-inline{display:flex;gap:8px}
+    .input-inline input{flex:1}
+    .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .note{font-size:13px;color:var(--muted);margin-top:6px}
+    .actions button{padding:8px 10px;border-radius:6px}
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>🎬 فيديوهاتي</h2>
-    <div id="messageBox"></div>
-
-    <button id="addBtn">➕ إضافة فيديو جديد</button>
-    <button id="listBtn">📋 عرض قائمة الفيديوهات</button>
-    
-    <!-- نموذج الإضافة -->
-    <div id="addForm" class="hidden">
-      <h3>إضافة فيديو</h3>
-      <input type="text" id="title" placeholder="اسم الفيديو" style="width:100%">
-      <input type="url" id="url" placeholder="رابط الفيديو (من يوتيوب)" style="width:100%">
-      <input type="number" id="duration" min="50" placeholder="مدة الفيديو بالثواني (50+)" step="1" style="width:100%">
-      
-      <hr>
-      <label>🔑 الكلمات المفتاحية (حتى 5):</label>
-      <div id="keywordsContainer">
-        <input type="text" class="keyword" placeholder="كلمة مفتاحية 1" style="width:80%">
+  <div class="wrap">
+    <div class="header">
+      <h1>فيديوهاتي</h1>
+      <div class="controls">
+        <button id="listBtn">📋 قائمة فيديوهاتي</button>
+        <button id="addBtn">➕ إضافة فيديو جديد</button>
       </div>
-      <button type="button" id="addKeywordBtn">➕ أضف كلمة</button>
+    </div>
 
-      <hr>
-      <label>🎯 طريقة المشاهدة:</label>
-      <input type="text" value="keyword" disabled style="width:100%; background:#eee;">
-      <div class="small">يتم استخدام المشاهدة عبر الكلمات المفتاحية تلقائيًا.</div>
+    <div id="messageBox" class="msg"></div>
 
-      <hr>
-      <label>👍 الإعجاب:</label>
-      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+    <!-- نموذج الإضافة -->
+    <div id="addForm" class="card hidden">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>إضافة فيديو جديد</strong>
+        <div class="small muted">الحد الأقصى للفيديوهات: 4</div>
+      </div>
 
-      <label>📢 الاشتراك:</label>
-      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+      <div style="margin-top:12px" class="grid">
+        <div>
+          <label>اسم الحملة / عنوان الفيديو <span class="small muted">(Required)</span></label>
+          <input id="title" type="text" placeholder="مثال: شرح بسيط" />
+        </div>
 
-      <label>💬 التعليق:</label>
-      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+        <div>
+          <label>رابط الفيديو (يوتيوب) <span class="small muted">(Required)</span></label>
+          <input id="url" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+        </div>
 
-      <label>❤️ إعجاب التعليقات:</label>
-      <input type="text" value="no" disabled style="width:100%; background:#eee;">
+        <div>
+          <label>المدة العشوائية (ثوانٍ)</label>
+          <div class="input-inline">
+            <input id="min_duration" type="number" value="60" min="50" />
+            <input id="max_duration" type="number" value="120" min="50" />
+          </div>
+          <div class="note">الحد الأدنى 50 ثانية — يُستخدم للاختيار العشوائي بين الحدين</div>
+        </div>
 
-      <button id="submitBtn">✅ إضافة الفيديو</button>
-      <button id="cancelBtn">❌ إلغاء</button>
+        <div>
+          <label>طريقة المشاهدة</label>
+          <!-- according to your request viewing_method fixed to "keyword" -->
+          <select id="viewing_method" disabled>
+            <option value="keyword" selected>الكلمات المفتاحية (ثابت)</option>
+          </select>
+          <div class="note">سيتم البحث باستخدام الكلمات المفتاحية فقط (ثابت)</div>
+        </div>
+
+        <div class="full">
+          <label>الكلمات المفتاحية (حتى 5 كلمات)</label>
+          <div id="keywordsContainer">
+            <div class="keywords-row">
+              <input class="keyword" placeholder="كلمة مفتاحية 1" />
+              <button type="button" id="addKeywordBtn">➕</button>
+            </div>
+          </div>
+          <div class="note">أدخل كلمات تساعد الوصول للفيديو في بحث يوتيوب. أقصى عدد: 5.</div>
+        </div>
+
+        <div>
+          <label>إعجاب (Like)</label>
+          <!-- fixed to "no" as requested -->
+          <select id="like" disabled>
+            <option value="no" selected>لا</option>
+          </select>
+        </div>
+
+        <div>
+          <label>الاشتراك (Subscribe)</label>
+          <select id="subscribe" disabled>
+            <option value="no" selected>لا</option>
+          </select>
+        </div>
+
+        <div>
+          <label>التعليق (Comment)</label>
+          <select id="comment" disabled>
+            <option value="no" selected>لا</option>
+          </select>
+        </div>
+
+        <div>
+          <label>إعجاب التعليقات (Comment Liking)</label>
+          <select id="comment_liking" disabled>
+            <option value="no" selected>لا</option>
+          </select>
+        </div>
+
+        <div class="full" style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+          <button id="submitBtn">إضافة الفيديو</button>
+          <button id="cancelBtn" class="ghost">إلغاء</button>
+        </div>
+      </div>
     </div>
 
     <!-- جدول الفيديوهات -->
-    <div id="videosSection" class="hidden">
-      <h3>📋 قائمة الفيديوهات</h3>
+    <div id="videosSection" class="card hidden">
+      <strong>قائمة فيديوهاتك</strong>
+      <div class="note" style="margin-top:8px">يمكنك حذف أي فيديو بالنقر على زر الحذف.</div>
       <table>
         <thead>
           <tr>
@@ -118,147 +151,248 @@
             <th>إجراءات</th>
           </tr>
         </thead>
-        <tbody id="videosTableBody"></tbody>
+        <tbody id="videosTableBody">
+          <tr><td colspan="5">جارِ التحميل...</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
 
   <script>
-    const userId = new URLSearchParams(window.location.search).get('user_id');
+    // userId يلتقط من الاستعلام، إذا لم يُمرر نستخدم مثال (للاختبار)
+    const userId = new URLSearchParams(window.location.search).get('user_id') || '';
+
+    // عناصر DOM
     const addBtn = document.getElementById('addBtn');
     const listBtn = document.getElementById('listBtn');
     const addForm = document.getElementById('addForm');
     const videosSection = document.getElementById('videosSection');
     const keywordsContainer = document.getElementById('keywordsContainer');
     const addKeywordBtn = document.getElementById('addKeywordBtn');
-    const videosTableBody = document.getElementById('videosTableBody');
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
     const messageBox = document.getElementById('messageBox');
+    const videosTableBody = document.getElementById('videosTableBody');
+
     let currentVideos = [];
 
-    function showMessage(text, type) {
-      messageBox.textContent = text;
-      messageBox.className = '';
+    function showMessage(text, type='error') {
       messageBox.style.display = 'block';
+      messageBox.textContent = text;
+      messageBox.className = 'msg';
       if (type === 'error') messageBox.classList.add('error');
       else if (type === 'success') messageBox.classList.add('success');
+      // auto hide after 6s
+      clearTimeout(window._msgTimer);
+      window._msgTimer = setTimeout(()=>messageBox.style.display='none',6000);
     }
 
+    // إضافة كلمات مفتاحية (حتى 5)
     addKeywordBtn.addEventListener('click', () => {
-      const currentInputs = keywordsContainer.querySelectorAll('input.keyword').length;
-      if (currentInputs >= 5) {
-        showMessage('يمكنك إضافة 5 كلمات مفتاحية فقط كحد أقصى', 'error');
-        return;
-      }
+      const count = keywordsContainer.querySelectorAll('input.keyword').length;
+      if (count >= 5) { showMessage('يمكنك إضافة 5 كلمات مفتاحية فقط كحد أقصى', 'error'); return; }
+      const row = document.createElement('div');
+      row.className = 'keywords-row';
       const input = document.createElement('input');
-      input.type = 'text';
       input.className = 'keyword';
-      input.placeholder = `كلمة مفتاحية ${currentInputs + 1}`;
-      input.style.width = "80%";
-      keywordsContainer.appendChild(input);
+      input.placeholder = `كلمة مفتاحية ${count + 1}`;
+      input.type = 'text';
+      row.appendChild(input);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✖';
+      removeBtn.style.background='transparent';
+      removeBtn.style.border='0';
+      removeBtn.style.cursor='pointer';
+      removeBtn.addEventListener('click', ()=>row.remove());
+      row.appendChild(removeBtn);
+
+      keywordsContainer.appendChild(row);
     });
 
-    addBtn.addEventListener('click', () => {
+    // عرض نموذج إضافة فيديو
+    addBtn.addEventListener('click', async () => {
+      // جلب عدد الفيديوهات الحالي أولاً
+      await loadVideos();
       if (currentVideos.length >= 4) {
-        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات.', 'error');
+        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات. احذف فيديوًا أولاً.', 'error');
         return;
       }
       addForm.classList.remove('hidden');
       videosSection.classList.add('hidden');
+      window.scrollTo(0,0);
     });
 
-    document.getElementById('cancelBtn').addEventListener('click', () => addForm.classList.add('hidden'));
+    // إظهار قائمة الفيديوهات
     listBtn.addEventListener('click', () => {
-      addForm.classList.add('hidden');
       videosSection.classList.remove('hidden');
+      addForm.classList.add('hidden');
       loadVideos();
     });
 
-    async function loadVideos() {
-      const res = await fetch(`/api/my-videos?user_id=${userId}`);
-      let videos = await res.json();
-      if (!Array.isArray(videos)) videos = [];
-      currentVideos = videos;
+    cancelBtn.addEventListener('click', () => {
+      addForm.classList.add('hidden');
+    });
 
-      if (videos.length === 0) {
-        videosTableBody.innerHTML = `<tr><td colspan="5">لا توجد فيديوهات حتى الآن</td></tr>`;
+    // تحميل الفيديوهات من الخادم
+    async function loadVideos(){
+      if (!userId) {
+        videosTableBody.innerHTML = '<tr><td colspan="5">يرجى تمرير user_id في رابط الصفحة</td></tr>';
         return;
       }
-
-      videosTableBody.innerHTML = videos.map(v => {
-        if (typeof v.keywords === 'string') {
-          try { v.keywords = JSON.parse(v.keywords); } catch { v.keywords = []; }
+      try {
+        const res = await fetch(`/api/my-videos?user_id=${encodeURIComponent(userId)}`);
+        if (!res.ok) {
+          videosTableBody.innerHTML = `<tr><td colspan="5">خطأ في جلب الفيديوهات</td></tr>`;
+          return;
         }
-        return `
-          <tr>
-            <td>${v.title}</td>
-            <td>${v.duration_seconds}</td>
-            <td>${v.views_count || 0}</td>
-            <td>${v.keywords && v.keywords.length ? v.keywords.join(', ') : 'لا توجد كلمات'}</td>
-            <td><button onclick="deleteVideo(${v.id})">🗑️ حذف</button></td>
-          </tr>
-        `;
-      }).join('');
+        let videos = await res.json();
+        if (!Array.isArray(videos)) videos = [];
+        currentVideos = videos;
+
+        if (videos.length === 0) {
+          videosTableBody.innerHTML = `<tr><td colspan="5">لا توجد فيديوهات حتى الآن</td></tr>`;
+          return;
+        }
+
+        videosTableBody.innerHTML = videos.map(v => {
+          // تأكد keywords
+          let kw = v.keywords || [];
+          if (typeof kw === 'string') {
+            try { kw = JSON.parse(kw); } catch { kw = []; }
+          }
+          const kwText = (Array.isArray(kw) && kw.length > 0) ? kw.join(', ') : 'لا توجد كلمات';
+          return `<tr>
+                    <td>${escapeHtml(v.title)}</td>
+                    <td>${v.duration_seconds}</td>
+                    <td>${v.views_count || 0}</td>
+                    <td>${escapeHtml(kwText)}</td>
+                    <td><button class="deleteBtn" data-id="${v.id}">حذف</button></td>
+                  </tr>`;
+        }).join('');
+        // attach delete handlers
+        document.querySelectorAll('.deleteBtn').forEach(btn=>{
+          btn.addEventListener('click', ()=> deleteVideo(btn.dataset.id));
+        });
+      } catch (err) {
+        videosTableBody.innerHTML = `<tr><td colspan="5">خطأ في الاتصال بالخادم</td></tr>`;
+      }
     }
 
-    document.getElementById('submitBtn').addEventListener('click', async () => {
-      if (currentVideos.length >= 4) {
-        showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات.', 'error');
-        return;
-      }
+    // منع XSS بسيط
+    function escapeHtml(s){
+      if (!s && s !== 0) return '';
+      return String(s).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]; });
+    }
+
+    // إضافة فيديو — نمرّر الحقول الإضافية التي تُطلب في النظام الأصلي
+    submitBtn.addEventListener('click', async () => {
+      // تحقق العدد مجددًا
+      await loadVideos();
+      if (currentVideos.length >= 4) { showMessage('لا يمكنك إضافة أكثر من 4 فيديوهات.', 'error'); return; }
 
       const title = document.getElementById('title').value.trim();
       const url = document.getElementById('url').value.trim();
-      const duration = parseInt(document.getElementById('duration').value);
-      const keywordInputs = document.querySelectorAll('.keyword');
-      const keywords = Array.from(keywordInputs).map(i => i.value.trim()).filter(v => v);
+      const minD = parseInt(document.getElementById('min_duration').value,10) || 0;
+      const maxD = parseInt(document.getElementById('max_duration').value,10) || 0;
 
-      if (!title || !url || !duration) return showMessage('املأ جميع الحقول المطلوبة', 'error');
-      if (duration < 50) return showMessage('المدة يجب أن تكون 50 ثانية على الأقل', 'error');
+      const keywordInputs = keywordsContainer.querySelectorAll('input.keyword');
+      const keywords = Array.from(keywordInputs).map(i=>i.value.trim()).filter(x=>x.length>0).slice(0,5);
 
-      const videoData = {
+      if (!title || !url || !minD || !maxD) { showMessage('املأ الحقول المطلوبة (العنوان، الرابط، المدة)', 'error'); return; }
+      if (minD < 50 || maxD < 50) { showMessage('المدة يجب أن تكون 50 ثانية أو أكثر', 'error'); return; }
+      if (minD > maxD) { showMessage('حدّ الأدنى لا يمكن أن يكون أكبر من الحد الأقصى', 'error'); return; }
+
+      if (!userId) { showMessage('user_id مفقود في رابط الصفحة', 'error'); return; }
+
+      // نحدد مدة مُرسلة إلى الخادم: نستخدم متوسط المدى أو نرسل min (الخادم يتوقع duration_seconds)
+      const duration_seconds = Math.round((minD + maxD)/2);
+
+      // الحقول الثابتة المطلوبة من النظام الأصلي (كما طلبت):
+      const payload = {
         user_id: userId,
         title,
         video_url: url,
-        duration_seconds: duration,
+        duration_seconds,
+        // الكلمات تحفظ كمصفوفة
         keywords,
-        viewing_method: "keyword",
-        like: "no",
-        subscribe: "no",
-        comment: "no",
-        comment_like: "no"
+        // الحقول الإضافية التي واجهة الـ Start.js قد تتوقعها:
+        viewing_method: 'keyword', // ثابت كما طلبت
+        like: 'no',
+        subscribe: 'no',
+        comment: 'no',
+        comment_like: 'no'
       };
 
-      const res = await fetch('/api/add-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(videoData)
-      });
-      const data = await res.json();
+      try {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'جاري الإضافة...';
+        const res = await fetch('/api/add-video', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showMessage('✅ تمت الإضافة بنجاح', 'success');
+          // تنظيف الحقول
+          document.getElementById('title').value = '';
+          document.getElementById('url').value = '';
+          document.getElementById('min_duration').value = 60;
+          document.getElementById('max_duration').value = 120;
+          // ابقاء أول keyword وحذف الباقي
+          const allKw = keywordsContainer.querySelectorAll('input.keyword');
+          allKw.forEach((el,i)=>{ if(i>0) el.parentElement.remove(); else el.value=''; });
 
-      if (data.success) {
-        showMessage('✅ تمت إضافة الفيديو بنجاح', 'success');
-        addForm.classList.add('hidden');
-        videosSection.classList.remove('hidden');
-        loadVideos();
-      } else {
-        showMessage('❌ فشل في الإضافة: ' + (data.error || ''), 'error');
+          addForm.classList.add('hidden');
+          videosSection.classList.remove('hidden');
+          await loadVideos();
+        } else {
+          showMessage('خطأ: ' + (data.error || JSON.stringify(data)), 'error');
+        }
+      } catch (err) {
+        showMessage('خطأ في الاتصال بالخادم', 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'إضافة الفيديو';
       }
     });
 
-    window.deleteVideo = async (videoId) => {
-      const res = await fetch('/api/delete-video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, video_id: videoId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        showMessage('🗑️ تم الحذف بنجاح', 'success');
+    // حذف فيديو
+    async function deleteVideo(videoId){
+      if (!confirm('هل أنت متأكد من حذف هذا الفيديو؟')) return;
+      try {
+        const res = await fetch('/api/delete-video', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ user_id: userId, video_id: videoId })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showMessage('✅ تم الحذف', 'success');
+          loadVideos();
+        } else {
+          showMessage('خطأ: ' + (data.error || 'حدث خطأ'), 'error');
+        }
+      } catch (err) {
+        showMessage('خطأ في الاتصال بالخادم', 'error');
+      }
+    }
+
+    // عند فتح الصفحة عرض القائمة إذا كان هناك user_id
+    (function init(){
+      if (userId) {
+        videosSection.classList.remove('hidden');
+        addForm.classList.add('hidden');
         loadVideos();
       } else {
-        showMessage('❌ فشل في حذف الفيديو', 'error');
+        // إذا لم يوجد user_id نعرض رسالة تعليمات
+        showMessage('مرّر user_id في رابط الصفحة لعرض وإدارة فيديوهاتك. مثال: ?user_id=6940442249', 'error');
+        addForm.classList.remove('hidden');
+        videosSection.classList.add('hidden');
       }
-    };
+    })();
   </script>
 </body>
 </html>
