@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>API Test Panel</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 30px;
+    }
+    h1 {
+      color: #333;
+    }
+    .section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    pre {
+      background: #272822;
+      color: #f8f8f2;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+      max-height: 300px;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🚀 API Test Panel</h1>
+  <p>اختبر هنا جميع المسارات الخلفية بسهولة.</p>
+
+  <!-- /api/check -->
+  <div class="section">
+    <h2>✅ /api/check (GET)</h2>
+    <button onclick="testCheck()">Run Test</button>
+    <pre id="checkResult"></pre>
+  </div>
+
+  <!-- /api/worker -->
+  <div class="section">
+    <h2>🧩 /api/worker (POST)</h2>
+    <label>User ID:</label>
+    <input id="worker_user_id" value="7171208519">
+    <button onclick="testWorker()">Send</button>
+    <pre id="workerResult"></pre>
+  </div>
+
+  <!-- /api/report -->
+  <div class="section">
+    <h2>📊 /api/report (POST)</h2>
+    <label>User ID:</label>
+    <input id="report_user_id" value="7171208519">
+    <label>Video ID:</label>
+    <input id="report_video_id" value="1">
+    <label>Watched Seconds:</label>
+    <input id="report_seconds" value="60">
+    <button onclick="testReport()">Submit Report</button>
+    <pre id="reportResult"></pre>
+  </div>
+
+  <!-- /api/lang/full -->
+  <div class="section">
+    <h2>🌐 /api/lang/full (GET)</h2>
+    <button onclick="testLang()">Load Language File</button>
+    <pre id="langResult"></pre>
+  </div>
+
+  <!-- /api/notify -->
+  <div class="section">
+    <h2>🔔 /api/notify (GET)</h2>
+    <button onclick="testNotify()">Check Notifications</button>
+    <pre id="notifyResult"></pre>
+  </div>
+
+  <script>
+    const base = window.location.origin;
+
+    async function testCheck() {
+      const res = await fetch(`${base}/api/check`);
+      const data = await res.json();
+      document.getElementById('checkResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function testWorker() {
+      const user_id = document.getElementById('worker_user_id').value;
+      const res = await fetch(`${base}/api/worker`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id })
+      });
+      const data = await res.json();
+      document.getElementById('workerResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function testReport() {
+      const user_id = document.getElementById('report_user_id').value;
+      const video_id = document.getElementById('report_video_id').value;
+      const watched_seconds = document.getElementById('report_seconds').value;
+      const res = await fetch(`${base}/api/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id, video_id, watched_seconds })
+      });
+      const data = await res.json();
+      document.getElementById('reportResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function testLang() {
+      const res = await fetch(`${base}/api/lang/full`);
+      const data = await res.json();
+      document.getElementById('langResult').textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function testNotify() {
+      const res = await fetch(`${base}/api/notify`);
+      const data = await res.json();
+      document.getElementById('notifyResult').textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+
+</body>
+</html>
