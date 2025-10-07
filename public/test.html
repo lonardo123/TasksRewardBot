@@ -54,11 +54,15 @@
   <p>اختبر هنا جميع المسارات الخلفية بسهولة.</p>
 
   <!-- /api/check -->
-  <div class="section">
-    <h2>✅ /api/check (GET)</h2>
-    <button onclick="testCheck()">Run Test</button>
-    <pre id="checkResult"></pre>
-  </div>
+  <!-- /api/check -->
+<div class="section">
+  <h2>✅ /api/check (GET)</h2>
+  <label>User ID:</label>
+  <input id="check_user_id" value="7171208519">
+  <button onclick="testCheck()">Run Test</button>
+  <pre id="checkResult"></pre>
+</div>
+
 
   <!-- /api/worker -->
   <div class="section">
@@ -100,10 +104,12 @@
     const base = window.location.origin;
 
     async function testCheck() {
-      const res = await fetch(`${base}/api/check`);
-      const data = await res.json();
-      document.getElementById('checkResult').textContent = JSON.stringify(data, null, 2);
-    }
+  const user_id = document.getElementById('check_user_id').value;
+  const res = await fetch(`${base}/api/check?user_id=${user_id}`);
+  const data = await res.json();
+  document.getElementById('checkResult').textContent = JSON.stringify(data, null, 2);
+}
+
 
     async function testWorker() {
       const user_id = document.getElementById('worker_user_id').value;
