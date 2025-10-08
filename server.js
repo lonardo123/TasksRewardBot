@@ -871,6 +871,14 @@ app.get('/api/notify', (req, res) => {
   });
 });
 
+// ✅ Endpoint خاص بالتحقق من العامل (worker verification)
+app.get("/api/worker/verification/", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Worker verification OK",
+    timestamp: Date.now()
+  });
+});
 
 
 // === بدء التشغيل ===
