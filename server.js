@@ -978,6 +978,26 @@ app.get('/worker/', (req, res) => {
   });
 });
 
+/* ============================================
+   🔹 /worker/start — بدء العامل (GET)
+   ============================================ */
+app.get('/worker/start', async (req, res) => {
+  try {
+    res.status(200).json({
+      ok: true,
+      status: 'worker_started',
+      message: '✅ Worker initialized successfully',
+      info: {
+        script: 'Start.js',
+        initFunction: 'initWorker',
+        server_time: new Date().toISOString()
+      }
+    });
+  } catch (err) {
+    console.error('❌ خطأ في /worker/start:', err);
+    res.status(500).json({ error: 'خطأ داخلي في السيرفر' });
+  }
+});
 
 // === بدء التشغيل ===
 (async () => {
