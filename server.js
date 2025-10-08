@@ -205,6 +205,9 @@ app.get('/api/user/profile', async (req, res) => {
 app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
+// ✅ تشغيل السيرفر
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`));
 
 app.post('/api/add-video', async (req, res) => {
   const { user_id, title, video_url, duration_seconds, keywords } = req.body;
