@@ -108,10 +108,6 @@ async function connectDB() {
 }
 
 // === السيرفر (Express)
-import express from "express";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
 const app = express();
 app.use(express.json());
