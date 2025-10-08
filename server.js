@@ -1,25 +1,28 @@
 require('dotenv').config();
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const express = require('express');
 const crypto = require('crypto'); 
 const path = require('path'); 
 const fs = require('fs');
 
-// === إعداد قاعدة البيانات (Postgres Client)
-const client = new Client({
+// === إعداد قاعدة البيانات باستخدام Pool (آمن وقابل لإعادة الاستخدام)
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false },
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
-// التقاط أخطاء غير متوقعة على مستوى العميل
-client.on('error', (err) => {
-  console.error('PG client error:', err);
+// التقاط أخطاء غير متوقعة على مستوى الـ Pool
+pool.on('error', (err) => {
+  console.error('⚠️ خطأ غير متوقع في اتصال قاعدة البيانات:', err);
 });
 
 // دالة لإنشاء/التأكد من الجداول والأعمدة (تنفيذ متسلسل لتجنب مشكلات multi-statement)
 async function ensureTables() {
   // أنشئ جدول users
-  await client.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
@@ -30,44 +33,43 @@ async function ensureTables() {
   `);
 
   // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
-await client.query(`
-  CREATE TABLE IF NOT EXISTS user_videos (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    video_url TEXT NOT NULL,
-    duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-    views_count INT DEFAULT 0,
-    keywords TEXT,                     -- قائمة الكلمات المفتاحية بصيغة JSON
-    viewing_method VARCHAR(50) DEFAULT 'keyword',  -- طريقة العرض (keyword, direct, channel...)
-    like VARCHAR(10) DEFAULT 'no',      -- الإعجاب: yes / no / random
-    subscribe VARCHAR(10) DEFAULT 'no', -- الاشتراك: yes / no / random
-    comment VARCHAR(10) DEFAULT 'no',   -- التعليق: yes / no / random
-    comment_like VARCHAR(10) DEFAULT 'no', -- إعجاب بالتعليق: yes / no / random
-    filtering VARCHAR(10) DEFAULT 'no', -- تصفية الحركة: yes / no
-    daily_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية اليومية
-    total_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية الإجمالية
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
-
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_videos (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      video_url TEXT NOT NULL,
+      duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
+      views_count INT DEFAULT 0,
+      keywords TEXT,                     -- قائمة الكلمات المفتاحية بصيغة JSON
+      viewing_method VARCHAR(50) DEFAULT 'keyword',  -- طريقة العرض (keyword, direct, channel...)
+      like VARCHAR(10) DEFAULT 'no',      -- الإعجاب: yes / no / random
+      subscribe VARCHAR(10) DEFAULT 'no', -- الاشتراك: yes / no / random
+      comment VARCHAR(10) DEFAULT 'no',   -- التعليق: yes / no / random
+      comment_like VARCHAR(10) DEFAULT 'no', -- إعجاب بالتعليق: yes / no / random
+      filtering VARCHAR(10) DEFAULT 'no', -- تصفية الحركة: yes / no
+      daily_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية اليومية
+      total_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية الإجمالية
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
   // أنشئ جدول earnings (مهيأ ليشمل watched_seconds, video_id, created_at)
-await client.query(`
-  CREATE TABLE IF NOT EXISTS earnings (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT,
-    source VARCHAR(50),
-    amount NUMERIC(12,6),
-    description TEXT,
-    watched_seconds INTEGER,
-    video_id INT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS earnings (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT,
+      source VARCHAR(50),
+      amount NUMERIC(12,6),
+      description TEXT,
+      watched_seconds INTEGER,
+      video_id INT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
   // أنشئ جدول withdrawals
-  await client.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
@@ -81,7 +83,7 @@ await client.query(`
   `);
 
   // أنشئ جدول referrals
-  await client.query(`
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS referrals (
       id SERIAL PRIMARY KEY,
       referrer_id BIGINT,
@@ -91,41 +93,22 @@ await client.query(`
   `);
 }
 
-// دالة لربط DB مع محاولة إعادة للاتصال عند الخطأ
-async function connectDB() {
-  try {
-    await client.connect();
-    console.log('✅ اتصال قاعدة البيانات ناجح');
-
-    // تأكد من الجداول
-    await ensureTables();
-    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
-    // إعادة المحاولة بعد 5 ثوانٍ
-    setTimeout(connectDB, 5000);
-  }
-}
-
 // === السيرفر (Express)
-
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-
+// ✅ مسار /worker/start — يُرجع Start.js كـ JavaScript مباشر (لإضافة كروم)
 app.get("/worker/start", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "worker", "start.html"));
-});
-
-app.get("/worker/start", (req, res) => {
-  const htmlPath = path.join(__dirname, "public", "worker-start.html");
-  if (fs.existsSync(htmlPath)) {
-    res.sendFile(htmlPath);
+  const filePath = path.join(__dirname, "public", "assets", "js", "core", "Start.js");
+  if (fs.existsSync(filePath)) {
+    res.type("application/javascript");
+    res.sendFile(filePath);
   } else {
-    res.status(404).send("Page not found");
+    res.status(404).send("// ⚠️ Start.js not found!");
   }
 });
+
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
@@ -150,7 +133,7 @@ app.get('/api/user/profile', async (req, res) => {
   }
 
   try {
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT telegram_id, balance FROM users WHERE telegram_id = $1',
       [user_id]
     );
@@ -168,14 +151,14 @@ app.get('/api/user/profile', async (req, res) => {
       });
     } else {
       // إنشاء مستخدم جديد برصيد 0
-      await client.query(
+      await pool.query(
         'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
         [user_id, 0]
       );
 
       return res.json({
         status: "success",
-        data: {  // ← ✅ تم إضافة "data:" هنا
+        data: {
           user_id: user_id.toString(),
           fullname: `User ${user_id}`,
           balance: 0.0,
@@ -195,6 +178,7 @@ app.get('/api/user/profile', async (req, res) => {
 app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
+
 app.post('/api/add-video', async (req, res) => {
   const { user_id, title, video_url, duration_seconds, keywords } = req.body;
   if (!user_id || !title || !video_url || !duration_seconds) {
@@ -211,14 +195,14 @@ app.post('/api/add-video', async (req, res) => {
 
   try {
     // تحقق عدد فيديوهات المستخدم (حد أقصى 4)
-    const countRes = await client.query('SELECT COUNT(*) AS cnt FROM user_videos WHERE user_id = $1', [user_id]);
+    const countRes = await pool.query('SELECT COUNT(*) AS cnt FROM user_videos WHERE user_id = $1', [user_id]);
     const existingCount = parseInt(countRes.rows[0].cnt, 10);
     if (existingCount >= 4) {
       return res.status(400).json({ error: 'وصلت للحد الأقصى (4) من الفيديوهات. احذف فيديوًا قبل إضافة آخر.' });
     }
 
     // جلب رصيد المستخدم
-    const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
+    const user = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
     if (user.rows.length === 0) {
       return res.status(400).json({ error: 'المستخدم غير موجود' });
     }
@@ -231,17 +215,17 @@ app.post('/api/add-video', async (req, res) => {
     const keywordsArray = Array.isArray(keywords) ? keywords : [];
     const keywordsJson = JSON.stringify(keywordsArray);
 
-    await client.query('BEGIN');
-    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
-    await client.query(
+    await pool.query('BEGIN');
+    await pool.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [cost, user_id]);
+    await pool.query(
       'INSERT INTO user_videos (user_id, title, video_url, duration_seconds, keywords) VALUES ($1, $2, $3, $4, $5)',
       [user_id, title, video_url, duration, keywordsJson]
     );
-    await client.query('COMMIT');
+    await pool.query('COMMIT');
 
     return res.json({ success: true, cost });
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
+    try { await pool.query('ROLLBACK'); } catch (_) {}
     console.error('Error in /api/add-video:', err);
     return res.status(500).json({ error: 'Server error' });
   }
@@ -255,7 +239,7 @@ app.get('/api/my-videos', async (req, res) => {
   }
 
   try {
-    const result = await client.query(`
+    const result = await pool.query(`
       SELECT id, title, video_url, duration_seconds, views_count, created_at,
              COALESCE(keywords, '[]'::jsonb) AS keywords
       FROM user_videos
@@ -270,7 +254,7 @@ app.get('/api/my-videos', async (req, res) => {
       duration_seconds: v.duration_seconds,
       views_count: v.views_count,
       created_at: v.created_at,
-      keywords: Array.isArray(v.keywords) ? v.keywords : []   // نتأكد إنها Array
+      keywords: Array.isArray(v.keywords) ? v.keywords : []
     }));
 
     return res.json(videos);
@@ -285,7 +269,7 @@ app.post('/api/delete-video', async (req, res) => {
   if (!user_id || !video_id) return res.status(400).json({ error: 'user_id و video_id مطلوبان' });
 
   try {
-    const result = await client.query(
+    const result = await pool.query(
       'DELETE FROM user_videos WHERE id = $1 AND user_id = $2',
       [video_id, user_id]
     );
@@ -301,7 +285,7 @@ app.post('/api/delete-video', async (req, res) => {
 
 app.get('/api/public-videos', async (req, res) => {
   try {
-    const videos = await client.query(`
+    const videos = await pool.query(`
       SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id, uv.keywords,
              u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
       FROM user_videos uv
@@ -314,31 +298,30 @@ app.get('/api/public-videos', async (req, res) => {
     const available = videos.rows.filter(v => v.has_enough_balance);
 
     const mapped = available.map(v => {
-  let keywords = [];
+      let keywords = [];
 
-  if (v.keywords) {
-    try {
-      // تأكد أن القيمة نصية قبل التحليل
-      if (typeof v.keywords === 'string') {
-        keywords = JSON.parse(v.keywords);
-      } else if (Array.isArray(v.keywords)) {
-        keywords = v.keywords;
+      if (v.keywords) {
+        try {
+          if (typeof v.keywords === 'string') {
+            keywords = JSON.parse(v.keywords);
+          } else if (Array.isArray(v.keywords)) {
+            keywords = v.keywords;
+          }
+        } catch (parseErr) {
+          console.warn(`⚠️ keywords غير صالحة للفيديو ID ${v.id}:`, v.keywords);
+          keywords = [];
+        }
       }
-    } catch (parseErr) {
-      console.warn(`⚠️ keywords غير صالحة للفيديو ID ${v.id}:`, v.keywords);
-      keywords = []; // أو استخدم [v.video_url] كخيار احتياطي
-    }
-  }
 
-  return {
-    id: v.id,
-    title: v.title,
-    video_url: v.video_url,
-    duration_seconds: v.duration_seconds,
-    user_id: v.user_id,
-    keywords: keywords.length > 0 ? keywords : [v.video_url?.split('v=')[1] || '']
-  };
-});
+      return {
+        id: v.id,
+        title: v.title,
+        video_url: v.video_url,
+        duration_seconds: v.duration_seconds,
+        user_id: v.user_id,
+        keywords: keywords.length > 0 ? keywords : [v.video_url?.split('v=')[1] || '']
+      };
+    });
 
     return res.json(mapped);
   } catch (err) {
@@ -347,74 +330,58 @@ app.get('/api/public-videos', async (req, res) => {
   }
 });
 
-
-/* ============================================================
-   Existing callbacks and other endpoints (kept & slightly improved)
-   ============================================================ */
-
 app.get('/callback', async (req, res) => {
   const { user_id, amount, transaction_id, secret, network } = req.query;
 
-  // ✅ التحقق من السر
   if (secret !== process.env.CALLBACK_SECRET) {
     return res.status(403).send('Forbidden: Invalid Secret');
   }
 
-  // ✅ التحقق من وجود transaction_id
   if (!transaction_id) {
     return res.status(400).send('Missing transaction_id');
   }
 
-  // ✅ التحقق من المبلغ
   const parsedAmount = parseFloat(amount);
   if (isNaN(parsedAmount)) {
     return res.status(400).send('Invalid amount');
   }
 
-  // نسبة العمولة (60%)
   const percentage = 0.60; 
   const finalAmount = parsedAmount * percentage;
-
-  // ✅ تحديد الشبكة (bitcotasks أو offer)
   const source = network === 'bitcotasks' ? 'bitcotasks' : 'offer';
 
   try {
-    await client.query('BEGIN');
+    await pool.query('BEGIN');
 
-    // ✅ التحقق من عدم تكرار العملية
-    const existing = await client.query(
+    const existing = await pool.query(
       'SELECT * FROM earnings WHERE user_id = $1 AND source = $2 AND description = $3',
       [user_id, source, `Transaction: ${transaction_id}`]
     );
 
     if (existing.rows.length > 0) {
-      await client.query('ROLLBACK');
+      await pool.query('ROLLBACK');
       console.log(`🔁 عملية مكررة تم تجاهلها: ${transaction_id}`);
       return res.status(200).send('Duplicate transaction ignored');
     }
 
-    // ✅ تأكد أن المستخدم موجود أو أضفه
-    const userCheck = await client.query(
+    const userCheck = await pool.query(
       'SELECT balance FROM users WHERE telegram_id = $1',
       [user_id]
     );
 
     if (userCheck.rows.length === 0) {
-      // لو المستخدم مش موجود → إنشاؤه برصيد أولي
-      await client.query(
+      await pool.query(
         'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
         [user_id, finalAmount]
       );
     } else {
-      // لو موجود → تحديث رصيده
-      await client.query(
+      await pool.query(
         'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
         [finalAmount, user_id]
       );
     }
 
-    // ✅ إضافة سجل الأرباح
-    await client.query(
+    await pool.query(
       `INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id, created_at) 
        VALUES ($1, $2, $3, $4, NULL, NULL, NOW())`,
       [user_id, source, finalAmount, `Transaction: ${transaction_id}`]
@@ -422,37 +389,33 @@ app.get('/callback', async (req, res) => {
 
     console.log(`🟢 [${source}] أضيف ${finalAmount}$ (${percentage * 100}% من ${parsedAmount}$) للمستخدم ${user_id} (Transaction: ${transaction_id})`);
 
-    // ✅ التحقق من وجود محيل
-    const ref = await client.query(
+    const ref = await pool.query(
       'SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1',
       [user_id]
     );
 
     if (ref.rows.length > 0) {
       const referrerId = ref.rows[0].referrer_id;
-      const bonus = parsedAmount * 0.03; // 3% للمحيل
+      const bonus = parsedAmount * 0.03;
 
-      // تحديث رصيد المحيل
-      const refCheck = await client.query(
+      const refCheck = await pool.query(
         'SELECT balance FROM users WHERE telegram_id = $1',
         [referrerId]
       );
 
       if (refCheck.rows.length === 0) {
-        // لو المحيل مش موجود → إنشاؤه برصيد أولي
-        await client.query(
+        await pool.query(
           'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
           [referrerId, bonus]
         );
       } else {
-        await client.query(
+        await pool.query(
           'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
           [bonus, referrerId]
         );
       }
 
-      // إضافة سجل أرباح للمحيل
-      await client.query(
+      await pool.query(
         `INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id, created_at) 
          VALUES ($1, $2, $3, $4, NULL, NULL, NOW())`,
         [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]
@@ -461,17 +424,15 @@ app.get('/callback', async (req, res) => {
       console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
     }
 
-    await client.query('COMMIT');
+    await pool.query('COMMIT');
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
-    await client.query('ROLLBACK');
+    await pool.query('ROLLBACK');
     console.error('Callback Error:', err);
     res.status(500).send('Server Error');
   }
 });
 
-
-// === Unity Ads S2S Callback (كما كان، مع بعض الحماية البسيطة)
 app.get('/unity-callback', async (req, res) => {
   try {
     const params = { ...req.query };
@@ -506,141 +467,131 @@ app.get('/unity-callback', async (req, res) => {
 
     const reward = 0.0005;
 
-    const dup = await client.query('SELECT 1 FROM earnings WHERE source=$1 AND description=$2 LIMIT 1', ['unity', `oid:${oid}`]);
+    const dup = await pool.query('SELECT 1 FROM earnings WHERE source=$1 AND description=$2 LIMIT 1', ['unity', `oid:${oid}`]);
     if (dup.rows.length > 0) {
       console.log('🔁 Unity callback duplicate oid ignored', oid);
       return res.status(200).send('Duplicate order ignored');
     }
 
-    await client.query('BEGIN');
+    await pool.query('BEGIN');
 
-    const uRes = await client.query('SELECT telegram_id FROM users WHERE telegram_id = $1', [sid]);
+    const uRes = await pool.query('SELECT telegram_id FROM users WHERE telegram_id = $1', [sid]);
     if (uRes.rowCount === 0) {
-      await client.query('INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())', [sid, 0]);
+      await pool.query('INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())', [sid, 0]);
     }
 
-    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [reward, sid]);
-    await client.query('INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1,$2,$3,$4,NOW())',
+    await pool.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [reward, sid]);
+    await pool.query('INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1,$2,$3,$4,NOW())',
                       [sid, 'unity', reward, `oid:${oid}`]);
 
-    await client.query('COMMIT');
+    await pool.query('COMMIT');
 
     console.log(`🎬 Unity S2S: credited ${reward}$ to ${sid} (oid=${oid})`);
     res.status(200).send('1');
   } catch (err) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
+    try { await pool.query('ROLLBACK'); } catch (_) {}
     console.error('Error on /unity-callback', err);
     res.status(500).send('Server Error');
   }
 });
 
 app.get('/video-callback', async (req, res) => {
-    let { user_id, video_id, watched_seconds, secret } = req.query;
+  let { user_id, video_id, watched_seconds, secret } = req.query;
 
-    if (!user_id || !video_id) {
-        return res.status(400).send('Missing user_id or video_id');
+  if (!user_id || !video_id) {
+    return res.status(400).send('Missing user_id or video_id');
+  }
+
+  try {
+    if (secret !== process.env.CALLBACK_SECRET) {
+      return res.status(403).send('Forbidden: Invalid Secret');
     }
 
+    const videoRes = await pool.query(
+      'SELECT user_id AS owner_id, duration_seconds FROM user_videos WHERE id = $1',
+      [video_id]
+    );
+
+    if (videoRes.rows.length === 0) {
+      return res.status(400).send('الفيديو غير موجود');
+    }
+
+    const { owner_id, duration_seconds } = videoRes.rows[0];
+    const reward = duration_seconds * 0.00001;
+    const cost = duration_seconds * 0.00002;
+
+    await pool.query('BEGIN');
+
+    const ownerBalanceRes = await pool.query(
+      'SELECT balance FROM users WHERE telegram_id = $1',
+      [owner_id]
+    );
+
+    if (
+      ownerBalanceRes.rows.length === 0 ||
+      parseFloat(ownerBalanceRes.rows[0].balance) < cost
+    ) {
+      await pool.query('ROLLBACK');
+      return res.status(400).send('رصيد صاحب الفيديو غير كافٍ');
+    }
+
+    await pool.query(
+      'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2',
+      [cost, owner_id]
+    );
+
+    const viewerExists = await pool.query(
+      'SELECT 1 FROM users WHERE telegram_id = $1',
+      [user_id]
+    );
+
+    if (viewerExists.rows.length === 0) {
+      await pool.query(
+        'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+        [user_id, 0]
+      );
+    }
+
+    await pool.query(
+      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+      [reward, user_id]
+    );
+
+    await pool.query(
+      `INSERT INTO earnings 
+      (user_id, source, amount, description, watched_seconds, video_id, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+      [
+        user_id,
+        'user_video',
+        reward,
+        `user_video:${video_id}`,
+        watched_seconds ? parseInt(watched_seconds) : null,
+        video_id
+      ]
+    );
+
+    await pool.query(
+      'UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1',
+      [video_id]
+    );
+
+    await pool.query('COMMIT');
+
+    console.log(
+      `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
+    );
+
+    return res.status(200).send('Success');
+  } catch (err) {
     try {
-        // التحقق من السر
-        if (secret !== process.env.CALLBACK_SECRET) {
-            return res.status(403).send('Forbidden: Invalid Secret');
-        }
-
-        // جلب بيانات الفيديو
-        const videoRes = await client.query(
-            'SELECT user_id AS owner_id, duration_seconds FROM user_videos WHERE id = $1',
-            [video_id]
-        );
-
-        if (videoRes.rows.length === 0) {
-            return res.status(400).send('الفيديو غير موجود');
-        }
-
-        const { owner_id, duration_seconds } = videoRes.rows[0];
-
-        const reward = duration_seconds * 0.00001;
-        const cost = duration_seconds * 0.00002;
-
-        await client.query('BEGIN');
-
-        // تحقق من رصيد صاحب الفيديو
-        const ownerBalanceRes = await client.query(
-            'SELECT balance FROM users WHERE telegram_id = $1',
-            [owner_id]
-        );
-
-        if (
-            ownerBalanceRes.rows.length === 0 ||
-            parseFloat(ownerBalanceRes.rows[0].balance) < cost
-        ) {
-            await client.query('ROLLBACK');
-            return res.status(400).send('رصيد صاحب الفيديو غير كافٍ');
-        }
-
-        // خصم تكلفة المشاهدة من صاحب الفيديو
-        await client.query(
-            'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2',
-            [cost, owner_id]
-        );
-
-        // تأكد إذا المشاهد موجود أو أضفه
-        const viewerExists = await client.query(
-            'SELECT 1 FROM users WHERE telegram_id = $1',
-            [user_id]
-        );
-
-        if (viewerExists.rows.length === 0) {
-            await client.query(
-                'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
-                [user_id, 0]
-            );
-        }
-
-        // إضافة المكافأة للمشاهد
-        await client.query(
-            'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
-            [reward, user_id]
-        );
-
-        // إضافة سجل للأرباح
-        await client.query(
-            `INSERT INTO earnings 
-            (user_id, source, amount, description, watched_seconds, video_id, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
-            [
-                user_id,
-                'user_video',
-                reward,
-                `user_video:${video_id}`,
-                watched_seconds ? parseInt(watched_seconds) : null,
-                video_id
-            ]
-        );
-
-        // تحديث عداد المشاهدات للفيديو
-        await client.query(
-            'UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1',
-            [video_id]
-        );
-
-        await client.query('COMMIT');
-
-        console.log(
-            `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
-        );
-
-        return res.status(200).send('Success');
-    } catch (err) {
-        try {
-            await client.query('ROLLBACK');
-        } catch (_) {}
-        console.error('Error in /video-callback:', err);
-        return res.status(500).send('Server Error');
-    }
+      await pool.query('ROLLBACK');
+    } catch (_) {}
+    console.error('Error in /video-callback:', err);
+    return res.status(500).send('Server Error');
+  }
 });
 
-// ✅ /api/auth — يتحقق فقط من وجود المستخدم بدون إنشائه
 app.get('/api/auth', async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -649,20 +600,16 @@ app.get('/api/auth', async (req, res) => {
       return res.status(400).json({ error: 'user_id مطلوب' });
     }
 
-    // 🔎 تحقق من وجود المستخدم
-    const result = await client.query(
+    const result = await pool.query(
       'SELECT telegram_id, balance FROM users WHERE telegram_id = $1',
       [user_id]
     );
 
     if (result.rows.length === 0) {
-      // ❌ المستخدم غير موجود
       return res.status(404).json({ error: 'المستخدم غير موجود' });
     }
 
     const user = result.rows[0];
-
-    // ✅ المستخدم موجود → أعد بياناته للامتداد
     const response = {
       fullname: `User ${user.telegram_id}`,
       uniqueID: user.telegram_id.toString(),
@@ -678,18 +625,15 @@ app.get('/api/auth', async (req, res) => {
   }
 });
 
-/* ============================
-   🔹 /api/check — فحص حالة المستخدم
-============================ */
 app.get('/api/check', async (req, res) => {
   try {
     const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
 
-    const userRes = await client.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
+    const userRes = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
 
     if (userRes.rows.length === 0) {
-      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
+      await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
       return res.json({ success: true, message: 'تم إنشاء المستخدم الجديد', balance: 0 });
     }
 
@@ -706,23 +650,17 @@ app.get('/api/check', async (req, res) => {
   }
 });
 
-
-/* ============================
-   🔹 /api/worker — جلب فيديوهات للمشاهدة
-============================ */
 app.post('/api/worker/start', async (req, res) => {
   try {
     const { user_id } = req.body;
     if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
 
-    // 🧩 تأكد من وجود المستخدم (العامل)
-    const userCheck = await client.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
+    const userCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
     if (userCheck.rows.length === 0) {
-      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
+      await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
     }
 
-    // 🎥 جلب الفيديوهات المتاحة من المعلنين فقط (ليست للعامل نفسه)
-    const videosRes = await client.query(`
+    const videosRes = await pool.query(`
       SELECT 
         uv.id,
         uv.user_id,
@@ -748,7 +686,6 @@ app.post('/api/worker/start', async (req, res) => {
       LIMIT 20;
     `, [user_id]);
 
-    // 🧠 تنسيق النتائج المرسلة للعامل
     const videos = videosRes.rows.map(v => ({
       id: v.id,
       user_id: v.user_id,
@@ -771,16 +708,11 @@ app.post('/api/worker/start', async (req, res) => {
       filtering: v.filtering || 'no',
       daily_budget: v.daily_budget || 0,
       total_budget: v.total_budget || 0,
-
-      // 💰 المكافأة للعامل تُحسب بناءً على مدة الفيديو
       reward_per_second: 0.00001,
       reward_total: parseFloat((v.duration_seconds * 0.00001).toFixed(6)),
-
-      // 💸 تكلفة المعلن
       cost_to_owner: parseFloat((v.duration_seconds * 0.00002).toFixed(6))
     }));
 
-    // 🚀 إرسال النتيجة
     return res.json({
       success: true,
       videos,
@@ -798,14 +730,12 @@ app.post('/api/worker', async (req, res) => {
     const { user_id } = req.body;
     if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
 
-    // 🧩 تأكد من وجود المستخدم (العامل)
-    const userCheck = await client.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
+    const userCheck = await pool.query('SELECT * FROM users WHERE telegram_id = $1', [user_id]);
     if (userCheck.rows.length === 0) {
-      await client.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
+      await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, 0)', [user_id]);
     }
 
-    // 🎥 جلب الفيديوهات المتاحة من المعلنين فقط (ليست للعامل نفسه)
-    const videosRes = await client.query(`
+    const videosRes = await pool.query(`
       SELECT 
         uv.id,
         uv.user_id,
@@ -831,7 +761,6 @@ app.post('/api/worker', async (req, res) => {
       LIMIT 20;
     `, [user_id]);
 
-    // 🧠 تنسيق النتائج المرسلة للعامل
     const videos = videosRes.rows.map(v => ({
       id: v.id,
       user_id: v.user_id,
@@ -854,16 +783,11 @@ app.post('/api/worker', async (req, res) => {
       filtering: v.filtering || 'no',
       daily_budget: v.daily_budget || 0,
       total_budget: v.total_budget || 0,
-
-      // 💰 المكافأة للعامل تُحسب بناءً على مدة الفيديو
       reward_per_second: 0.00001,
       reward_total: parseFloat((v.duration_seconds * 0.00001).toFixed(6)),
-
-      // 💸 تكلفة المعلن
       cost_to_owner: parseFloat((v.duration_seconds * 0.00002).toFixed(6))
     }));
 
-    // 🚀 إرسال النتيجة
     return res.json({
       success: true,
       videos,
@@ -876,16 +800,13 @@ app.post('/api/worker', async (req, res) => {
   }
 });
 
-/* ============================
-   🔹 /api/report — تسجيل مشاهدة وتحديث الرصيد
-============================ */
 app.post('/api/report', async (req, res) => {
   try {
     const { user_id, video_id, watched_seconds } = req.body;
     if (!user_id || !video_id || !watched_seconds)
       return res.status(400).json({ error: 'user_id, video_id, watched_seconds مطلوبة' });
 
-    const videoRes = await client.query(`
+    const videoRes = await pool.query(`
       SELECT uv.*, u.balance AS owner_balance
       FROM user_videos uv
       JOIN users u ON uv.user_id = u.telegram_id
@@ -905,18 +826,18 @@ app.post('/api/report', async (req, res) => {
     if (parseFloat(video.owner_balance) < advertiserCost)
       return res.status(400).json({ error: 'رصيد المعلن غير كافٍ لدفع تكلفة المشاهدة' });
 
-    await client.query('BEGIN');
+    await pool.query('BEGIN');
 
-    await client.query(`UPDATE users SET balance = balance - $1 WHERE telegram_id = $2`, [advertiserCost, owner_id]);
-    await client.query(`UPDATE users SET balance = balance + $1 WHERE telegram_id = $2`, [workerReward, user_id]);
-    await client.query(`UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1`, [video_id]);
+    await pool.query(`UPDATE users SET balance = balance - $1 WHERE telegram_id = $2`, [advertiserCost, owner_id]);
+    await pool.query(`UPDATE users SET balance = balance + $1 WHERE telegram_id = $2`, [workerReward, user_id]);
+    await pool.query(`UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1`, [video_id]);
 
-    await client.query(`
+    await pool.query(`
       INSERT INTO earnings (user_id, source, amount, description, watched_seconds, video_id)
       VALUES ($1, $2, $3, $4, $5, $6)
     `, [user_id, 'watch', workerReward, 'Watching video', duration, video_id]);
 
-    await client.query('COMMIT');
+    await pool.query('COMMIT');
 
     res.json({
       success: true,
@@ -927,16 +848,12 @@ app.post('/api/report', async (req, res) => {
     });
 
   } catch (err) {
-    await client.query('ROLLBACK');
+    await pool.query('ROLLBACK');
     console.error('❌ /api/report:', err);
     res.status(500).json({ error: 'خطأ داخلي في الخادم' });
   }
 });
 
-
-/* ============================
-   🔹 /api/lang/full — ترجمة واجهة الإضافة
-============================ */
 app.get('/api/lang/full', async (req, res) => {
   try {
     const translations = {
@@ -963,10 +880,6 @@ app.get('/api/lang/full', async (req, res) => {
   }
 });
 
-
-/* ============================
-   🔹 /api/notify — إشعار بسيط للعميل
-============================ */
 app.get('/api/notify', (req, res) => {
   res.json({
     success: true,
@@ -975,10 +888,6 @@ app.get('/api/notify', (req, res) => {
   });
 });
 
-/* ============================================
-   🔹 /worker/ — فحص جاهزية العامل (GET)
-   يستخدمه المتصفح أو الإضافة للتحقق من أن السيرفر يعمل
-   ============================================ */
 app.get('/worker/', (req, res) => {
   res.status(200).json({
     ok: true,
@@ -988,10 +897,15 @@ app.get('/worker/', (req, res) => {
   });
 });
 
-
 // === بدء التشغيل ===
 (async () => {
-  await connectDB();
+  try {
+    await ensureTables();
+    console.log('✅ الجداول جاهزة');
+  } catch (err) {
+    console.error('❌ فشل إنشاء الجداول:', err);
+    process.exit(1);
+  }
 
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, '0.0.0.0', () => {
