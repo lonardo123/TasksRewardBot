@@ -132,11 +132,6 @@ app.get("/worker/start", (req, res) => {
   }
 });
 
-app.get('/worker/start', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/worker/start.html'));
-});
-
-
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
