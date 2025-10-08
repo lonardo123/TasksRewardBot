@@ -118,13 +118,12 @@ app.get("/worker/start", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "worker", "start.html"));
 });
 
-app.get("/worker/start.js", (req, res) => {
-  const filePath = path.join(__dirname, "public", "assets", "js", "core", "Start.js");
-  if (fs.existsSync(filePath)) {
-    res.type("application/javascript");
-    res.sendFile(filePath);
+app.get("/worker/start", (req, res) => {
+  const htmlPath = path.join(__dirname, "public", "worker-start.html");
+  if (fs.existsSync(htmlPath)) {
+    res.sendFile(htmlPath);
   } else {
-    res.status(404).send("// ⚠️ Start.js not found!");
+    res.status(404).send("Page not found");
   }
 });
 // ===========================================
