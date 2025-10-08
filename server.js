@@ -965,6 +965,20 @@ app.get('/api/notify', (req, res) => {
   });
 });
 
+/* ============================================
+   🔹 /worker/ — فحص جاهزية العامل (GET)
+   يستخدمه المتصفح أو الإضافة للتحقق من أن السيرفر يعمل
+   ============================================ */
+app.get('/worker/', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    status: 'ready',
+    message: 'Worker endpoint is active and ready 🚀',
+    server_time: new Date().toISOString()
+  });
+});
+
+
 // === بدء التشغيل ===
 (async () => {
   await connectDB();
