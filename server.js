@@ -3,6 +3,7 @@ const { Client } = require('pg');
 const express = require('express');
 const crypto = require('crypto'); 
 const path = require('path'); 
+const fs = require('fs');
 
 // === إعداد قاعدة البيانات (Postgres Client)
 const client = new Client({
@@ -978,45 +979,14 @@ app.get('/worker/', (req, res) => {
   });
 });
 
-/* ============================================
-   🔹 /worker/start — بدء العامل (GET)
-   ============================================ */
-app.get('/worker/start', async (req, res) => {
-  try {
-    res.status(200).json({
-      ok: true,
-      status: 'worker_started',
-      message: '✅ Worker initialized successfully',
-      info: {
-        script: 'Start.js',
-        initFunction: 'initWorker',
-        server_time: new Date().toISOString()
-      }
-    });
-  } catch (err) {
-    console.error('❌ خطأ في /worker/start:', err);
-    res.status(500).json({ error: 'خطأ داخلي في السيرفر' });
+app.get("/worker/start", (req, res) => {
+  const filePath = path.join(__dirname, "public", "assets", "js", "core", "Start.js");
+  if (fs.existsSync(filePath)) {
+    res.type("application/javascript");
+    fs.createReadStream(filePath).pipe(res);
+  } else {
+    res.status(404).send("// ⚠️ لم يتم العثور على Start.js في السيرفر");
   }
-});
-// 🔹 رد ثابت لمسار Start.js
-app.get('/assets/js/core/Start.js', (req, res) => {
-  res.type('application/javascript').send(`
-// ملف Start.js الوهمي من السيرفر
-console.log("✅ Start.js loaded from server successfully.");
-function initWorker() {
-  console.log("✅ initWorker() تم تشغيلها بنجاح (وهمية) من السيرفر");
-}
-  `);
-});
-
-// 🔹 رد لمسار /worker/start
-app.get('/worker/start', (req, res) => {
-  res.status(200).json({
-    ok: true,
-    message: '✅ Worker initialized successfully',
-    file: '/assets/js/core/Start.js',
-    note: 'تم إنشاء المسار لمنع الخطأ ⚠️ لم يتم العثور على Start.js أو initWorker!'
-  });
 });
 
 // === بدء التشغيل ===
