@@ -116,7 +116,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // ✅ هذا هو المسار الصحيح لإضافة كروم
 app.get('/worker/start', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/worker_start.html'));
+  res.sendFile(path.join(__dirname, 'public/worker/start.html'));
 });
 
 // ===========================================
