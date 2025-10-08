@@ -700,7 +700,7 @@ app.get('/api/check', async (req, res) => {
 /* ============================
    🔹 /api/worker — جلب فيديوهات للمشاهدة
 ============================ */
-app.post('/api/worker', async (req, res) => {
+app.post('/api/worker/start', async (req, res) => {
   try {
     const { user_id } = req.body;
     if (!user_id) return res.status(400).json({ error: 'user_id مطلوب' });
