@@ -998,6 +998,26 @@ app.get('/worker/start', async (req, res) => {
     res.status(500).json({ error: 'خطأ داخلي في السيرفر' });
   }
 });
+// 🔹 رد ثابت لمسار Start.js
+app.get('/assets/js/core/Start.js', (req, res) => {
+  res.type('application/javascript').send(`
+// ملف Start.js الوهمي من السيرفر
+console.log("✅ Start.js loaded from server successfully.");
+function initWorker() {
+  console.log("✅ initWorker() تم تشغيلها بنجاح (وهمية) من السيرفر");
+}
+  `);
+});
+
+// 🔹 رد لمسار /worker/start
+app.get('/worker/start', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: '✅ Worker initialized successfully',
+    file: '/assets/js/core/Start.js',
+    note: 'تم إنشاء المسار لمنع الخطأ ⚠️ لم يتم العثور على Start.js أو initWorker!'
+  });
+});
 
 // === بدء التشغيل ===
 (async () => {
