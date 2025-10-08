@@ -112,6 +112,31 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ مسار /worker/start لعرض ملف Start.js مباشرة
+app.get("/worker/start", (req, res) => {
+  const filePath = path.join(__dirname, "public", "assets", "js", "core", "Start.js");
+  
+  if (fs.existsSync(filePath)) {
+    res.type("application/javascript");
+    res.sendFile(filePath);
+  } else {
+    res.status(404).send("// ⚠️ لم يتم العثور على Start.js أو initWorker!");
+  }
+});
+
+app.get('/worker/start', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/worker/start.html'));
+});
+
+
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
@@ -979,15 +1004,6 @@ app.get('/worker/', (req, res) => {
   });
 });
 
-app.get("/worker/start", (req, res) => {
-  const filePath = path.join(__dirname, "public", "assets", "js", "core", "Start.js");
-  if (fs.existsSync(filePath)) {
-    res.type("application/javascript");
-    fs.createReadStream(filePath).pipe(res);
-  } else {
-    res.status(404).send("// ⚠️ لم يتم العثور على Start.js في السيرفر");
-  }
-});
 
 // === بدء التشغيل ===
 (async () => {
