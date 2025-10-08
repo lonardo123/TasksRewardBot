@@ -19,61 +19,62 @@ pool.on('error', (err) => {
   console.error('⚠️ خطأ غير متوقع في اتصال قاعدة البيانات:', err);
 });
 
-// دالة لإنشاء/التأكد من الجداول والأعمدة (تنفيذ متسلسل لتجنب مشكلات multi-statement)
+// دالة لإنشاء/التأكد من الجداول والأعمدة (متوافقة مع PostgreSQL القديم)
 async function ensureTables() {
   // أنشئ جدول users
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
-      balance NUMERIC(12,6) DEFAULT 0,
+      balance NUMERIC DEFAULT 0,
       payeer_wallet VARCHAR,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
 
-  // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
+  // ✅ جدول user_videos — معدّل ليتوافق مع PostgreSQL القديم
   await pool.query(`
     CREATE TABLE IF NOT EXISTS user_videos (
       id SERIAL PRIMARY KEY,
       user_id BIGINT NOT NULL,
       title VARCHAR(255) NOT NULL,
       video_url TEXT NOT NULL,
-      duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-      views_count INT DEFAULT 0,
-      keywords TEXT,                     -- قائمة الكلمات المفتاحية بصيغة JSON
-      viewing_method VARCHAR(50) DEFAULT 'keyword',  -- طريقة العرض (keyword, direct, channel...)
-      like VARCHAR(10) DEFAULT 'no',      -- الإعجاب: yes / no / random
-      subscribe VARCHAR(10) DEFAULT 'no', -- الاشتراك: yes / no / random
-      comment VARCHAR(10) DEFAULT 'no',   -- التعليق: yes / no / random
-      comment_like VARCHAR(10) DEFAULT 'no', -- إعجاب بالتعليق: yes / no / random
-      filtering VARCHAR(10) DEFAULT 'no', -- تصفية الحركة: yes / no
-      daily_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية اليومية
-      total_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية الإجمالية
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      duration_seconds INTEGER NOT NULL,
+      views_count INTEGER DEFAULT 0,
+      keywords TEXT,
+      viewing_method VARCHAR(50) DEFAULT 'keyword',
+      like VARCHAR(10) DEFAULT 'no',
+      subscribe VARCHAR(10) DEFAULT 'no',
+      comment VARCHAR(10) DEFAULT 'no',
+      comment_like VARCHAR(10) DEFAULT 'no',
+      filtering VARCHAR(10) DEFAULT 'no',
+      daily_budget NUMERIC DEFAULT 0,
+      total_budget NUMERIC DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      CONSTRAINT check_duration CHECK (duration_seconds >= 50)
     );
   `);
 
-  // أنشئ جدول earnings (مهيأ ليشمل watched_seconds, video_id, created_at)
+  // جدول earnings
   await pool.query(`
     CREATE TABLE IF NOT EXISTS earnings (
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
       source VARCHAR(50),
-      amount NUMERIC(12,6),
+      amount NUMERIC,
       description TEXT,
       watched_seconds INTEGER,
-      video_id INT,
+      video_id INTEGER,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
 
-  // أنشئ جدول withdrawals
+  // جدول withdrawals
   await pool.query(`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
-      amount NUMERIC(12,6),
+      amount NUMERIC,
       payeer_wallet VARCHAR,
       status VARCHAR(20) DEFAULT 'pending',
       requested_at TIMESTAMPTZ DEFAULT NOW(),
@@ -82,7 +83,7 @@ async function ensureTables() {
     );
   `);
 
-  // أنشئ جدول referrals
+  // جدول referrals
   await pool.query(`
     CREATE TABLE IF NOT EXISTS referrals (
       id SERIAL PRIMARY KEY,
