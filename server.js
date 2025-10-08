@@ -114,18 +114,19 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 
-// ✅ مسار /worker/start لعرض ملف Start.js مباشرة
 app.get("/worker/start", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "worker", "start.html"));
+});
+
+app.get("/worker/start.js", (req, res) => {
   const filePath = path.join(__dirname, "public", "assets", "js", "core", "Start.js");
-  
   if (fs.existsSync(filePath)) {
     res.type("application/javascript");
     res.sendFile(filePath);
   } else {
-    res.status(404).send("// ⚠️ لم يتم العثور على Start.js أو initWorker!");
+    res.status(404).send("// ⚠️ Start.js not found!");
   }
 });
-
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
