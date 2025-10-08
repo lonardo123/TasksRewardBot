@@ -111,12 +111,6 @@ async function connectDB() {
 
 const app = express();
 app.use(express.json());
-
-// ضروري لتحديد المسار الكامل للمجلد public
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// الملفات الثابتة (public)
 app.use(express.static(path.join(__dirname, "public")));
 
 
