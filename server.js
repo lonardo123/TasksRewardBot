@@ -111,6 +111,19 @@ const app = express();
 app.use(express.json());
 app.use(express.static('public'));
 
+// ===========================================
+// ✅ مسار التحقق من العامل (Worker Verification)
+// ===========================================
+app.all("/api/worker/verification/", (req, res) => {
+  // دعم GET و POST مع رد ثابت يطمئن الإضافة
+  res.status(200).json({
+    ok: true,
+    status: "verified",
+    method: req.method,
+    server_time: new Date().toISOString()
+  });
+});
+
 app.get('/worker/start', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/worker/start.html'));
 });
@@ -870,16 +883,6 @@ app.get('/api/notify', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
-// ✅ Endpoint خاص بالتحقق من العامل (worker verification)
-app.get("/api/worker/verification/", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Worker verification OK",
-    timestamp: Date.now()
-  });
-});
-
 
 // === بدء التشغيل ===
 (async () => {
