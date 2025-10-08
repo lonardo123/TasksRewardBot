@@ -93,48 +93,68 @@
     <span id="TextMessage">Waiting for worker initialization...</span>
   </div>
 
-  <!-- ✅ تحميل Start.js مباشرة -->
+    <!-- تحميل Start.js المشفَّر كما هو -->
   <script src="/assets/js/core/Start.js"></script>
 
   <script>
-    // ✅ دالة طباعة داخل الكونسول السفلي
-    function logToConsole(text, color = '#0f0') {
-      const consoleDiv = document.getElementById('ViewGripConsole');
-      const textSpan = document.createElement('div');
-      textSpan.style.color = color;
-      textSpan.textContent = text;
-      consoleDiv.appendChild(textSpan);
-      consoleDiv.scrollTop = consoleDiv.scrollHeight;
-    }
-
+    // بديل مرن: نحاول استدعاء initWorker أو أسماء محتملة أخرى،
+    // وإذا لم توجد نترك Start.js للعمل الذاتي ونظهر الـ console للتشخيص.
     document.addEventListener('DOMContentLoaded', async () => {
       const msgDiv = document.getElementById('message');
-      const consoleBox = document.getElementById('ViewGripConsole');
-      console.log('✅ Worker start page loaded.');
-      logToConsole('[Init] Worker start page loaded.', '#0ff');
+      msgDiv.textContent = "جارٍ تهيئة العامل...";
 
-      try {
-        if (typeof initWorker === 'function') {
-          msgDiv.textContent = "🔄 جارٍ تشغيل العامل...";
-          consoleBox.style.display = 'block';
+      // قائمة أسماء محتملة للدوال التي قد تكون نقطة الدخول في ملف مشفر
+      const candidates = [
+        'initWorker', 'InitWorker', 'startWorker', 'StartWorker',
+        'runWorker', 'workerStart', 'start', 'init', 'bootstrap'
+      ];
 
-          await initWorker(); // ← هذه تُنفذ من Start.js
-
-          msgDiv.textContent = "🚀 العامل بدأ العمل بنجاح!";
-          logToConsole('[OK] Worker initialized successfully.');
-
-          setTimeout(() => {
-            document.getElementById('loader-wrapper').style.display = 'none';
-          }, 800);
-        } else {
-          msgDiv.textContent = "⚠️ لم يتم العثور على Start.js أو initWorker()!";
-          logToConsole('[Error] Start.js أو initWorker() غير موجود!', '#f33');
+      // محاولة استدعاء أي دالة موجودة من القائمة (إن كانت موجودة وتعيد Promise أو قيمة)
+      for (const name of candidates) {
+        try {
+          const fn = window[name];
+          if (typeof fn === 'function') {
+            msgDiv.textContent = `استدعاء ${name}() ...`;
+            const result = fn();
+            // إذا رجعت Promise ننتظرها
+            if (result && typeof result.then === 'function') await result;
+            msgDiv.textContent = "🚀 العامل اشتغل عبر " + name;
+            document.getElementById('ViewGripConsole').style.display = 'block';
+            setTimeout(() => document.getElementById('loader-wrapper').style.display = 'none', 600);
+            return;
+          }
+        } catch (err) {
+          console.warn('خطأ عند استدعاء', name, err);
         }
-      } catch (err) {
-        msgDiv.textContent = "❌ حدث خطأ أثناء تشغيل العامل!";
-        console.error(err);
-        logToConsole(`[Exception] ${err.message || err}`, '#f33');
       }
+
+      // لم نجد اسم معروف — نجرب إرسال حدث عالمي قد يستمع له الكود المشفَّر
+      try {
+        msgDiv.textContent = "إرسال حدث StartWorker ...";
+        window.dispatchEvent(new CustomEvent('StartWorker', { detail: { from: 'start.html' } }));
+        // ننتظر قليلًا لعل الكود المشفر يستجيب ويحذف الـ loader
+        await new Promise(r => setTimeout(r, 1200));
+      } catch (e) { /* ignore */ }
+
+      // لو لم يحدث شيء، نعرض زرّ للتشخيص وكود لفحص الأسماء المتاحة
+      msgDiv.textContent = "⚠️ لم يُكشف عن نقطة بداية واضحة — افتح Console للتشخيص.";
+      document.getElementById('ViewGripConsole').style.display = 'block';
+
+      // عرض زر تشخيص في الـ console: يسمح لك بفحص الوظائف المحتملة
+      console.info('Debug helper: نفّذ inspectWorkerCandidates() في Console لاكتشاف الدوال المحتملة.');
+      window.inspectWorkerCandidates = function() {
+        const candidatesFound = {};
+        for (const k in window) {
+          try {
+            if (typeof window[k] === 'function') {
+              // نبحث عن أسماء تحتوي كلمات مفتاحية
+              if (/worker|start|init|main|bootstrap|vg/i.test(k)) candidatesFound[k] = true;
+            }
+          } catch (e) {}
+        }
+        console.table(Object.keys(candidatesFound));
+        return Object.keys(candidatesFound);
+      };
     });
   </script>
 </body>
