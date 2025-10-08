@@ -145,10 +145,6 @@ app.all("/api/worker/verification/", (req, res) => {
   });
 });
 
-app.get('/worker/start', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/worker/start.html'));
-});
-
 app.get('/api/user/profile', async (req, res) => {
   const { user_id } = req.query;
 
