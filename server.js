@@ -3,17 +3,13 @@ const express = require('express');
 const crypto = require('crypto'); 
 const path = require('path'); 
 const fs = require('fs');
-const { client, connectDB } = require('./db');
-
-// ====== الاتصال بقاعدة البيانات ======
-connectDB(); // ستتأكد من الاتصال مرة واحدة فقط
+const { client } = require('./db'); // استخدام العميل المشترك
 
 // التقاط أي أخطاء لاحقة في العميل
 client.on('error', (err) => {
   console.error('⚠️ PG client error:', err);
   // لا نحاول إعادة الاتصال بنفس العميل
 });
-
 
 // === السيرفر (Express)
 
