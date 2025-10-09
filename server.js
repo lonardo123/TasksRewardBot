@@ -15,8 +15,7 @@ client.on('error', (err) => {
 // ✅ إنشاء الجداول وضمان سلامتها
 // =====================================
 async function ensureTables() {
-
-  console.log("🧩 بدء إنشاء الجداول...");
+  console.log('🧩 بدء إنشاء الجداول...');
 
   // جدول المستخدمين
   await client.query(`
@@ -24,7 +23,7 @@ async function ensureTables() {
       id SERIAL PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
       balance NUMERIC(12,6) DEFAULT 0,
-      payeer_wallet VARCHAR(100),
+      payeer_wallet VARCHAR,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
@@ -49,7 +48,7 @@ async function ensureTables() {
       id SERIAL PRIMARY KEY,
       referrer_id BIGINT NOT NULL,
       referee_id BIGINT NOT NULL UNIQUE,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
@@ -60,7 +59,7 @@ async function ensureTables() {
       referrer_id BIGINT NOT NULL,
       referee_id BIGINT NOT NULL,
       amount NUMERIC(12,6) NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
@@ -71,21 +70,9 @@ async function ensureTables() {
       title VARCHAR(255) NOT NULL,
       description TEXT,
       price NUMERIC(12,6) NOT NULL,
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      duration_seconds INT DEFAULT 2592000,
+      created_at TIMESTAMP DEFAULT NOW()
     );
-  `);
-
-  // إضافة العمود duration_seconds بأمان بدون Syntax Error
-  await client.query(`
-    DO $$
-    BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'tasks' AND column_name = 'duration_seconds'
-      ) THEN
-        ALTER TABLE tasks ADD COLUMN duration_seconds INT DEFAULT 2592000;
-      END IF;
-    END$$;
   `);
 
   // جدول إثباتات المهمات
@@ -96,18 +83,18 @@ async function ensureTables() {
       user_id BIGINT NOT NULL,
       proof TEXT,
       status VARCHAR(20) DEFAULT 'pending',
-      created_at TIMESTAMPTZ DEFAULT NOW()
+      created_at TIMESTAMP DEFAULT NOW()
     );
   `);
-
+  
   // جدول تتبع حالة المهمة لكل مستخدم
   await client.query(`
     CREATE TABLE IF NOT EXISTS user_tasks (
       id SERIAL PRIMARY KEY,
       user_id BIGINT NOT NULL,
       task_id INT NOT NULL,
-      status VARCHAR(20) DEFAULT 'pending', -- pending | approved | rejected
-      created_at TIMESTAMPTZ DEFAULT NOW(),
+      status VARCHAR(20) DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(user_id, task_id)
     );
   `);
@@ -118,15 +105,13 @@ async function ensureTables() {
       id SERIAL PRIMARY KEY,
       user_id BIGINT NOT NULL,
       amount NUMERIC(12,6) NOT NULL,
-      payeer_wallet VARCHAR(100) NOT NULL,
+      payeer_wallet VARCHAR(50) NOT NULL,
       status VARCHAR(20) DEFAULT 'pending',
-      requested_at TIMESTAMPTZ DEFAULT NOW(),
-      processed_at TIMESTAMPTZ,
-      admin_note TEXT
+      requested_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
-  // جدول فيديوهات المستخدمين (إعلانات)
+  // جدول الفيديوهات
   await client.query(`
     CREATE TABLE IF NOT EXISTS user_videos (
       id SERIAL PRIMARY KEY,
@@ -148,8 +133,9 @@ async function ensureTables() {
     );
   `);
 
-  console.log("✅ جميع الجداول جاهزة أو موجودة مسبقًا");
+  console.log('✅ تم إنشاء جميع الجداول بنجاح.');
 }
+
 async function connectDB() {
   try {
     await client.query('SELECT NOW()');
