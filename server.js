@@ -3,13 +3,8 @@ const { Client } = require('pg');
 const express = require('express');
 const crypto = require('crypto'); 
 const path = require('path'); 
+const { client } = require('./db');
 const fs = require('fs');
-
-// === إعداد قاعدة البيانات (Postgres Client)
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
 
 // التقاط أخطاء غير متوقعة على مستوى العميل
 client.on('error', (err) => {
@@ -28,6 +23,95 @@ async function ensureTables() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+
+    // جدول الأرباح
+    await client.query(`
+  CREATE TABLE IF NOT EXISTS earnings (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT,
+    source VARCHAR(50),
+    amount NUMERIC(12,6),
+    description TEXT,
+    watched_seconds INTEGER,
+    video_id INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+`);
+
+    // جدول الإحالات
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referrals (
+        id SERIAL PRIMARY KEY,
+        referrer_id BIGINT NOT NULL,
+        referee_id BIGINT NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // جدول أرباح الإحالة
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS referral_earnings (
+        id SERIAL PRIMARY KEY,
+        referrer_id BIGINT NOT NULL,
+        referee_id BIGINT NOT NULL,
+        amount NUMERIC(12,6) NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // جدول المهمات
+await client.query(`
+  CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    price NUMERIC(12,6) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+// إضافة العمود duration_seconds لو مش موجود
+await client.query(`
+  ALTER TABLE tasks 
+  ADD COLUMN IF NOT EXISTS duration_seconds INT DEFAULT 2592000;
+`);
+
+
+    // جدول إثباتات المهمات
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS task_proofs (
+        id SERIAL PRIMARY KEY,
+        task_id INT NOT NULL,
+        user_id BIGINT NOT NULL,
+        proof TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    
+    // جدول تتبع حالة المهمة لكل مستخدم
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS user_tasks (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        task_id INT NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending', -- pending | approved | rejected
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(user_id, task_id)
+      );
+    `);
+
+    // جدول السحوبات
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT NOT NULL,
+        amount NUMERIC(12,6) NOT NULL,
+        payeer_wallet VARCHAR(50) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
 
   // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
 await client.query(`
