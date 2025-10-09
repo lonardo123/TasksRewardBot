@@ -899,10 +899,6 @@ app.get('/worker/', (req, res) => {
 
 
 // === بدء التشغيل ===
-(async () => {
-  const app = express();
-  app.use(express.json());
-
   const PORT = process.env.PORT || 8080;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Postback Server يعمل على المنفذ ${PORT}`);
