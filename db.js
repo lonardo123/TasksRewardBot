@@ -1,32 +1,22 @@
+// db.js
 const { Client } = require('pg');
+require('dotenv').config();
 
-// إعداد العميل
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,  // من ملف .env
-  ssl: { rejectUnauthorized: false }           // مطلوب في Railway / Supabase
-});
+let client; // نحفظ الاتصال هنا
 
-// الاتصال عند بدء التشغيل
-(async () => {
-  try {
-    await client.connect();
-    console.log('✅ تم الاتصال بقاعدة البيانات بنجاح (db.js)');
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
-  }
-})();
+function getClient() {
+  if (client) return client; // ✅ لو الاتصال موجود، نرجعه بدون تكرار
 
-// تصدير العميل ليتم استخدامه في كل الملفات
-module.exports = { client };
+  client = new Client({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
 
-// عند إيقاف السيرفر يتم إغلاق الاتصال بأمان
-process.on('SIGTERM', async () => {
-  try {
-    await client.end();
-    console.log('🛑 تم إغلاق اتصال قاعدة البيانات بنجاح');
-    process.exit(0);
-  } catch (err) {
-    console.error('⚠️ خطأ أثناء إغلاق قاعدة البيانات:', err.message);
-    process.exit(1);
-  }
-});
+  client.connect()
+    .then(() => console.log('✅ اتصال قاعدة البيانات ناجح (db.js)'))
+    .catch(err => console.error('❌ db.js: فشل الاتصال:', err.message));
+
+  return client;
+}
+
+module.exports = { client: getClient() };
