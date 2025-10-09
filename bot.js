@@ -1,16 +1,12 @@
 require('dotenv').config();
-const { Telegraf, session, Markup } = require('telegraf');
-const { Client } = require('pg');
-const { client, connectDB } = require('./db');
+const { Telegraf, session } = require('telegraf');
+const { client } = require('./db'); // استخدام العميل المشترك
 
 // ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
 console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
-
-// ====== بدء اتصال قاعدة البيانات ======
-connectDB();
 
 // ====== إعداد البوت ======
 if (!process.env.BOT_TOKEN) {
