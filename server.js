@@ -15,97 +15,17 @@ const client = new Client({
 client.on('error', (err) => {
   console.error('PG client error:', err);
 });
-
-// دالة لإنشاء/التأكد من الجداول والأعمدة (تنفيذ متسلسل لتجنب مشكلات multi-statement)
-async function ensureTables() {
-  // أنشئ جدول users
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      telegram_id BIGINT UNIQUE,
-      balance NUMERIC(12,6) DEFAULT 0,
-      payeer_wallet VARCHAR,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
-await client.query(`
-  CREATE TABLE IF NOT EXISTS user_videos (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    video_url TEXT NOT NULL,
-    duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-    views_count INT DEFAULT 0,
-    keywords TEXT,                     -- قائمة الكلمات المفتاحية بصيغة JSON
-    viewing_method VARCHAR(50) DEFAULT 'keyword',  -- طريقة العرض (keyword, direct, channel...)
-    like VARCHAR(10) DEFAULT 'no',      -- الإعجاب: yes / no / random
-    subscribe VARCHAR(10) DEFAULT 'no', -- الاشتراك: yes / no / random
-    comment VARCHAR(10) DEFAULT 'no',   -- التعليق: yes / no / random
-    comment_like VARCHAR(10) DEFAULT 'no', -- إعجاب بالتعليق: yes / no / random
-    filtering VARCHAR(10) DEFAULT 'no', -- تصفية الحركة: yes / no
-    daily_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية اليومية
-    total_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية الإجمالية
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
-
-
-  // أنشئ جدول earnings (مهيأ ليشمل watched_seconds, video_id, created_at)
-await client.query(`
-  CREATE TABLE IF NOT EXISTS earnings (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT,
-    source VARCHAR(50),
-    amount NUMERIC(12,6),
-    description TEXT,
-    watched_seconds INTEGER,
-    video_id INT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
-
-  // أنشئ جدول withdrawals
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS withdrawals (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT,
-      amount NUMERIC(12,6),
-      payeer_wallet VARCHAR,
-      status VARCHAR(20) DEFAULT 'pending',
-      requested_at TIMESTAMPTZ DEFAULT NOW(),
-      processed_at TIMESTAMPTZ,
-      admin_note TEXT
-    );
-  `);
-
-  // أنشئ جدول referrals
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS referrals (
-      id SERIAL PRIMARY KEY,
-      referrer_id BIGINT,
-      referee_id BIGINT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-}
-
-// دالة لربط DB مع محاولة إعادة للاتصال عند الخطأ
+// === الاتصال بقاعدة البيانات
 async function connectDB() {
   try {
     await client.connect();
-    console.log('✅ اتصال قاعدة البيانات ناجح');
-
-    // تأكد من الجداول
-    await ensureTables();
-    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
+    console.log('✅ قاعدة البيانات متصلة بنجاح');
   } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
-    // إعادة المحاولة بعد 5 ثوانٍ
-    setTimeout(connectDB, 5000);
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', err);
+    process.exit(1); // إيقاف السيرفر إذا فشل الاتصال
   }
 }
+
 
 // === السيرفر (Express)
 
