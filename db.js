@@ -8,7 +8,8 @@ const client = new Client({
 
 let isConnected = false;
 
-async function connectDB() {
+// الاتصال عند استيراد الملف مرة واحدة فقط
+async function initDB() {
   if (isConnected) return;
   try {
     await client.connect();
@@ -16,9 +17,11 @@ async function connectDB() {
     console.log('✅ قاعدة البيانات متصلة بنجاح');
   } catch (err) {
     console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
-    setTimeout(connectDB, 5000); // إعادة المحاولة بعد 5 ثواني
+    setTimeout(initDB, 5000); // إعادة المحاولة بعد 5 ثواني
   }
 }
 
-// تصدير client والدالة connectDB
-module.exports = { client, connectDB };
+// الاتصال عند التحميل
+initDB();
+
+module.exports = { client };
