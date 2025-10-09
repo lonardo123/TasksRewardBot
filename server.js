@@ -11,158 +11,114 @@ client.on('error', (err) => {
   console.error('PG client error:', err);
 });
 
-// دالة لإنشاء/التأكد من الجداول والأعمدة (تنفيذ متسلسل لتجنب مشكلات multi-statement)
+// =====================================
+// ✅ إنشاء الجداول وضمان سلامتها
+// =====================================
 async function ensureTables() {
-  // أنشئ جدول users
+
+  console.log("🧩 بدء إنشاء الجداول...");
+
+  // جدول المستخدمين
   await client.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
       balance NUMERIC(12,6) DEFAULT 0,
-      payeer_wallet VARCHAR,
+      payeer_wallet VARCHAR(100),
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
 
-    // جدول الأرباح
-    await client.query(`
-  CREATE TABLE IF NOT EXISTS earnings (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT,
-    source VARCHAR(50),
-    amount NUMERIC(12,6),
-    description TEXT,
-    watched_seconds INTEGER,
-    video_id INT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
+  // جدول الأرباح
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS earnings (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT,
+      source VARCHAR(50),
+      amount NUMERIC(12,6),
+      description TEXT,
+      watched_seconds INTEGER,
+      video_id INT,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
-    // جدول الإحالات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS referrals (
-        id SERIAL PRIMARY KEY,
-        referrer_id BIGINT NOT NULL,
-        referee_id BIGINT NOT NULL UNIQUE,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+  // جدول الإحالات
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id SERIAL PRIMARY KEY,
+      referrer_id BIGINT NOT NULL,
+      referee_id BIGINT NOT NULL UNIQUE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
-    // جدول أرباح الإحالة
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS referral_earnings (
-        id SERIAL PRIMARY KEY,
-        referrer_id BIGINT NOT NULL,
-        referee_id BIGINT NOT NULL,
-        amount NUMERIC(12,6) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+  // جدول أرباح الإحالة
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS referral_earnings (
+      id SERIAL PRIMARY KEY,
+      referrer_id BIGINT NOT NULL,
+      referee_id BIGINT NOT NULL,
+      amount NUMERIC(12,6) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
-    // جدول المهمات
-await client.query(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    price NUMERIC(12,6) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-  );
-`);
+  // جدول المهمات
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      price NUMERIC(12,6) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
-// إضافة العمود duration_seconds لو مش موجود
-await client.query(`
-  DO $$
-  BEGIN
-    IF NOT EXISTS (
-      SELECT 1 FROM information_schema.columns 
-      WHERE table_name='tasks' AND column_name='duration_seconds'
-    ) THEN
-      ALTER TABLE tasks ADD COLUMN duration_seconds INT DEFAULT 2592000;
-    END IF;
-  END$$;
-`);
+  // إضافة العمود duration_seconds بأمان بدون Syntax Error
+  await client.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'tasks' AND column_name = 'duration_seconds'
+      ) THEN
+        ALTER TABLE tasks ADD COLUMN duration_seconds INT DEFAULT 2592000;
+      END IF;
+    END$$;
+  `);
 
-    // جدول إثباتات المهمات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS task_proofs (
-        id SERIAL PRIMARY KEY,
-        task_id INT NOT NULL,
-        user_id BIGINT NOT NULL,
-        proof TEXT,
-        status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-    
-    // جدول تتبع حالة المهمة لكل مستخدم
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS user_tasks (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        task_id INT NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending', -- pending | approved | rejected
-        created_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, task_id)
-      );
-    `);
+  // جدول إثباتات المهمات
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS task_proofs (
+      id SERIAL PRIMARY KEY,
+      task_id INT NOT NULL,
+      user_id BIGINT NOT NULL,
+      proof TEXT,
+      status VARCHAR(20) DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `);
 
-    // جدول السحوبات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS withdrawals (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        amount NUMERIC(12,6) NOT NULL,
-        payeer_wallet VARCHAR(50) NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending',
-        requested_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+  // جدول تتبع حالة المهمة لكل مستخدم
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS user_tasks (
+      id SERIAL PRIMARY KEY,
+      user_id BIGINT NOT NULL,
+      task_id INT NOT NULL,
+      status VARCHAR(20) DEFAULT 'pending', -- pending | approved | rejected
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(user_id, task_id)
+    );
+  `);
 
-  // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
-await client.query(`
-  CREATE TABLE IF NOT EXISTS user_videos (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    video_url TEXT NOT NULL,
-    duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-    views_count INT DEFAULT 0,
-    keywords TEXT,                     -- قائمة الكلمات المفتاحية بصيغة JSON
-    viewing_method VARCHAR(50) DEFAULT 'keyword',  -- طريقة العرض (keyword, direct, channel...)
-    like VARCHAR(10) DEFAULT 'no',      -- الإعجاب: yes / no / random
-    subscribe VARCHAR(10) DEFAULT 'no', -- الاشتراك: yes / no / random
-    comment VARCHAR(10) DEFAULT 'no',   -- التعليق: yes / no / random
-    comment_like VARCHAR(10) DEFAULT 'no', -- إعجاب بالتعليق: yes / no / random
-    filtering VARCHAR(10) DEFAULT 'no', -- تصفية الحركة: yes / no
-    daily_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية اليومية
-    total_budget NUMERIC(12,6) DEFAULT 0,  -- حد الميزانية الإجمالية
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
-
-
-  // أنشئ جدول earnings (مهيأ ليشمل watched_seconds, video_id, created_at)
-await client.query(`
-  CREATE TABLE IF NOT EXISTS earnings (
-    id SERIAL PRIMARY KEY,
-    user_id BIGINT,
-    source VARCHAR(50),
-    amount NUMERIC(12,6),
-    description TEXT,
-    watched_seconds INTEGER,
-    video_id INT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-  );
-`);
-
-  // أنشئ جدول withdrawals
+  // جدول السحوبات
   await client.query(`
     CREATE TABLE IF NOT EXISTS withdrawals (
       id SERIAL PRIMARY KEY,
-      user_id BIGINT,
-      amount NUMERIC(12,6),
-      payeer_wallet VARCHAR,
+      user_id BIGINT NOT NULL,
+      amount NUMERIC(12,6) NOT NULL,
+      payeer_wallet VARCHAR(100) NOT NULL,
       status VARCHAR(20) DEFAULT 'pending',
       requested_at TIMESTAMPTZ DEFAULT NOW(),
       processed_at TIMESTAMPTZ,
@@ -170,30 +126,31 @@ await client.query(`
     );
   `);
 
-  // أنشئ جدول referrals
+  // جدول فيديوهات المستخدمين (إعلانات)
   await client.query(`
-    CREATE TABLE IF NOT EXISTS referrals (
+    CREATE TABLE IF NOT EXISTS user_videos (
       id SERIAL PRIMARY KEY,
-      referrer_id BIGINT,
-      referee_id BIGINT,
+      user_id BIGINT NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      video_url TEXT NOT NULL,
+      duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
+      views_count INT DEFAULT 0,
+      keywords TEXT,
+      viewing_method VARCHAR(50) DEFAULT 'keyword',
+      like VARCHAR(10) DEFAULT 'no',
+      subscribe VARCHAR(10) DEFAULT 'no',
+      comment VARCHAR(10) DEFAULT 'no',
+      comment_like VARCHAR(10) DEFAULT 'no',
+      filtering VARCHAR(10) DEFAULT 'no',
+      daily_budget NUMERIC(12,6) DEFAULT 0,
+      total_budget NUMERIC(12,6) DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+
+  console.log("✅ جميع الجداول جاهزة أو موجودة مسبقًا");
 }
 
-// دالة لربط DB مع محاولة إعادة للاتصال عند الخطأ
-async function connectDB() {
-  try {
-    
-    // تأكد من الجداول
-    await ensureTables();
-    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
-    // إعادة المحاولة بعد 5 ثوانٍ
-    setTimeout(connectDB, 5000);
-  }
-}
 
 // === السيرفر (Express)
 
