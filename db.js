@@ -3,12 +3,12 @@ const { Client } = require('pg');
 
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false } // مطلوب لبعض السيرفرات مثل Heroku / Railway
 });
 
 let isConnected = false;
 
-// الاتصال عند استيراد الملف مرة واحدة فقط
+// الاتصال عند تحميل الملف مرة واحدة فقط
 async function initDB() {
   if (isConnected) return;
   try {
@@ -21,7 +21,7 @@ async function initDB() {
   }
 }
 
-// الاتصال عند التحميل
+// الاتصال التلقائي عند تحميل الملف
 initDB();
 
 module.exports = { client };
