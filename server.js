@@ -1,30 +1,18 @@
 require('dotenv').config();
-const { Client } = require('pg');
 const express = require('express');
 const crypto = require('crypto'); 
 const path = require('path'); 
 const fs = require('fs');
+const { client, connectDB } = require('./db');
 
-// === إعداد قاعدة البيانات (Postgres Client)
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
+// ====== الاتصال بقاعدة البيانات ======
+connectDB(); // ستتأكد من الاتصال مرة واحدة فقط
 
-// التقاط أخطاء غير متوقعة على مستوى العميل
+// التقاط أي أخطاء لاحقة في العميل
 client.on('error', (err) => {
-  console.error('PG client error:', err);
+  console.error('⚠️ PG client error:', err);
+  // لا نحاول إعادة الاتصال بنفس العميل
 });
-// === الاتصال بقاعدة البيانات
-async function connectDB() {
-  try {
-    await client.connect();
-    console.log('✅ قاعدة البيانات متصلة بنجاح');
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err);
-    process.exit(1); // إيقاف السيرفر إذا فشل الاتصال
-  }
-}
 
 
 // === السيرفر (Express)
