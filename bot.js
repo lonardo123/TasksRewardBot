@@ -1,137 +1,13 @@
-const { Telegraf, session, Markup } = require('telegraf');
-const { Client } = require('pg');
 require('dotenv').config();
+const { Telegraf, session, Markup } = require('telegraf');
 
 // ====== Debug env ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
 console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
+
 const userSessions = {};
-
-// ====== Postgres client ======
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-async function connectDB() {
-  try {
-    await client.connect();
-    console.log('✅ bot.js: اتصال قاعدة البيانات ناجح');
-  } catch (err) {
-    console.error('❌ bot.js: فشل الاتصال:', err.message);
-    setTimeout(connectDB, 5000);
-  }
-}
-
-// 🔵 إنشاء/تحديث جميع الجداول عند الإقلاع
-async function initSchema() {
-  try {
-    // جدول المستخدمين
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        telegram_id BIGINT UNIQUE NOT NULL,
-        balance NUMERIC(12,6) DEFAULT 0,
-        payeer_wallet VARCHAR(50),
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    // جدول الأرباح
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS earnings (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        source VARCHAR(100),
-        amount NUMERIC(12,6) NOT NULL,
-        description TEXT,
-        timestamp TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    // جدول الإحالات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS referrals (
-        id SERIAL PRIMARY KEY,
-        referrer_id BIGINT NOT NULL,
-        referee_id BIGINT NOT NULL UNIQUE,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    // جدول أرباح الإحالة
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS referral_earnings (
-        id SERIAL PRIMARY KEY,
-        referrer_id BIGINT NOT NULL,
-        referee_id BIGINT NOT NULL,
-        amount NUMERIC(12,6) NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    // جدول المهمات
-await client.query(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
-    price NUMERIC(12,6) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW()
-  );
-`);
-
-// إضافة العمود duration_seconds لو مش موجود
-await client.query(`
-  ALTER TABLE tasks 
-  ADD COLUMN IF NOT EXISTS duration_seconds INT DEFAULT 2592000;
-`);
-
-
-    // جدول إثباتات المهمات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS task_proofs (
-        id SERIAL PRIMARY KEY,
-        task_id INT NOT NULL,
-        user_id BIGINT NOT NULL,
-        proof TEXT,
-        status VARCHAR(20) DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-    
-    // جدول تتبع حالة المهمة لكل مستخدم
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS user_tasks (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        task_id INT NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending', -- pending | approved | rejected
-        created_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(user_id, task_id)
-      );
-    `);
-
-    // جدول السحوبات
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS withdrawals (
-        id SERIAL PRIMARY KEY,
-        user_id BIGINT NOT NULL,
-        amount NUMERIC(12,6) NOT NULL,
-        payeer_wallet VARCHAR(50) NOT NULL,
-        status VARCHAR(20) DEFAULT 'pending',
-        requested_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
-
-    console.log('✅ initSchema: تم تجهيز كل الجداول بنجاح');
-  } catch (e) {
-    console.error('❌ initSchema:', e);
-  }
-}
-
 
 // ====== Bot setup ======
 if (!process.env.BOT_TOKEN) {
@@ -150,6 +26,18 @@ bot.use((ctx, next) => {
   console.log('📩', from, '→', text);
   return next();
 });
+
+// ==================================================
+// ✅ دالة اختبار الاتصال بقاعدة البيانات
+// ==================================================
+(async () => {
+  try {
+    await client.query('SELECT NOW()');
+    console.log('🟢 bot.js: قاعدة البيانات متصلة (Supabase)');
+  } catch (err) {
+    console.error('❌ bot.js: فشل في الاتصال بقاعدة البيانات:', err.message);
+  }
+})();
 
 // Utility: ensure admin
 const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
@@ -274,11 +162,12 @@ bot.start(async (ctx) => {
     await ctx.replyWithHTML(
       `👋 أهلاً بك، <b>${firstName}</b>!\n\n💰 <b>رصيدك:</b> ${balance.toFixed(4)}$`,
       Markup.keyboard([
-        ['💰 رصيدك', '🎁 مصادر الربح'],
-        ['📤 طلب سحب', '👥 ريفيرال'],
-        ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا'],
-        ['📩 تواصل معنا على فيسبوك']
-      ]).resize()
+  ['💰 رصيدك', '🎁 مصادر الربح'],
+  ['📤 طلب سحب', '👥 ريفيرال'],
+  ['📝 مهمات TasksRewardBot', '🎬 فيديوهاتي'],
+  ['🔗 قيم البوت من هنا'],
+  ['📩 تواصل معنا على فيسبوك']
+]).resize()
     );
 
     await ctx.replyWithHTML(
@@ -306,18 +195,37 @@ bot.hears('💰 رصيدك', async (ctx) => {
 // 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح
 bot.hears('👥 ريفيرال', async (ctx) => {
   const userId = ctx.from.id;
-  const botUsername = 'TasksRewardBot';
-  const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+  const botUsername = 'TasksRewardBot'; // اسم البوت
 
   try {
-    const countRes = await client.query('SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1', [userId]);
+    // إنشاء رابط الإحالة الخاص بالمستخدم
+    const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
+
+    // إجمالي عدد الإحالات
+    const countRes = await client.query(
+      'SELECT COUNT(*) AS c FROM referrals WHERE referrer_id = $1',
+      [userId]
+    );
     const refsCount = Number(countRes.rows[0]?.c || 0);
 
-    const earnRes = await client.query('SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1', [userId]);
+    // إجمالي أرباح الإحالات
+    const earnRes = await client.query(
+      'SELECT COALESCE(SUM(amount),0) AS s FROM referral_earnings WHERE referrer_id = $1',
+      [userId]
+    );
     const refEarnings = Number(earnRes.rows[0]?.s || 0);
 
+    // الرد على المستخدم
     await ctx.replyWithHTML(
-`👥 <b>برنامج الإحالة</b>\nهذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:\n🔗 <code>${refLink}</code>\n\n💡 <b>كيف تُحتسب أرباح الإحالة؟</b>\nتحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك .\n\n📊 <b>إحصاءاتك</b>\n- عدد الإحالات: <b>${refsCount}</b>`
+`👥 <b>برنامج الإحالة</b>
+هذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:
+🔗 <code>${refLink}</code>
+
+💡 <b>كيف تُحتسب أرباح الإحالة؟</b>
+تحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك.
+
+📊 <b>إحصاءاتك</b>
+- عدد الإحالات: <b>${refsCount}</b>`
     );
   } catch (e) {
     console.error('❌ ريفيرال:', e);
@@ -328,14 +236,18 @@ bot.hears('👥 ريفيرال', async (ctx) => {
 // 🎁 مصادر الربح
 bot.hears('🎁 مصادر الربح', async (ctx) => {
   const userId = ctx.from.id;
+
+  // رابط TimeWall (يدخل مباشرة)
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
-  
+
+  // رابط صفحة شرح الإضافة (ملف extension.html في مجلد public)
+  const extensionUrl = `https://perceptive-victory-production.up.railway.app/extension.html?user_id=${userId}`;
 
   await ctx.reply(
-    'اختر مصدر ربح:',
+    '🎁 اختر مصدر الربح الذي تفضّله:',
     Markup.inlineKeyboard([
       [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      
+      [Markup.button.webApp('🎬 الربح من مشاهدات يوتيوب', extensionUrl)]
     ])
   );
 
@@ -1401,12 +1313,24 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
   const balance = parseFloat(res.rows[0]?.balance) || 0;
 
   await ctx.reply(`✅ خرجت من لوحة الأدمن.\n💰 رصيدك: ${balance.toFixed(4)}$`,
-    Markup.keyboard([
-      ['💰 رصيدك', '🎁 مصادر الربح'],
-      ['📤 طلب سحب', '👥 ريفيرال'],
-      ['📝 مهمات TasksRewardBot', '🔗 قيم البوت من هنا'],
-        ['📩 تواصل معنا على فيسبوك']
-    ]).resize()
+   Markup.keyboard([
+  ['💰 رصيدك', '🎁 مصادر الربح'],
+  ['📤 طلب سحب', '👥 ريفيرال'],
+  ['📝 مهمات TasksRewardBot', '🎬 فيديوهاتي'],
+  ['🔗 قيم البوت من هنا'],
+  ['📩 تواصل معنا على فيسبوك']
+]).resize()
+  );
+});
+
+// 🎬 فيديوهاتي
+bot.hears('🎬 فيديوهاتي', async (ctx) => {
+  const userId = ctx.from.id;
+  const url = `https://perceptive-victory-production.up.railway.app/my-videos.html?user_id=${userId}`;
+  await ctx.reply('🎬 اضغط على الزر لعرض وإدارة فيديوهاتك:', 
+    Markup.inlineKeyboard([
+      [Markup.button.webApp('فيديوهاتي', url)]
+    ])
   );
 });
 
@@ -1483,26 +1407,15 @@ bot.command('reject', async (ctx) => {
 });
 
 
-// ==================== التشغيل النهائي ====================
+// ==================================================
+// ✅ تشغيل البوت
+// ==================================================
 (async () => {
   try {
-    await connectDB();
-    await initSchema();
     await bot.launch();
-    console.log('✅ bot.js: البوت شُغّل بنجاح');
-
-    process.once('SIGINT', () => {
-      console.log('🛑 SIGINT: stopping bot...');
-      bot.stop('SIGINT');
-      client.end().then(() => console.log('🗄️ Postgres connection closed.'));
-    });
-    process.once('SIGTERM', () => {
-      console.log('🛑 SIGTERM: stopping bot...');
-      bot.stop('SIGTERM');
-      client.end().then(() => console.log('🗄️ Postgres connection closed.'));
-    });
-
+    console.log('🚀 bot.js: البوت شُغّل بنجاح (Polling mode)');
   } catch (error) {
-    console.error('❌ فشل في التشغيل:', error);
+    console.error('❌ فشل في تشغيل البوت:', error.message);
   }
 })();
+
