@@ -1394,7 +1394,9 @@ bot.command('reject', async (ctx) => {
 
 
 // ==================== التشغيل النهائي ====================
-await bot.launch();
+(async () => {
+  try {
+    await bot.launch();
     console.log('✅ bot.js: البوت شُغّل بنجاح');
 
     // الإيقاف الآمن
