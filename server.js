@@ -11,27 +11,19 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// التقاط أخطاء غير متوقعة على مستوى الـ Pool
-pool.on('error', (err) => {
-  console.error('PG pool error:', err);
-});
+pool.on('error', (err) => console.error('PG pool error:', err));
 
-// دالة لإنشاء/التأكد من الجداول والأعمدة (تنفيذ متسلسل لتجنب مشكلات multi-statement)
+// === إنشاء الجداول إذا لم تكن موجودة ===
 async function ensureTables() {
-  // أنشئ جدول users
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
+  const queries = [
+    `CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       telegram_id BIGINT UNIQUE,
       balance NUMERIC(12,6) DEFAULT 0,
       payeer_wallet VARCHAR,
       created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  // ✅ إنشاء / تعديل جدول user_videos ليتوافق مع جميع الحقول الجديدة
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS user_videos (
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_videos (
       id SERIAL PRIMARY KEY,
       user_id BIGINT NOT NULL,
       title VARCHAR(255) NOT NULL,
@@ -48,11 +40,8 @@ async function ensureTables() {
       daily_budget NUMERIC(12,6) DEFAULT 0,
       total_budget NUMERIC(12,6) DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS earnings (
+    )`,
+    `CREATE TABLE IF NOT EXISTS earnings (
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
       source VARCHAR(50),
@@ -61,11 +50,8 @@ async function ensureTables() {
       watched_seconds INTEGER,
       video_id INT,
       created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS withdrawals (
+    )`,
+    `CREATE TABLE IF NOT EXISTS withdrawals (
       id SERIAL PRIMARY KEY,
       user_id BIGINT,
       amount NUMERIC(12,6),
@@ -74,36 +60,39 @@ async function ensureTables() {
       requested_at TIMESTAMPTZ DEFAULT NOW(),
       processed_at TIMESTAMPTZ,
       admin_note TEXT
-    );
-  `);
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS referrals (
+    )`,
+    `CREATE TABLE IF NOT EXISTS referrals (
       id SERIAL PRIMARY KEY,
       referrer_id BIGINT,
       referee_id BIGINT,
       created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
+    )`
+  ];
+
+  for (const q of queries) {
+    try {
+      await pool.query(q);
+    } catch (err) {
+      console.error('❌ Error creating table:', err.message);
+    }
+  }
 }
 
-// دالة لربط DB مع محاولة إعادة للاتصال عند الخطأ
+// === الاتصال بقاعدة البيانات والتحقق ===
 async function connectDB() {
   try {
     const client = await pool.connect();
     console.log('✅ اتصال قاعدة البيانات ناجح');
     client.release();
-
-    // تأكد من الجداول
     await ensureTables();
-    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
+    console.log('✅ الجداول جاهزة');
   } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
     setTimeout(connectDB, 5000);
   }
 }
 
-// === السيرفر (Express)
+// === إعداد السيرفر Express ===
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
@@ -113,9 +102,7 @@ app.get('/worker/start', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/worker/start.html'));
 });
 
-// ===========================================
-// ✅ مسار التحقق من العامل (Worker Verification)
-// ===========================================
+// ✅ مسار التحقق من العامل
 app.all("/api/worker/verification/", (req, res) => {
   res.status(200).json({
     ok: true,
@@ -125,11 +112,20 @@ app.all("/api/worker/verification/", (req, res) => {
   });
 });
 
-// ✅ نقطة البداية
+// ✅ الصفحة الرئيسية للتأكد من أن السيرفر يعمل
 app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 
+// ✅ نقطة اختبار جاهزية العامل
+app.get('/worker/', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    status: 'ready',
+    message: 'Worker endpoint is active and ready 🚀',
+    server_time: new Date().toISOString()
+  });
+});
 // كل ما يلي يستخدم pool.query بدلاً من client.query
 app.get('/api/user/profile', async (req, res) => {
   const { user_id } = req.query;
