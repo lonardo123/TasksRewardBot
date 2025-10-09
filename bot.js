@@ -1394,18 +1394,16 @@ bot.command('reject', async (ctx) => {
 
 
 // ==================== التشغيل النهائي ====================
-(async () => {
-  try {
-    await connectDB();
-    await initSchema();
-    await bot.launch();
+await bot.launch();
     console.log('✅ bot.js: البوت شُغّل بنجاح');
 
+    // الإيقاف الآمن
     process.once('SIGINT', () => {
       console.log('🛑 SIGINT: stopping bot...');
       bot.stop('SIGINT');
       client.end().then(() => console.log('🗄️ Postgres connection closed.'));
     });
+
     process.once('SIGTERM', () => {
       console.log('🛑 SIGTERM: stopping bot...');
       bot.stop('SIGTERM');
