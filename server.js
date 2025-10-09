@@ -1,190 +1,68 @@
+// server.js
 require('dotenv').config();
-const { Client } = require('pg');
 const express = require('express');
-const crypto = require('crypto'); 
-const path = require('path'); 
-const { client } = require('./db');
+const path = require('path');
+const crypto = require('crypto');
 const fs = require('fs');
-
-// التقاط أخطاء غير متوقعة على مستوى العميل
-client.on('error', (err) => {
-  console.error('PG client error:', err);
-});
-
-// =====================================
-// ✅ إنشاء الجداول وضمان سلامتها
-// =====================================
-async function ensureTables() {
-  console.log('🧩 بدء إنشاء الجداول...');
-
-  // جدول المستخدمين
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      telegram_id BIGINT UNIQUE,
-      balance NUMERIC(12,6) DEFAULT 0,
-      payeer_wallet VARCHAR,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  // جدول الأرباح
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS earnings (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT,
-      source VARCHAR(50),
-      amount NUMERIC(12,6),
-      description TEXT,
-      watched_seconds INTEGER,
-      video_id INT,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  // جدول الإحالات
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS referrals (
-      id SERIAL PRIMARY KEY,
-      referrer_id BIGINT NOT NULL,
-      referee_id BIGINT NOT NULL UNIQUE,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-
-  // جدول أرباح الإحالة
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS referral_earnings (
-      id SERIAL PRIMARY KEY,
-      referrer_id BIGINT NOT NULL,
-      referee_id BIGINT NOT NULL,
-      amount NUMERIC(12,6) NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-
-  // جدول المهمات
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
-      description TEXT,
-      price NUMERIC(12,6) NOT NULL,
-      duration_seconds INT DEFAULT 2592000,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-
-  // جدول إثباتات المهمات
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS task_proofs (
-      id SERIAL PRIMARY KEY,
-      task_id INT NOT NULL,
-      user_id BIGINT NOT NULL,
-      proof TEXT,
-      status VARCHAR(20) DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-  
-  // جدول تتبع حالة المهمة لكل مستخدم
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS user_tasks (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL,
-      task_id INT NOT NULL,
-      status VARCHAR(20) DEFAULT 'pending',
-      created_at TIMESTAMP DEFAULT NOW(),
-      UNIQUE(user_id, task_id)
-    );
-  `);
-
-  // جدول السحوبات
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS withdrawals (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL,
-      amount NUMERIC(12,6) NOT NULL,
-      payeer_wallet VARCHAR(50) NOT NULL,
-      status VARCHAR(20) DEFAULT 'pending',
-      requested_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
-
-  // جدول الفيديوهات
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS user_videos (
-      id SERIAL PRIMARY KEY,
-      user_id BIGINT NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      video_url TEXT NOT NULL,
-      duration_seconds INT NOT NULL CHECK (duration_seconds >= 50),
-      views_count INT DEFAULT 0,
-      keywords TEXT,
-      viewing_method VARCHAR(50) DEFAULT 'keyword',
-      like VARCHAR(10) DEFAULT 'no',
-      subscribe VARCHAR(10) DEFAULT 'no',
-      comment VARCHAR(10) DEFAULT 'no',
-      comment_like VARCHAR(10) DEFAULT 'no',
-      filtering VARCHAR(10) DEFAULT 'no',
-      daily_budget NUMERIC(12,6) DEFAULT 0,
-      total_budget NUMERIC(12,6) DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-
-  console.log('✅ تم إنشاء جميع الجداول بنجاح.');
-}
-
-async function connectDB() {
-  try {
-    await client.query('SELECT NOW()');
-    console.log('✅ تم التأكد من أن الاتصال بقاعدة البيانات نشط بالفعل.');
-    await ensureTables();
-    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
-    console.log('🔁 إعادة المحاولة بعد 5 ثوانٍ...');
-    setTimeout(connectDB, 5000);
-  }
-}
-
-// === السيرفر (Express)
+const { client } = require('./db'); // ✅ نستخدم اتصال واحد فقط من db.js
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// ===================================================
+// ✅ التأكد من أن قاعدة البيانات متصلة (Supabase)
+// ===================================================
+(async () => {
+  try {
+    await client.query('SELECT NOW()');
+    console.log('🟢 قاعدة البيانات جاهزة (Supabase)');
+  } catch (err) {
+    console.error('❌ مشكلة في الاتصال بقاعدة البيانات:', err.message);
+  }
+})();
 
-// ✅ هذا هو المسار الصحيح لإضافة كروم
+// ===================================================
+// ✅ نقطة الدخول الرئيسية
+// ===================================================
+app.get('/', (req, res) => {
+  res.send('✅ السيرفر يعمل بنجاح! Postback جاهز ومتصّل بـ Supabase.');
+});
+
+// ===================================================
+// ✅ المسار المطلوب بواسطة إضافة كروم
+// ===================================================
 app.get('/worker/start', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/worker/start.html'));
 });
 
-// ===========================================
-// ✅ مسار التحقق من العامل (Worker Verification)
-// ===========================================
-app.all("/api/worker/verification/", (req, res) => {
-  // دعم GET و POST مع رد ثابت يطمئن الإضافة
+// ===================================================
+// ✅ التحقق من العامل (Worker Verification)
+// ===================================================
+app.all('/api/worker/verification/', (req, res) => {
   res.status(200).json({
     ok: true,
-    status: "verified",
+    status: 'verified',
     method: req.method,
-    server_time: new Date().toISOString()
+    server_time: new Date().toISOString(),
   });
 });
 
+// ===================================================
+// ✅ جلب بيانات المستخدم أو إنشاؤه
+// ===================================================
 app.get('/api/user/profile', async (req, res) => {
   const { user_id } = req.query;
 
   if (!user_id) {
     return res.status(400).json({
-      status: "error",
-      message: "user_id is required"
+      status: 'error',
+      message: 'user_id is required',
     });
   }
 
   try {
+    // تحقق من وجود المستخدم
     const result = await client.query(
       'SELECT telegram_id, balance FROM users WHERE telegram_id = $1',
       [user_id]
@@ -193,42 +71,38 @@ app.get('/api/user/profile', async (req, res) => {
     if (result.rows.length > 0) {
       const user = result.rows[0];
       return res.json({
-        status: "success",
+        status: 'success',
         data: {
           user_id: user.telegram_id.toString(),
           fullname: `User ${user.telegram_id}`,
           balance: parseFloat(user.balance),
-          membership: "Free"
-        }
-      });
-    } else {
-      // إنشاء مستخدم جديد برصيد 0
-      await client.query(
-        'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
-        [user_id, 0]
-      );
-
-      return res.json({
-        status: "success",
-        data: {  // ← ✅ تم إضافة "data:" هنا
-          user_id: user_id.toString(),
-          fullname: `User ${user_id}`,
-          balance: 0.0,
-          membership: "Free"
-        }
+          membership: 'Free',
+        },
       });
     }
+
+    // إذا لم يوجد، أنشئه
+    await client.query(
+      'INSERT INTO users (telegram_id, balance, created_at) VALUES ($1, $2, NOW())',
+      [user_id, 0]
+    );
+
+    return res.json({
+      status: 'success',
+      data: {
+        user_id: user_id.toString(),
+        fullname: `User ${user_id}`,
+        balance: 0.0,
+        membership: 'Free',
+      },
+    });
   } catch (err) {
-    console.error('Error in /api/user/profile:', err);
+    console.error('❌ خطأ في /api/user/profile:', err.message);
     return res.status(500).json({
-      status: "error",
-      message: "Server error"
+      status: 'error',
+      message: 'Database error',
     });
   }
-});
-
-app.get('/', (req, res) => {
-  res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
 app.post('/api/add-video', async (req, res) => {
   const { user_id, title, video_url, duration_seconds, keywords } = req.body;
