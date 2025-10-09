@@ -903,4 +903,4 @@ app.get('/worker/', (req, res) => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Postback Server يعمل على المنفذ ${PORT}`);
   });
-})();
+
