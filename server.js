@@ -178,9 +178,7 @@ await client.query(`
 // دالة لربط DB مع محاولة إعادة للاتصال عند الخطأ
 async function connectDB() {
   try {
-    await client.connect();
-    console.log('✅ اتصال قاعدة البيانات ناجح');
-
+    
     // تأكد من الجداول
     await ensureTables();
     console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
