@@ -72,10 +72,16 @@ await client.query(`
 
 // إضافة العمود duration_seconds لو مش موجود
 await client.query(`
-  ALTER TABLE tasks 
-  ADD COLUMN IF NOT EXISTS duration_seconds INT DEFAULT 2592000;
+  DO $$
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns 
+      WHERE table_name='tasks' AND column_name='duration_seconds'
+    ) THEN
+      ALTER TABLE tasks ADD COLUMN duration_seconds INT DEFAULT 2592000;
+    END IF;
+  END$$;
 `);
-
 
     // جدول إثباتات المهمات
     await client.query(`
