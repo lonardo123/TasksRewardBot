@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Telegraf, session, Markup } = require('telegraf');
-const { client } = require('./db'); // ✅ نستخدم client من db.js فقط، بدون تعريف Client جديد
+const { client } = require('./db'); // ✅ نستخدم اتصال واحد فقط من db.js
 
 // ====== Debug env ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
@@ -27,6 +27,18 @@ bot.use((ctx, next) => {
   console.log('📩', from, '→', text);
   return next();
 });
+
+// ==================================================
+// ✅ دالة اختبار الاتصال بقاعدة البيانات
+// ==================================================
+(async () => {
+  try {
+    await client.query('SELECT NOW()');
+    console.log('🟢 bot.js: قاعدة البيانات متصلة (Supabase)');
+  } catch (err) {
+    console.error('❌ bot.js: فشل في الاتصال بقاعدة البيانات:', err.message);
+  }
+})();
 
 // Utility: ensure admin
 const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
@@ -1396,26 +1408,19 @@ bot.command('reject', async (ctx) => {
 });
 
 
-// ==================== التشغيل النهائي ====================
+// ==================================================
+// ✅ تشغيل البوت
+// ==================================================
 (async () => {
   try {
-    await connectDB();
-    await initSchema();
     await bot.launch();
-    console.log('✅ bot.js: البوت شُغّل بنجاح');
-
-    process.once('SIGINT', () => {
-      console.log('🛑 SIGINT: stopping bot...');
-      bot.stop('SIGINT');
-      client.end().then(() => console.log('🗄️ Postgres connection closed.'));
-    });
-    process.once('SIGTERM', () => {
-      console.log('🛑 SIGTERM: stopping bot...');
-      bot.stop('SIGTERM');
-      client.end().then(() => console.log('🗄️ Postgres connection closed.'));
-    });
-
+    console.log('🚀 bot.js: البوت شُغّل بنجاح (Polling mode)');
   } catch (error) {
-    console.error('❌ فشل في التشغيل:', error);
+    console.error('❌ فشل في تشغيل البوت:', error.message);
   }
 })();
+
+// Graceful stop
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
+
