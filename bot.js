@@ -1,29 +1,41 @@
+require('dotenv').config();
 const { Telegraf, session, Markup } = require('telegraf');
 const { Client } = require('pg');
-require('dotenv').config();
 
-// ====== Debug env ======
+// ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
 console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'مفقود!');
 console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
+
 const userSessions = {};
 
-// ====== Postgres client ======
+// ====== إعداد قاعدة البيانات (Postgres Client) ======
 const client = new Client({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: { rejectUnauthorized: false } // مطلوب على بعض السيرفرات مثل Heroku أو Railway
 });
 
+// التقاط أي خطأ لاحق في العميل
+client.on('error', (err) => {
+  console.error('⚠️ PG client error:', err);
+  // إعادة الاتصال تلقائيًا بعد 5 ثواني
+  setTimeout(connectDB, 5000);
+});
+
+// ====== دالة الاتصال بقاعدة البيانات ======
 async function connectDB() {
   try {
     await client.connect();
     console.log('✅ bot.js: اتصال قاعدة البيانات ناجح');
   } catch (err) {
     console.error('❌ bot.js: فشل الاتصال:', err.message);
-    setTimeout(connectDB, 5000);
+    setTimeout(connectDB, 5000); // إعادة المحاولة بعد 5 ثواني
   }
 }
+
+// بدء الاتصال
+connectDB();
 
 // ====== Bot setup ======
 if (!process.env.BOT_TOKEN) {
