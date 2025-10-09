@@ -150,7 +150,18 @@ async function ensureTables() {
 
   console.log("✅ جميع الجداول جاهزة أو موجودة مسبقًا");
 }
-
+async function connectDB() {
+  try {
+    await client.query('SELECT NOW()');
+    console.log('✅ تم التأكد من أن الاتصال بقاعدة البيانات نشط بالفعل.');
+    await ensureTables();
+    console.log('✅ الجداول والأعمدة أنشئت أو موجودة مسبقًا');
+  } catch (err) {
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message || err);
+    console.log('🔁 إعادة المحاولة بعد 5 ثوانٍ...');
+    setTimeout(connectDB, 5000);
+  }
+}
 
 // === السيرفر (Express)
 
@@ -1030,8 +1041,10 @@ app.get('/worker/', (req, res) => {
 // === بدء التشغيل ===
 (async () => {
   await connectDB();
+  const app = express();
+  app.use(express.json());
 
-  const PORT = process.env.PORT || 3000;
+  const PORT = process.env.PORT || 8080;
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Postback Server يعمل على المنفذ ${PORT}`);
   });
