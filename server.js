@@ -887,11 +887,7 @@ app.get('/worker/', (req, res) => {
 
 
 // === بدء التشغيل ===
-(async () => {
-  await connectDB();
-
-  const PORT = process.env.PORT || 3000;
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Postback Server يعمل على المنفذ ${PORT}`);
-  });
-})();
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`);
+});
