@@ -900,7 +900,6 @@ app.get('/worker/', (req, res) => {
 
 // === بدء التشغيل ===
 (async () => {
-  await connectDB();
   const app = express();
   app.use(express.json());
 
