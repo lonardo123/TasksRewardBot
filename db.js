@@ -1,22 +1,20 @@
 // db.js
-const { Client } = require('pg');
 require('dotenv').config();
+const { Client } = require('pg');
 
-let client; // نحفظ الاتصال هنا
+// ✅ إنشاء اتصال واحد فقط بقاعدة بيانات Supabase
+const client = new Client({
+  connectionString: process.env.SUPABASE_DB_URL || process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-function getClient() {
-  if (client) return client; // ✅ لو الاتصال موجود، نرجعه بدون تكرار
+(async () => {
+  try {
+    await client.connect();
+    console.log('✅ تم الاتصال بقاعدة بيانات Supabase بنجاح');
+  } catch (err) {
+    console.error('❌ فشل الاتصال بقاعدة بيانات Supabase:', err.message);
+  }
+})();
 
-  client = new Client({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-  });
-
-  client.connect()
-    .then(() => console.log('✅ اتصال قاعدة البيانات ناجح (db.js)'))
-    .catch(err => console.error('❌ db.js: فشل الاتصال:', err.message));
-
-  return client;
-}
-
-module.exports = { client: getClient() };
+module.exports = { client };
