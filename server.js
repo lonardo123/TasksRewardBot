@@ -3,14 +3,34 @@ const express = require('express');
 const crypto = require('crypto'); 
 const path = require('path'); 
 const fs = require('fs');
-const { pool } = require('./db'); // استخدام العميل المشترك
+const { Client } = require('pg');
 
-// التقاط أي أخطاء لاحقة في العميل
-pool.on('error', (err) => {
-  console.error('⚠️ PG client error:', err);
-  // لا نحاول إعادة الاتصال بنفس العميل
+// ✅ إعداد اتصال قاعدة البيانات (PostgreSQL)
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
 });
 
+// ✅ دالة الاتصال بقاعدة البيانات
+async function connectDB() {
+  try {
+    if (client._connected) return; // منع الاتصال المكرر
+    await client.connect();
+    client._connected = true;
+    console.log('✅ قاعدة البيانات متصلة بنجاح');
+  } catch (err) {
+    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
+    setTimeout(connectDB, 5000); // إعادة المحاولة بعد 5 ثوانٍ
+  }
+}
+
+// 🔵 استدعاء الاتصال
+connectDB();
+
+// 🟢 التقاط أي أخطاء لاحقة
+client.on('error', (err) => {
+  console.error('⚠️ PG client error:', err);
+});
 // === السيرفر (Express)
 
 const app = express();
