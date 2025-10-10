@@ -1,7 +1,8 @@
 const { Telegraf, session, Markup } = require('telegraf');
-const { Client } = require('pg');
 require('dotenv').config();
 const { pool } = require('./db');
+
+const userSessions = {}; // تخزين الجلسات المؤقتة لكل مستخدم
 
 // ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
@@ -10,29 +11,11 @@ console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'م�
 console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
 
 // ====== إعداد اتصال قاعدة البيانات ======
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
 
 // ====== دالة الاتصال بقاعدة البيانات ======
-async function connectDB() {
-  try {
-    if (client._connected) return; // منع الاتصال المكرر
-    await client.connect();
-    client._connected = true;
-    console.log('✅ bot.js: قاعدة البيانات متصلة بنجاح');
-  } catch (err) {
-    console.error('❌ bot.js: فشل الاتصال بقاعدة البيانات:', err.message);
-    setTimeout(connectDB, 5000); // إعادة المحاولة بعد 5 ثوانٍ
-  }
-}
-
-// 🔵 استدعاء الاتصال
-connectDB();
 
 // 🟢 التقاط أي أخطاء لاحقة
-client.on('error', (err) => {
+pool.on('error', (err) => {
   console.error('⚠️ PG client error:', err);
 });
 
