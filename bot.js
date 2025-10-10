@@ -1423,15 +1423,13 @@ bot.command('reject', async (ctx) => {
 // ==================== التشغيل النهائي ====================
 (async () => {
   try {
-    app.listen(PORT, () => console.log(`🚀 Express server running on port ${PORT}`));
-
     if (typeof bot !== 'undefined') {
       await bot.launch();
       console.log('🤖 Telegram bot launched successfully!');
     }
 
-    console.log('✅ Server & Bot are running. Container should stay alive!');
+    console.log('✅ Bot is running. Container should stay alive!');
   } catch (err) {
-    console.error('❌ Failed to start server/bot:', err);
+    console.error('❌ Failed to start bot:', err);
   }
 })();
