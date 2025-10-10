@@ -1,27 +1,14 @@
+// db.js
 require('dotenv').config();
-const { Client } = require('pg');
+const { Pool } = require('pg');
 
-const client = new Client({
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false } // مطلوب لبعض السيرفرات مثل Heroku / Railway
+  ...(process.env.DB_SSL === 'true' ? { ssl: { rejectUnauthorized: false } } : {})
 });
 
-let isConnected = false;
+pool.on('error', (err) => {
+  console.error('⚠️ Database pool error:', err);
+});
 
-// الاتصال عند تحميل الملف مرة واحدة فقط
-async function initDB() {
-  if (isConnected) return;
-  try {
-    await client.connect();
-    isConnected = true;
-    console.log('✅ قاعدة البيانات متصلة بنجاح');
-  } catch (err) {
-    console.error('❌ فشل الاتصال بقاعدة البيانات:', err.message);
-    setTimeout(initDB, 5000); // إعادة المحاولة بعد 5 ثواني
-  }
-}
-
-// الاتصال التلقائي عند تحميل الملف
-initDB();
-
-module.exports = { client };
+module.exports = { pool };
