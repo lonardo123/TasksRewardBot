@@ -1,7 +1,3 @@
-// ====== Combined TasksRewardBot Script ======
-// This file merges bot.js and server.js without removing or altering any functionality.
-// It runs both the Telegram bot (Telegraf) and Express server together.
-
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
