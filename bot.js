@@ -1396,23 +1396,15 @@ bot.command('reject', async (ctx) => {
 // ==================== التشغيل النهائي ====================
 (async () => {
   try {
-    await bot.launch();
-    console.log('✅ bot.js: البوت شُغّل بنجاح');
+    app.listen(PORT, () => console.log(`🚀 Express server running on port ${PORT}`));
 
-    // الإيقاف الآمن
-    process.once('SIGINT', () => {
-      console.log('🛑 SIGINT: stopping bot...');
-      bot.stop('SIGINT');
-      client.end().then(() => console.log('🗄️ Postgres connection closed.'));
-    });
+    if (typeof bot !== 'undefined') {
+      await bot.launch();
+      console.log('🤖 Telegram bot launched successfully!');
+    }
 
-    process.once('SIGTERM', () => {
-      console.log('🛑 SIGTERM: stopping bot...');
-      bot.stop('SIGTERM');
-      client.end().then(() => console.log('🗄️ Postgres connection closed.'));
-    });
-
-  } catch (error) {
-    console.error('❌ فشل في التشغيل:', error);
+    console.log('✅ Server & Bot are running. Container should stay alive!');
+  } catch (err) {
+    console.error('❌ Failed to start server/bot:', err);
   }
 })();
