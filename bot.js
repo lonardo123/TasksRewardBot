@@ -1,6 +1,6 @@
-require('dotenv').config();
 const { Telegraf, session, Markup } = require('telegraf');
 const { Client } = require('pg');
+require('dotenv').config();
 
 // ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
