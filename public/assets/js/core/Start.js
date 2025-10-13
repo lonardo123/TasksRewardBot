@@ -1,8 +1,10 @@
-const API_BASE = 'https://perceptive-victory-production.up.railway.app';
-const API_PUBLIC = `${API_BASE}/api/public-videos`;
-const API_MYVIDEOS = `${API_BASE}/api/my-videos`;
-const API_CALLBACK = `${API_BASE}/video-callback`;
-const SECRET_KEY = 'MySuperSecretKey123ForCallbackOnly';
+import {
+  API_BASE,
+  API_PUBLIC,
+  API_MYVIDEOS,
+  API_CALLBACK,
+  SECRET_KEY
+} from './db.js';
 
 // ======================================================
 //  توليد رابط عرض عشوائي مغلّف
@@ -18,12 +20,15 @@ function generate_wrapped_url(original_url) {
 }
 
 // ======================================================
-//  جلب بيانات المستخدم
+//  جلب بيانات المستخدم من الإضافة
 // ======================================================
 let USER_ID = null;
 try {
-  const stored = localStorage.getItem("user_id");
-  if (stored) USER_ID = stored;
+  if (chrome?.runtime?.sendMessage) {
+    chrome.runtime.sendMessage({ action: "get_user_id" }, (response) => {
+      if (response?.user_id) USER_ID = response.user_id;
+    });
+  }
 } catch (e) {
   console.warn("لم يتم العثور على user_id:", e);
 }
@@ -125,7 +130,7 @@ async function sendReward(video_id, watched_seconds) {
 
 // ======================================================
 //  تحريك الصفحة داخل iframe (سلوك طبيعي)
-/// ======================================================
+// ======================================================
 function simulateScroll() {
   try {
     const scrollY = Math.floor(Math.random() * 400);
