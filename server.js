@@ -23,6 +23,32 @@ app.get('/worker/start', (req, res) => {
 });
 
 
+// 🧠 لتخزين آخر رسالة سيرفر مؤقتًا
+let currentMessage = null;
+
+// 🧩 1. Endpoint لإرسال أمر من السيرفر (مثلاً عبر لوحة التحكم أو API)
+app.post("/api/server/send", (req, res) => {
+  const { action, data } = req.body;
+  if (!action) {
+    return res.status(400).json({ status: "error", message: "action required" });
+  }
+  currentMessage = { action, data: data || {}, time: new Date().toISOString() };
+  console.log("📨 تم تعيين رسالة جديدة إلى الإضافة:", currentMessage);
+  res.json({ status: "ok", message: currentMessage });
+});
+
+// 🧩 2. Endpoint تطلبه الإضافة بشكل دوري (Polling)
+app.get("/api/worker/message", (req, res) => {
+  if (currentMessage) {
+    res.json(currentMessage);
+    // إعادة تعيين الرسالة حتى لا تتكرر
+    currentMessage = null;
+  } else {
+    res.json({ action: "NONE" });
+  }
+});
+
+
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
