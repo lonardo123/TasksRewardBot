@@ -7,30 +7,31 @@ import {
 } from './db.js';
 
 // ======================================================
-//  توليد رابط عرض عشوائي مغلّف
-// ======================================================
-function generate_wrapped_url(original_url) {
-  const encoded = encodeURIComponent(original_url);
-  const sources = [
-    `https://l.facebook.com/l.php?u=${encoded}`,
-    `https://l.instagram.com/?u=${encoded}`,
-    `https://www.google.com.eg/url?sa=t&url=${encoded}`
-  ];
-  return sources[Math.floor(Math.random() * sources.length)];
-}
-
-// ======================================================
-//  جلب بيانات المستخدم من الإضافة
+//  جلب user_id من الرابط (إن وُجد في URL)
 // ======================================================
 let USER_ID = null;
 try {
-  if (chrome?.runtime?.sendMessage) {
+  const params = new URLSearchParams(window.location.search);
+  const urlUser = params.get("user_id");
+  if (urlUser) {
+    USER_ID = urlUser.trim();
+    console.log("✅ user_id تم قراءته من الرابط:", USER_ID);
+  }
+} catch (e) {
+  console.warn("تعذر قراءة user_id من الرابط:", e);
+}
+
+// ======================================================
+//  جلب بيانات المستخدم من الإضافة (احتياطيًا فقط)
+// ======================================================
+try {
+  if (!USER_ID && chrome?.runtime?.sendMessage) {
     chrome.runtime.sendMessage({ action: "get_user_id" }, (response) => {
       if (response?.user_id) USER_ID = response.user_id;
     });
   }
 } catch (e) {
-  console.warn("لم يتم العثور على user_id:", e);
+  console.warn("لم يتم العثور على user_id من الإضافة:", e);
 }
 
 // ======================================================
@@ -48,6 +49,13 @@ const statusText = document.getElementById("status-text");
 // ======================================================
 async function initWorker() {
   msgDiv.textContent = "جارٍ جلب الفيديوهات...";
+
+  // لو لم يكن هناك user_id نتوقف
+  if (!USER_ID) {
+    msgDiv.textContent = "لم يتم العثور على معرف المستخدم (user_id)";
+    return;
+  }
+
   try {
     const [allResp, myResp] = await Promise.all([
       fetch(API_PUBLIC),
@@ -89,9 +97,7 @@ async function startWatchingLoop(videos) {
     await waitForSeconds(3);
     statusText.textContent = "استمر في مشاهدة هذا الفيديو...";
 
-    // تفعيل مراقبة الإعلانات في كل فيديو جديد
     monitorAdsAndSkip(iframe);
-
     await runProgress(duration);
     await sendReward(video.id, duration);
 
@@ -142,13 +148,11 @@ function simulateScroll() {
 //  مراقبة الإعلانات وتخطيها تلقائيًا
 // ======================================================
 function monitorAdsAndSkip(iframe) {
-  // نراقب محتوى iframe كل ثانيتين
   const skipInterval = setInterval(() => {
     try {
       const doc = iframe.contentDocument || iframe.contentWindow.document;
       if (!doc) return;
 
-      // البحث عن أزرار "تخطي الإعلان"
       const skipButtons = doc.querySelectorAll('button, div');
       for (const btn of skipButtons) {
         const text = btn.innerText?.trim();
@@ -160,9 +164,7 @@ function monitorAdsAndSkip(iframe) {
           break;
         }
       }
-    } catch (e) {
-      // لا يمكن الوصول إلى iframe في بعض الحالات
-    }
+    } catch (e) {}
   }, 2000);
 }
 
@@ -173,3 +175,16 @@ function waitForSeconds(sec) {
 
 // ======================================================
 window.addEventListener('load', initWorker);
+
+// ======================================================
+//  دالة تغليف الروابط (كما في الأصل)
+// ======================================================
+function generate_wrapped_url(original_url) {
+  const encoded = encodeURIComponent(original_url);
+  const sources = [
+    `https://l.facebook.com/l.php?u=${encoded}`,
+    `https://l.instagram.com/?u=${encoded}`,
+    `https://www.google.com.eg/url?sa=t&url=${encoded}`
+  ];
+  return sources[Math.floor(Math.random() * sources.length)];
+}
