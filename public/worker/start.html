@@ -1,2 +1,200 @@
-<!DOCTYPE html><html lang="en"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <meta name=robots content="noindex, nofollow"> <title>https://perceptive-victory-production.up.railway.app</title> <link rel="stylesheet" href="https://perceptive-victory-production.up.railway.app/Main/Backend/Assets/css/worker_start.css?v=1%3A0%3A1"> </head> <body> <div id="loader-wrapper"> <div id="loader"></div> <div id="message">Please wait a moment</div> </div> <div id="update"> <div class="icons"> <div class="update_extension">Extension Update Available!</div> </div> <div class="update_extension"> <a href="https://perceptive-victory-production.up.railway.app/help/how-to-install-viewgrip-extension-on-chrome" target="_blank" class="updateButton" role="button">Update</a> </div> </div> <script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"version":"2024.11.0","token":"6835ae66c1054aac8729a19145096c23","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
-</body></html>
+<!doctype html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <title>Worker Start</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+
+    #loader-wrapper {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    #loader {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 3px solid;
+      border-color: #aea8a8 #aea8a8 transparent transparent;
+      box-sizing: border-box;
+      animation: rotation 1s linear infinite;
+      position: relative;
+    }
+
+    #loader::after,
+    #loader::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      margin: auto;
+      border: 3px solid;
+      border-color: transparent transparent rgb(29, 78, 217) rgb(29, 78, 217);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      animation: rotationBack 0.5s linear infinite;
+      transform-origin: center center;
+    }
+
+    #infoloader {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      background: rgb(29, 78, 217);
+      transform: rotateX(65deg) rotate(45deg);
+      color: #666060;
+      animation: layers1 1s linear infinite alternate;
+    }
+    #infoloader:after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: #666060;
+      animation: layerTr 1s linear infinite alternate;
+    }
+
+    @keyframes layers1 {
+      0% { box-shadow: 0px 0px 0 0px; }
+      90%, 100% { box-shadow: 20px 20px 0 -4px; }
+    }
+    @keyframes layerTr {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-25px, -25px) scale(1); }
+    }
+
+    #message {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #686262;
+      text-align: center;
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+    }
+
+    #update {
+      display: none;
+      top: 30%;
+      position: fixed;
+      text-align: center;
+    }
+
+    .update_extension {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #686262;
+    }
+
+    .icons {
+      display: flex;
+      justify-content: center;
+    }
+
+    @keyframes rotation {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes rotationBack {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(-360deg); }
+    }
+
+    .updateButton {
+      background-color: rgb(29, 78, 217);
+      border-radius: 12px;
+      color: #dfdcdc;
+      cursor: pointer;
+      font-weight: bold;
+      padding: 10px 15px;
+      text-align: center;
+      transition: 200ms;
+      width: 100%;
+      box-sizing: border-box;
+      border: 0;
+      font-size: 16px;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .updateButton:not(:disabled):hover,
+    .updateButton:not(:disabled):focus {
+      outline: 0;
+      background: rgb(41, 90, 224);
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2),
+                  0 3px 8px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .updateButton:disabled {
+      filter: saturate(0.2) opacity(0.5);
+      -webkit-filter: saturate(0.2) opacity(0.5);
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div id="loader-wrapper">
+    <div id="loader"></div>
+    <div id="message">جارٍ تهيئة العامل...</div>
+  </div>
+
+  <div id="ViewGripConsole">
+    <span style="color:#aaa;">@TasksRewardBot:</span>
+    <span id="TextMessage">Waiting for worker initialization...</span>
+  </div>
+
+  <script src="/assets/js/core/Start.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const msgDiv = document.getElementById('message');
+      msgDiv.textContent = "جارٍ تهيئة العامل...";
+
+      const candidates = [
+        'initWorker','InitWorker','startWorker','StartWorker',
+        'runWorker','workerStart','start','init','bootstrap'
+      ];
+
+      for (const name of candidates) {
+        try {
+          const fn = window[name];
+          if (typeof fn === 'function') {
+            msgDiv.textContent = `تشغيل ${name}() ...`;
+            const result = fn();
+            if (result && typeof result.then === 'function') await result;
+            msgDiv.textContent = "🚀 العامل بدأ العمل";
+            return;
+          }
+        } catch (e) {}
+      }
+
+      msgDiv.textContent = "⚠️ لم يتم العثور على نقطة بدء مناسبة.";
+    });
+  </script>
+</body>
+</html>
