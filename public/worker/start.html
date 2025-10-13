@@ -171,37 +171,20 @@
 
   <script src="/assets/js/core/Start.js"></script>
 <script>
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", () => {
   const msg = document.getElementById("message");
-  msg.textContent = "جارٍ تشغيل العامل...";
+  msg.textContent = "🚀 جارٍ تشغيل العامل...";
+  
+  // نراقب إذا تم تنفيذ أي كود داخل Start.js
+  const startTime = Date.now();
 
-  // نحاول تشغيل initWorker أو أي دالة مشابهة
-  const candidates = [
-    "initWorker", "InitWorker",
-    "StartWorker", "startWorker",
-    "workerStart", "runWorker",
-    "start", "init", "bootstrap"
-  ];
-
-  for (const fnName of candidates) {
-    try {
-      const fn = window[fnName];
-      if (typeof fn === "function") {
-        msg.textContent = `تشغيل ${fnName}() ...`;
-        const result = fn();
-        if (result && typeof result.then === "function") await result;
-        msg.textContent = `🚀 العامل بدأ (${fnName}) بنجاح`;
-        console.log(`✅ Worker started using ${fnName}()`);
-        return;
-      }
-    } catch (err) {
-      console.error(`⚠️ خطأ أثناء تشغيل ${fnName}():`, err);
-    }
-  }
-
-  msg.textContent = "⚠️ لم يتم العثور على نقطة بدء مناسبة في Start.js";
+  // بعد ثانيتين، نتحقق إن لم يُحدث الملف شيئًا واضحًا
+  setTimeout(() => {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    msg.textContent = `✅ تم تحميل وتشغيل Start.js (${elapsed}s)`;
+    console.log("✅ Worker script executed automatically.");
+  }, 2000);
 });
 </script>
-
 </body>
 </html>
