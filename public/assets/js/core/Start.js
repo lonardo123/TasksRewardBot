@@ -1,103 +1,170 @@
-'use strict';
+const API_BASE = 'https://perceptive-victory-production.up.railway.app';
+const API_PUBLIC = `${API_BASE}/api/public-videos`;
+const API_MYVIDEOS = `${API_BASE}/api/my-videos`;
+const API_CALLBACK = `${API_BASE}/video-callback`;
+const SECRET_KEY = 'MySuperSecretKey123ForCallbackOnly';
 
-/* ============================================
-   Start.js — Worker Entry Point (Manifest v3)
-   ============================================ */
+// ======================================================
+//  توليد رابط عرض عشوائي مغلّف
+// ======================================================
+function generate_wrapped_url(original_url) {
+  const encoded = encodeURIComponent(original_url);
+  const sources = [
+    `https://l.facebook.com/l.php?u=${encoded}`,
+    `https://l.instagram.com/?u=${encoded}`,
+    `https://www.google.com.eg/url?sa=t&url=${encoded}`
+  ];
+  return sources[Math.floor(Math.random() * sources.length)];
+}
 
-// إعداد السيرفر الرئيسي
-const MainUrl = 'https://perceptive-victory-production.up.railway.app';
+// ======================================================
+//  جلب بيانات المستخدم
+// ======================================================
+let USER_ID = null;
+try {
+  const stored = localStorage.getItem("user_id");
+  if (stored) USER_ID = stored;
+} catch (e) {
+  console.warn("لم يتم العثور على user_id:", e);
+}
 
-/**
- * ✅ نقطة البداية
- * يتم استدعاؤها عندما يرسل background.js رسالة StartWorker
- */
-function StartWorker() {
-  console.log('🚀 StartWorker() initialized');
+// ======================================================
+//  عناصر الصفحة
+// ======================================================
+const msgDiv = document.getElementById("message");
+const loaderDiv = document.getElementById("loader-wrapper");
+const videoDiv = document.getElementById("video-container");
+const iframe = document.getElementById("video-frame");
+const progressBar = document.getElementById("progress");
+const statusText = document.getElementById("status-text");
 
+// ======================================================
+//  تهيئة العامل
+// ======================================================
+async function initWorker() {
+  msgDiv.textContent = "جارٍ جلب الفيديوهات...";
   try {
-    // تأكيد وجود chrome.runtime
-    if (typeof chrome === 'undefined' || !chrome.runtime) {
-      console.warn('⚠️ chrome.runtime غير موجود — استخدام بديل وهمي');
-      window.chrome = {
-        runtime: {
-          sendMessage: (msg) => console.log('📩 mock sendMessage:', msg),
-          onMessage: { addListener: () => {} }
-        }
-      };
+    const [allResp, myResp] = await Promise.all([
+      fetch(API_PUBLIC),
+      fetch(`${API_MYVIDEOS}?user_id=${USER_ID}`)
+    ]);
+    const allVideos = await allResp.json();
+    const myVideos = await myResp.json();
+    const myIds = new Set(myVideos.map(v => v.id));
+
+    // استبعاد فيديوهات المستخدم نفسه
+    const videos = allVideos.filter(v => !myIds.has(v.id));
+    if (!videos.length) {
+      msgDiv.textContent = "لا توجد فيديوهات متاحة حالياً.";
+      return;
     }
 
-    // عرض رسالة بدء العامل
-    showStatus('🔧 بدء العامل...');
+    loaderDiv.style.display = "none";
+    videoDiv.style.display = "block";
 
-    // تشغيل التحقق ثم جلب الفيديو
-    setTimeout(() => {
-      if (typeof onTimesUp === 'function') {
-        onTimesUp();
-      } else if (typeof getVideo === 'function') {
-        getVideo();
-      } else {
-        showStatus('⚠️ لم يتم العثور على دوال التشغيل!');
+    await startWatchingLoop(videos);
+  } catch (err) {
+    console.error("خطأ أثناء جلب الفيديوهات:", err);
+    msgDiv.textContent = "حدث خطأ أثناء الاتصال بالخادم.";
+  }
+}
+
+// ======================================================
+//  الحلقة الأساسية للمشاهدة
+// ======================================================
+async function startWatchingLoop(videos) {
+  while (true) {
+    const video = videos[Math.floor(Math.random() * videos.length)];
+    const wrappedUrl = generate_wrapped_url(video.url);
+    const duration = video.duration || 30;
+
+    statusText.textContent = "جارٍ جلب فيديو للمشاهدة...";
+    iframe.src = wrappedUrl;
+
+    await waitForSeconds(3);
+    statusText.textContent = "استمر في مشاهدة هذا الفيديو...";
+
+    // تفعيل مراقبة الإعلانات في كل فيديو جديد
+    monitorAdsAndSkip(iframe);
+
+    await runProgress(duration);
+    await sendReward(video.id, duration);
+
+    statusText.textContent = "✅ تمت إضافة المكافأة إلى رصيدك";
+    await waitForSeconds(3);
+
+    statusText.textContent = "جارٍ البحث عن فيديو جديد للمشاهدة...";
+    await waitForSeconds(2);
+  }
+}
+
+// ======================================================
+//  عداد وقت المشاهدة + شريط التقدم
+// ======================================================
+async function runProgress(duration) {
+  for (let i = 0; i <= duration; i++) {
+    const percent = (i / duration) * 100;
+    progressBar.style.width = percent + "%";
+    await waitForSeconds(1);
+    if (i % 20 === 0) simulateScroll();
+  }
+}
+
+// ======================================================
+//  إرسال المكافأة إلى السيرفر
+// ======================================================
+async function sendReward(video_id, watched_seconds) {
+  if (!USER_ID) return;
+  try {
+    const url = `${API_CALLBACK}?user_id=${USER_ID}&video_id=${video_id}&watched_seconds=${watched_seconds}&secret=${SECRET_KEY}`;
+    await fetch(url);
+  } catch (err) {
+    console.warn("فشل إرسال المكافأة:", err);
+  }
+}
+
+// ======================================================
+//  تحريك الصفحة داخل iframe (سلوك طبيعي)
+/// ======================================================
+function simulateScroll() {
+  try {
+    const scrollY = Math.floor(Math.random() * 400);
+    iframe.contentWindow.scrollBy({ top: scrollY, behavior: 'smooth' });
+  } catch (e) {}
+}
+
+// ======================================================
+//  مراقبة الإعلانات وتخطيها تلقائيًا
+// ======================================================
+function monitorAdsAndSkip(iframe) {
+  // نراقب محتوى iframe كل ثانيتين
+  const skipInterval = setInterval(() => {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      if (!doc) return;
+
+      // البحث عن أزرار "تخطي الإعلان"
+      const skipButtons = doc.querySelectorAll('button, div');
+      for (const btn of skipButtons) {
+        const text = btn.innerText?.trim();
+        if (/تخطي|Skip/i.test(text)) {
+          btn.click();
+          console.log("🎯 تم الضغط على زر تخطي الإعلان:", text);
+          statusText.textContent = "⏩ تم تخطي إعلان تلقائيًا";
+          clearInterval(skipInterval);
+          break;
+        }
       }
-    }, 1500);
-  } catch (e) {
-    console.error('❌ خطأ أثناء تشغيل StartWorker:', e);
-  }
-}
-
-/**
- * 💬 عرض رسالة حالة داخل الصفحة
- */
-function showStatus(text) {
-  let el = document.getElementById('worker-status');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'worker-status';
-    el.style.cssText = `
-      position: fixed;
-      bottom: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #111;
-      color: #00ff9d;
-      font-family: monospace;
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      z-index: 999999;
-      box-shadow: 0 0 10px rgba(0,0,0,.4);
-    `;
-    document.body.appendChild(el);
-  }
-  el.textContent = text;
-}
-
-/**
- * ⏳ عندما يرسل الخلفية أمر البدء
- */
-if (chrome?.runtime?.onMessage) {
-  chrome.runtime.onMessage.addListener((message) => {
-    if (!message?.msg) return;
-
-    switch (message.msg) {
-      case 'StartWorker':
-        console.log('📩 استقبلنا أمر: StartWorker');
-        StartWorker();
-        break;
-
-      case 'StartGetData':
-        console.log('📩 استقبلنا أمر: StartGetData');
-        if (typeof getVideo === 'function') {
-          getVideo();
-        }
-        break;
+    } catch (e) {
+      // لا يمكن الوصول إلى iframe في بعض الحالات
     }
-  });
+  }, 2000);
 }
 
-/**
- * 🚀 تشغيل تلقائي عند تحميل الصفحة (احتياطي)
- */
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('✅ DOM Loaded: auto StartWorker');
-  StartWorker();
-});
+// ======================================================
+function waitForSeconds(sec) {
+  return new Promise(res => setTimeout(res, sec * 1000));
+}
+
+// ======================================================
+window.addEventListener('load', initWorker);
