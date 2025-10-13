@@ -22,9 +22,6 @@ app.get('/worker/start', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/worker/start.html'));
 });
 
-app.get('/Main/Backend/Assets/css/worker_start.css?v=1%3A0%3A1', (req, res) => {
-  res.sendFile(path.join(__dirname, '/Main/Backend/Assets/css/worker_start.css?v=1%3A0%3A1'));
-});
 
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
