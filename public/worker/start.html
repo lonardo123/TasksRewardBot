@@ -2,286 +2,183 @@
 <html lang="ar">
 <head>
   <meta charset="utf-8" />
-  <title>Worker Start</title>
+  <title>Worker Start (بدون iframe)</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
       margin: 0;
-      background-color: #f0f0f0;
+      padding: 0;
       font-family: "Cairo", sans-serif;
-    }
-
-    #loader-wrapper {
-      position: fixed;
-      top: 30%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 100%;
-      height: auto;
+      background: #f3f4f6;
+      color: #222;
       display: flex;
       flex-direction: column;
+      align-items: center;
       justify-content: center;
-      align-items: center;
-      z-index: 1000;
+      height: 100vh;
     }
-
-    #loader {
-      width: 150px;
-      height: 150px;
-      border-radius: 50%;
-      display: inline-block;
-      border: 3px solid;
-      border-color: #aea8a8 #aea8a8 transparent transparent;
-      box-sizing: border-box;
-      animation: rotation 1s linear infinite;
-      position: relative;
-    }
-
-    #loader::after,
-    #loader::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      margin: auto;
-      border: 3px solid;
-      border-color: transparent transparent rgb(29, 78, 217) rgb(29, 78, 217);
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      animation: rotationBack 0.5s linear infinite;
-      transform-origin: center center;
-    }
-
-    @keyframes rotation {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    @keyframes rotationBack {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(-360deg); }
-    }
-
-    #message {
-      margin-top: 20px;
+    #status-text {
       font-size: 20px;
-      font-weight: bold;
-      color: #686262;
+      margin-top: 20px;
+      color: #333;
       text-align: center;
-      width: 100%;
-      max-width: 300px;
-      box-sizing: border-box;
     }
-
-    #video-container {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 900px;
-      margin-top: 40px;
-    }
-
-    #video-frame {
-      width: 90%;
-      height: 480px;
-      border: 2px solid #ccc;
-      border-radius: 12px;
-      background: #000;
-    }
-
     #progress-bar {
-      width: 90%;
-      height: 8px;
+      width: 80%;
+      height: 10px;
       background-color: #ddd;
       border-radius: 5px;
       overflow: hidden;
-      margin-top: 10px;
+      margin-top: 20px;
     }
-
     #progress {
-      height: 8px;
+      height: 10px;
       width: 0%;
-      background-color: rgb(29, 78, 217);
-      border-radius: 5px;
+      background-color: #1d4ed8;
       transition: width 1s linear;
     }
-
-    #status-text {
-      margin-top: 10px;
-      font-size: 16px;
-      color: #444;
-      font-weight: 500;
-    }
-
-    #ViewGripConsole {
-      position: fixed;
-      bottom: 15px;
-      font-size: 13px;
-      color: #666;
-      background: #fff;
+    #next-btn {
+      margin-top: 30px;
+      background: #1d4ed8;
+      color: white;
+      border: none;
+      padding: 10px 20px;
       border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      padding: 6px 10px;
-      direction: ltr;
-      user-select: text;
-    }
-
-    #TextMessage {
-      color: #222;
+      cursor: pointer;
+      font-size: 16px;
     }
   </style>
 </head>
 <body>
-  <div id="loader-wrapper">
-    <div id="loader"></div>
-    <div id="message">جارٍ تهيئة العامل...</div>
-  </div>
-
-  <div id="video-container">
-    <iframe id="video-frame" allowfullscreen></iframe>
-    <div id="progress-bar">
-      <div id="progress"></div>
-    </div>
-    <div id="status-text">جارٍ تحميل الفيديو...</div>
-  </div>
-
-  <div id="ViewGripConsole">
-    <span style="color:#aaa;">@TasksRewardBot:</span>
-    <span id="TextMessage">Waiting for worker initialization...</span>
-  </div>
+  <h2>👷‍♂️ العامل قيد التشغيل...</h2>
+  <div id="status-text">جارٍ اختيار فيديو عشوائي...</div>
+  <div id="progress-bar"><div id="progress"></div></div>
+  <button id="next-btn" style="display:none;">▶️ عرض الفيديو الآن</button>
 
   <script>
-    // التقاط user_id من الرابط
-    const params = new URLSearchParams(window.location.search);
-    const USER_ID = params.get("user_id");
-
-    // ✅ تم التصحيح: إزالة المسافات الزائدة
-    const API_BASE = "https://perceptive-victory-production.up.railway.app";
-    const API_PUBLIC = `${API_BASE}/api/public-videos`;
-    const API_MYVIDEOS = `${API_BASE}/api/my-videos`;
-    const API_CALLBACK = `${API_BASE}/callback`;
+    const USER_ID = new URLSearchParams(window.location.search).get("user_id") || "anonymous";
+    const API_CALLBACK = "https://perceptive-victory-production.up.railway.app/callback";
     const SECRET_KEY = "MySuperSecretKey123ForCallbackOnly";
 
-    const msgDiv = document.getElementById("message");
-    const loaderDiv = document.getElementById("loader-wrapper");
-    const videoDiv = document.getElementById("video-container");
-    const iframe = document.getElementById("video-frame");
-    const progressBar = document.getElementById("progress");
     const statusText = document.getElementById("status-text");
-    const consoleMsg = document.getElementById("TextMessage");
+    const progressBar = document.getElementById("progress");
+    const nextBtn = document.getElementById("next-btn");
 
-    if (!USER_ID) {
-      msgDiv.textContent = "⚠️ لم يتم العثور على user_id في الرابط.";
-      consoleMsg.textContent = "Missing user_id in URL.";
-      throw new Error("user_id parameter is missing.");
-    }
+    const SOURCES = [
+      () => randomYouTube(),
+      () => randomFacebook(),
+      () => randomInstagram(),
+      () => randomGoogleSearch()
+    ];
 
-    async function initWorker() {
-      consoleMsg.textContent = `Initializing for user_id=${USER_ID}`;
-      msgDiv.textContent = "جارٍ جلب الفيديوهات...";
-
-      try {
-        const [allResp, myResp] = await Promise.all([
-          fetch(API_PUBLIC),
-          fetch(`${API_MYVIDEOS}?user_id=${USER_ID}`)
-        ]);
-
-        if (!allResp.ok || !myResp.ok) {
-          throw new Error("فشل جلب بيانات الفيديوهات");
-        }
-
-        const allVideos = await allResp.json();
-        const myVideos = await myResp.json();
-
-        const myIds = new Set(myVideos.map(v => v.id));
-        const videos = allVideos.filter(v => !myIds.has(v.id));
-
-        if (!videos.length) {
-          msgDiv.textContent = "🎬 لا توجد فيديوهات متاحة.";
-          consoleMsg.textContent = "No videos available.";
-          return;
-        }
-
-        loaderDiv.style.display = "none";
-        videoDiv.style.display = "flex";
-
-        await startWatchingLoop(videos);
-      } catch (err) {
-        console.error("❌ خطأ:", err);
-        msgDiv.textContent = "حدث خطأ أثناء الاتصال.";
-        consoleMsg.textContent = "Network error.";
-      }
-    }
-
-    async function startWatchingLoop(videos) {
+    async function startLoop() {
       while (true) {
-        const video = videos[Math.floor(Math.random() * videos.length)];
-        const wrappedUrl = wrapUrl(video.url);
-        const duration = Math.max(video.duration || 30, 10); // min 10s
+        const randomSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
+        const url = randomSource();
+        const duration = randomInt(20, 50);
 
-        iframe.src = wrappedUrl;
-        statusText.textContent = "جارٍ تشغيل الفيديو...";
-        consoleMsg.textContent = `▶️ Watching video ID ${video.id}`;
-
-        // انتظر حتى يبدأ التحميل (3 ثواني)
-        await wait(3);
-
-        // شريط التقدم (لا يعتمد على iframe)
-        await simulateProgress(duration);
-
-        // إرسال المكافأة
-        await sendReward(video.id, duration);
-
-        statusText.textContent = "✅ تمت إضافة المكافأة";
-        consoleMsg.textContent = `💰 Reward sent for video ${video.id}`;
-        await wait(3);
-
-        statusText.textContent = "جارٍ البحث عن فيديو جديد...";
-        await wait(2);
+        statusText.textContent = `🔗 الرابط القادم من: ${getDomain(url)}`;
+        nextBtn.style.display = "block";
+        nextBtn.onclick = () => openVideo(url, duration);
+        break; // ينتظر المستخدم يضغط الزر
       }
     }
 
-    function wrapUrl(url) {
-      const encoded = encodeURIComponent(url);
-      const sources = [
-        `https://l.facebook.com/l.php?u=${encoded}`,
-        `https://l.instagram.com/?u=${encoded}`,
-        `https://www.google.com/url?sa=t&url=${encoded}`
-      ];
-      return sources[Math.floor(Math.random() * sources.length)];
+    async function openVideo(url, duration) {
+      nextBtn.style.display = "none";
+      statusText.textContent = `🎬 فتح الفيديو الآن (${duration} ثانية)...`;
+
+      // احفظ بيانات المشاهدة في localStorage مؤقتًا
+      localStorage.setItem("current_video", JSON.stringify({ url, duration, start: Date.now(), user: USER_ID }));
+
+      // فتح الرابط فعليًا في نفس التبويب
+      window.location.href = url;
     }
 
-    async function simulateProgress(duration) {
-      const steps = duration;
-      for (let i = 1; i <= steps; i++) {
-        progressBar.style.width = `${(i / steps) * 100}%`;
-        await wait(1);
+    // عند العودة من الفيديو إلى worker/start مرة أخرى
+    window.addEventListener("load", async () => {
+      const stored = localStorage.getItem("current_video");
+      if (stored) {
+        const { url, duration, start, user } = JSON.parse(stored);
+        const watched = Math.floor((Date.now() - start) / 1000);
+
+        if (watched >= 5) {
+          await sendReward(url, Math.min(watched, duration));
+          localStorage.removeItem("current_video");
+          statusText.textContent = "✅ تمت إضافة المكافأة!";
+          await wait(3);
+        }
       }
-    }
 
-    async function sendReward(video_id, watched_seconds) {
+      await simulateProgress(3);
+      await startLoop();
+    });
+
+    async function sendReward(sourceUrl, watched_seconds) {
       try {
-        const url = `${API_CALLBACK}?user_id=${USER_ID}&video_id=${video_id}&watched_seconds=${watched_seconds}&secret=${SECRET_KEY}`;
-        await fetch(url, { method: 'POST' }); // يُفضل POST لأمان أكثر
+        const payload = { user_id: USER_ID, source: sourceUrl, watched_seconds, secret: SECRET_KEY };
+        await fetch(API_CALLBACK, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
       } catch (err) {
         console.warn("⚠️ فشل إرسال المكافأة:", err);
       }
     }
 
+    async function simulateProgress(duration) {
+      for (let i = 1; i <= duration; i++) {
+        progressBar.style.width = `${(i / duration) * 100}%`;
+        await wait(1);
+      }
+      progressBar.style.width = "0%";
+    }
+
+    function randomYouTube() {
+      const queries = ["music", "funny", "news", "science", "travel", "football"];
+      const q = queries[Math.floor(Math.random() * queries.length)];
+      return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+    }
+
+    function randomFacebook() {
+      const pages = [
+        "https://www.facebook.com/UNILAD/",
+        "https://www.facebook.com/9GAG/",
+        "https://www.facebook.com/BBCNews/",
+        "https://www.facebook.com/NASA/"
+      ];
+      return pages[Math.floor(Math.random() * pages.length)];
+    }
+
+    function randomInstagram() {
+      const profiles = [
+        "https://www.instagram.com/natgeo/",
+        "https://www.instagram.com/nasa/",
+        "https://www.instagram.com/9gag/",
+        "https://www.instagram.com/bbcnews/"
+      ];
+      return profiles[Math.floor(Math.random() * profiles.length)];
+    }
+
+    function randomGoogleSearch() {
+      const topics = ["funny videos", "football", "animals", "movies", "food"];
+      const q = topics[Math.floor(Math.random() * topics.length)];
+      return `https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=vid`;
+    }
+
+    function getDomain(url) {
+      try { return new URL(url).hostname.replace("www.", ""); }
+      catch { return "unknown"; }
+    }
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
     function wait(sec) {
       return new Promise(res => setTimeout(res, sec * 1000));
     }
-
-    window.addEventListener("load", initWorker);
   </script>
 </body>
 </html>
