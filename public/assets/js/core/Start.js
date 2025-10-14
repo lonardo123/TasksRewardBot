@@ -4,7 +4,7 @@ import {
   API_MYVIDEOS,
   API_CALLBACK,
   SECRET_KEY
-} from './db.js';
+} from './public/assets/js/core/db.js';
 
 // ======================================================
 //  جلب user_id من الرابط (إن وُجد في URL)
