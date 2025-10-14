@@ -6,7 +6,6 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>👷‍♂️ بدء العامل - TasksRewardBot</title>
 
-  <!-- نفس ستايل ViewGrip الاحترافي -->
   <link rel="stylesheet" href="https://www.viewgrip.net/Main/Backend/Assets/css/worker_start.css?v=1:0:1">
 
   <style>
@@ -20,115 +19,17 @@
       background-color: #f0f0f0;
       font-family: "Cairo", sans-serif;
     }
-
-    #message {
-      margin-top: 20px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #686262;
-      text-align: center;
-      width: 100%;
-      max-width: 300px;
-      box-sizing: border-box;
-    }
-
-    #loader-wrapper {
-      position: fixed;
-      top: 30%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 100%;
-      height: auto;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-
-    #loader {
-      width: 150px;
-      height: 150px;
-      border-radius: 50%;
-      display: inline-block;
-      border: 3px solid;
-      border-color: #aea8a8 #aea8a8 transparent transparent;
-      box-sizing: border-box;
-      animation: rotation 1s linear infinite;
-    }
-
-    #loader::after,
-    #loader::before {
-      content: "";
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 0;
-      bottom: 0;
-      margin: auto;
-      border: 3px solid;
-      border-color: transparent transparent rgb(29, 78, 217) rgb(29, 78, 217);
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      animation: rotationBack 0.5s linear infinite;
-      transform-origin: center center;
-    }
-
-    @keyframes rotation {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    @keyframes rotationBack {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(-360deg); }
-    }
-
-    #update {
-      display: none;
-      position: fixed;
-      top: 30%;
-      text-align: center;
-    }
-
-    .update_extension {
-      margin-top: 20px;
-      font-size: 20px;
-      font-weight: bold;
-      color: #686262;
-    }
-
-    .updateButton {
-      background-color: rgb(29, 78, 217);
-      border-radius: 12px;
-      color: #dfdcdc;
-      cursor: pointer;
-      font-weight: bold;
-      padding: 10px 15px;
-      text-align: center;
-      transition: 200ms;
-      width: 100%;
-      box-sizing: border-box;
-      border: 0;
-      font-size: 16px;
-    }
-
-    .updateButton:not(:disabled):hover,
-    .updateButton:not(:disabled):focus {
-      outline: 0;
-      background: rgb(41, 90, 224);
-      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2),
-                  0 3px 8px 0 rgba(0, 0, 0, 0.15);
-    }
-
-    .updateButton:disabled {
-      filter: saturate(0.2) opacity(0.5);
-      cursor: not-allowed;
-    }
+    #message { margin-top: 20px; font-size: 20px; font-weight: bold; color: #686262; text-align: center; max-width: 420px; }
+    #loader-wrapper { position: fixed; top: 30%; left: 50%; transform: translate(-50%, -50%); width: 100%; display: flex; flex-direction: column; align-items: center; z-index: 1000; }
+    #loader { width: 150px; height: 150px; border-radius: 50%; display: inline-block; border: 3px solid; border-color: #aea8a8 #aea8a8 transparent transparent; box-sizing: border-box; animation: rotation 1s linear infinite; position: relative; }
+    #loader::after, #loader::before { content: ""; position: absolute; left: 0; right: 0; top: 0; bottom: 0; margin: auto; border: 3px solid; border-color: transparent transparent rgb(29, 78, 217) rgb(29, 78, 217); width: 40px; height: 40px; border-radius: 50%; animation: rotationBack 0.5s linear infinite; transform-origin: center center; }
+    @keyframes rotation { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+    @keyframes rotationBack { 0% { transform: rotate(0deg);} 100% { transform: rotate(-360deg);} }
+    #update { display:none; position: fixed; top:30%; text-align:center; }
+    .update_extension { margin-top:20px; font-size:20px; font-weight:bold; color:#686262; }
+    .updateButton { background-color: rgb(29, 78, 217); border-radius: 12px; color:#dfdcdc; cursor:pointer; padding:10px 15px; border:0; font-size:16px; }
   </style>
 </head>
-
 <body>
   <div id="loader-wrapper">
     <div id="loader"></div>
@@ -140,65 +41,108 @@
       <div class="update_extension">لم يتم العثور على الإضافة.</div>
     </div>
     <div class="update_extension">
-      <a href="https://tasksrewardbot.neocities.org/help/install"
-         target="_blank" class="updateButton" role="button">طريقة تثبيت الإضافة</a>
+      <a href="https://tasksrewardbot.neocities.org/help/install" target="_blank" class="updateButton" role="button">طريقة تثبيت الإضافة</a>
     </div>
   </div>
 
   <script>
     const messageDiv = document.getElementById("message");
-    const loader = document.getElementById("loader-wrapper");
+    const loaderWrap = document.getElementById("loader-wrapper");
     const updateDiv = document.getElementById("update");
 
-    // ✅ أولاً: حفظ user_id إن لم يكن موجود
+    // حفظ user_id إن لم يكن موجود
     if (!localStorage.getItem("user_id")) {
       const uid = prompt("أدخل معرف المستخدم (user_id):");
-      if (uid) localStorage.setItem("user_id", uid);
+      if (uid && uid.trim()) localStorage.setItem("user_id", uid.trim());
     }
 
-    // ✅ الخطوة الثانية: البحث عن الإضافة تلقائيًا
-    async function detectExtension() {
-      // نحاول فحص عدة احتمالات (للدعم لاحقًا)
-      const possibleIds = [
-        "abcd1234efgh5678" // placeholder – لكن سيتغير لكل مستخدم تلقائيًا
-      ];
+    // دالة مساعدة لتحويل callback-based sendMessage إلى Promise
+    function sendMessageToExt(extensionId, message) {
+      return new Promise((resolve, reject) => {
+        // تحقق من توافر chrome.runtime
+        if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
+          reject(new Error("chrome.runtime غير متاح في هذا السياق"));
+          return;
+        }
 
-      for (const id of possibleIds) {
         try {
-          const response = await chrome.runtime.sendMessage(id, "ping");
-          if (response?.installed) return id;
-        } catch (e) { /* الإضافة غير موجودة بهذا المعرف */ }
-      }
+          // استخدم صيغة sendMessage مع callback
+          chrome.runtime.sendMessage(extensionId, message, (response) => {
+            // إذا كان هناك lastError، اعتبرها فشل
+            if (chrome.runtime.lastError) {
+              // لا نرمي مباشرة لأن قد يكون خطأ بسيط، نمرره كرفض
+              reject(new Error(chrome.runtime.lastError.message || "chrome.runtime.lastError"));
+              return;
+            }
+            // رد الإضافة
+            resolve(response);
+          });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    }
 
-      // إذا لم تُكتشف أي إضافة من الـ IDs المحتملة
+    // اطلب extensionId من المستخدم إن لم يخزن
+    function ensureExtensionId() {
+      let ext = localStorage.getItem("extension_id");
+      if (ext && ext.trim()) return ext.trim();
+
+      // اسأل المستخدم لصق الـ Extension ID لأن install عبر unpacked يعطي ID مختلف
+      const userInput = prompt("الصق معرف الإضافة (Extension ID) هنا (يمكن العثور عليه في chrome://extensions پسّ Developer mode):");
+      if (userInput && userInput.trim()) {
+        localStorage.setItem("extension_id", userInput.trim());
+        return userInput.trim();
+      }
       return null;
     }
 
-    // ✅ الخطوة الثالثة: تحميل Start.js من الإضافة المكتشفة
     async function initWorker() {
-      messageDiv.textContent = "جارٍ البحث عن الإضافة...";
-      const detectedId = await detectExtension();
+      messageDiv.textContent = "جارٍ التحقق من الإضافة...";
+      const extensionId = ensureExtensionId();
 
-      if (!detectedId) {
-        messageDiv.textContent = "⚠️ لم يتم العثور على الإضافة.";
-        loader.style.display = "none";
+      if (!extensionId) {
+        messageDiv.textContent = "⚠️ لم يتم توفير معرف الإضافة. يجب إدخاله لتشغيل العامل.";
+        loaderWrap.style.display = "none";
         updateDiv.style.display = "block";
         return;
       }
 
-      // ✅ تحميل ملف Start.js مباشرة من داخل الإضافة
-      const script = document.createElement("script");
-      script.src = `chrome-extension://${detectedId}/assets/js/core/Start.js`;
-      script.onload = () => {
-        messageDiv.textContent = "✅ تم تشغيل العامل بنجاح!";
-      };
-      script.onerror = () => {
-        messageDiv.textContent = "⚠️ فشل تحميل Start.js من الإضافة.";
-      };
-      document.body.appendChild(script);
+      // الآن نحاول إرسال رسالة "ping" إلى الإضافة
+      try {
+        const resp = await sendMessageToExt(extensionId, "ping");
+        // نتحقق من استجابة الإضافة
+        if (resp && resp.installed) {
+          messageDiv.textContent = "✅ تم العثور على الإضافة. جاري تحميل Start.js ...";
+          // تحميل Start.js من داخل الإضافة
+          const s = document.createElement("script");
+          s.src = `chrome-extension://${extensionId}/assets/js/core/Start.js`;
+          s.onload = () => {
+            messageDiv.textContent = "✅ تم تشغيل العامل بنجاح!";
+          };
+          s.onerror = (e) => {
+            console.error("Failed to load Start.js:", e);
+            messageDiv.textContent = "⚠️ فشل تحميل Start.js من الإضافة. تأكد من المسار ووجود الملف داخل الإضافة.";
+          };
+          document.body.appendChild(s);
+          return;
+        } else {
+          messageDiv.textContent = "⚠️ الإضافة ردت لكنها لم ترسل حالة مثبتة.";
+          loaderWrap.style.display = "none";
+          updateDiv.style.display = "block";
+        }
+      } catch (err) {
+        console.warn("Detect extension error:", err && err.message ? err.message : err);
+        messageDiv.textContent = "⚠️ تعذر الاتصال بالإضافة. تأكد من تثبيتها وأنك أدخلت المعرف الصحيح.";
+        loaderWrap.style.display = "none";
+        updateDiv.style.display = "block";
+      }
     }
 
-    window.addEventListener("load", initWorker);
+    window.addEventListener("load", () => {
+      // نأجل بداية العمل قليلاً لظهور الواجهة
+      setTimeout(initWorker, 600);
+    });
   </script>
 </body>
 </html>
