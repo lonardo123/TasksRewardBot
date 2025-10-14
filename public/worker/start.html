@@ -1,175 +1,204 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar">
 <head>
-  <meta charset="utf-8" />
-  <title>👷‍♂️ Worker Auto Viewer</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>👷‍♂️ بدء العامل - TasksRewardBot</title>
+
+  <!-- نفس ستايل ViewGrip الاحترافي -->
+  <link rel="stylesheet" href="https://www.viewgrip.net/Main/Backend/Assets/css/worker_start.css?v=1:0:1">
+
   <style>
     body {
-      margin: 0;
-      padding: 0;
-      font-family: "Cairo", sans-serif;
-      background: #f3f4f6;
-      color: #222;
       display: flex;
       flex-direction: column;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+      font-family: "Cairo", sans-serif;
+    }
+
+    #message {
+      margin-top: 20px;
+      font-size: 20px;
+      font-weight: bold;
+      color: #686262;
+      text-align: center;
+      width: 100%;
+      max-width: 300px;
+      box-sizing: border-box;
+    }
+
+    #loader-wrapper {
+      position: fixed;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    #loader {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      display: inline-block;
+      border: 3px solid;
+      border-color: #aea8a8 #aea8a8 transparent transparent;
+      box-sizing: border-box;
+      animation: rotation 1s linear infinite;
+    }
+
+    #loader::after,
+    #loader::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      margin: auto;
+      border: 3px solid;
+      border-color: transparent transparent rgb(29, 78, 217) rgb(29, 78, 217);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      animation: rotationBack 0.5s linear infinite;
+      transform-origin: center center;
+    }
+
+    @keyframes rotation {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes rotationBack {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(-360deg); }
+    }
+
+    #update {
+      display: none;
+      position: fixed;
+      top: 30%;
       text-align: center;
     }
-    #status-text {
+
+    .update_extension {
+      margin-top: 20px;
       font-size: 20px;
-      margin-top: 20px;
+      font-weight: bold;
+      color: #686262;
     }
-    #progress-bar {
-      width: 80%;
-      height: 10px;
-      background-color: #ddd;
-      border-radius: 5px;
-      overflow: hidden;
-      margin-top: 20px;
+
+    .updateButton {
+      background-color: rgb(29, 78, 217);
+      border-radius: 12px;
+      color: #dfdcdc;
+      cursor: pointer;
+      font-weight: bold;
+      padding: 10px 15px;
+      text-align: center;
+      transition: 200ms;
+      width: 100%;
+      box-sizing: border-box;
+      border: 0;
+      font-size: 16px;
     }
-    #progress {
-      height: 10px;
-      width: 0%;
-      background-color: #1d4ed8;
-      transition: width 1s linear;
+
+    .updateButton:not(:disabled):hover,
+    .updateButton:not(:disabled):focus {
+      outline: 0;
+      background: rgb(41, 90, 224);
+      box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2),
+                  0 3px 8px 0 rgba(0, 0, 0, 0.15);
+    }
+
+    .updateButton:disabled {
+      filter: saturate(0.2) opacity(0.5);
+      cursor: not-allowed;
     }
   </style>
 </head>
+
 <body>
-  <h2>👷‍♂️ العامل يعمل تلقائيًا...</h2>
-  <div id="status-text">جارٍ تحميل الفيديوهات من السيرفر...</div>
-  <div id="progress-bar"><div id="progress"></div></div>
+  <div id="loader-wrapper">
+    <div id="loader"></div>
+    <div id="message">جارٍ تهيئة العامل...</div>
+  </div>
+
+  <div id="update">
+    <div class="icons">
+      <div class="update_extension">لم يتم العثور على الإضافة.</div>
+    </div>
+    <div class="update_extension">
+      <a href="https://tasksrewardbot.neocities.org/help/install"
+         target="_blank" class="updateButton" role="button">طريقة تثبيت الإضافة</a>
+    </div>
+  </div>
 
   <script>
-    const USER_ID = new URLSearchParams(window.location.search).get("user_id") || "anonymous";
-    const API_BASE = "https://perceptive-victory-production.up.railway.app";
-    const API_PUBLIC = `${API_BASE}/api/public-videos`;
-    const API_MYVIDEOS = `${API_BASE}/api/my-videos?user_id=${USER_ID}`;
-    const API_CALLBACK = `${API_BASE}/video-callback`;
-    const SECRET_KEY = "MySuperSecretKey123ForCallbackOnly";
+    const messageDiv = document.getElementById("message");
+    const loader = document.getElementById("loader-wrapper");
+    const updateDiv = document.getElementById("update");
 
-    const statusText = document.getElementById("status-text");
-    const progressBar = document.getElementById("progress");
-
-    // ================================
-    // 🧠 الخطوة 1: بدء دورة العمل
-    // ================================
-    async function startWorker() {
-      try {
-        statusText.textContent = "📡 يجري تحميل الفيديوهات...";
-        const [publicRes, myRes] = await Promise.all([
-          fetch(API_PUBLIC),
-          fetch(API_MYVIDEOS)
-        ]);
-
-        const publicVideos = await publicRes.json();
-        const myVideos = await myRes.json();
-
-        // استبعاد فيديوهات المستخدم نفسه
-        const myIds = new Set(myVideos.map(v => v.id));
-        const available = publicVideos.filter(v => !myIds.has(v.id));
-
-        if (available.length === 0) {
-          statusText.textContent = "😔 لا توجد فيديوهات متاحة حالياً.";
-          return;
-        }
-
-        const randomVideo = available[Math.floor(Math.random() * available.length)];
-        const videoUrl = randomVideo.url || randomVideo.link || randomVideo.video_url;
-        const duration = randomVideo.required_watch_seconds || randomInt(20, 60);
-
-        statusText.textContent = `🎬 فتح الفيديو (${duration} ثانية)...`;
-
-        // حفظ البيانات قبل الانتقال
-        localStorage.setItem("current_video", JSON.stringify({
-          video_id: randomVideo.id,
-          url: videoUrl,
-          duration,
-          start: Date.now(),
-          user: USER_ID
-        }));
-
-        // الانتقال لمشاهدة الفيديو فعلاً
-        window.location.href = videoUrl;
-
-      } catch (err) {
-        console.error(err);
-        statusText.textContent = "⚠️ فشل جلب الفيديوهات من السيرفر!";
-      }
+    // ✅ أولاً: حفظ user_id إن لم يكن موجود
+    if (!localStorage.getItem("user_id")) {
+      const uid = prompt("أدخل معرف المستخدم (user_id):");
+      if (uid) localStorage.setItem("user_id", uid);
     }
 
-    // ================================
-    // 🧩 الخطوة 2: عند العودة من الفيديو
-    // ================================
-    window.addEventListener("load", async () => {
-      const stored = localStorage.getItem("current_video");
+    // ✅ الخطوة الثانية: البحث عن الإضافة تلقائيًا
+    async function detectExtension() {
+      // نحاول فحص عدة احتمالات (للدعم لاحقًا)
+      const possibleIds = [
+        "abcd1234efgh5678" // placeholder – لكن سيتغير لكل مستخدم تلقائيًا
+      ];
 
-      if (stored) {
-        const { video_id, url, duration, start, user } = JSON.parse(stored);
-        const watched = Math.floor((Date.now() - start) / 1000);
-
-        if (watched >= duration) {
-          // تم استيفاء مدة المشاهدة المطلوبة بالكامل
-          await sendReward(user, video_id, duration);
-          localStorage.removeItem("current_video");
-          statusText.textContent = "✅ تمت إضافة المكافأة!";
-          await wait(3);
-          await simulateProgress(3);
-          await startWorker(); // تشغيل الفيديو التالي تلقائيًا
-          return;
-        } else {
-          const remaining = duration - watched;
-          statusText.textContent = `⏳ تحتاج لمشاهدة ${remaining} ثانية إضافية لإكمال الفيديو.`;
-          await wait(remaining);
-          await sendReward(user, video_id, duration);
-          localStorage.removeItem("current_video");
-          statusText.textContent = "✅ تمت إضافة المكافأة!";
-          await wait(3);
-          await simulateProgress(3);
-          await startWorker(); // الفيديو التالي
-          return;
-        }
+      for (const id of possibleIds) {
+        try {
+          const response = await chrome.runtime.sendMessage(id, "ping");
+          if (response?.installed) return id;
+        } catch (e) { /* الإضافة غير موجودة بهذا المعرف */ }
       }
 
-      // في حال لا يوجد فيديو سابق مخزّن
-      await simulateProgress(3);
-      await startWorker();
-    });
+      // إذا لم تُكتشف أي إضافة من الـ IDs المحتملة
+      return null;
+    }
 
-    // ================================
-    // 💰 إرسال الدفع بعد المشاهدة
-    // ================================
-    async function sendReward(user_id, video_id, watched_seconds) {
-      try {
-        const callbackUrl = `${API_CALLBACK}?user_id=${user_id}&video_id=${video_id}&watched_seconds=${watched_seconds}&secret=${SECRET_KEY}`;
-        statusText.textContent = "💰 يتم إرسال المكافأة...";
-        await fetch(callbackUrl);
-      } catch (err) {
-        console.warn("⚠️ فشل إرسال الدفع:", err);
+    // ✅ الخطوة الثالثة: تحميل Start.js من الإضافة المكتشفة
+    async function initWorker() {
+      messageDiv.textContent = "جارٍ البحث عن الإضافة...";
+      const detectedId = await detectExtension();
+
+      if (!detectedId) {
+        messageDiv.textContent = "⚠️ لم يتم العثور على الإضافة.";
+        loader.style.display = "none";
+        updateDiv.style.display = "block";
+        return;
       }
+
+      // ✅ تحميل ملف Start.js مباشرة من داخل الإضافة
+      const script = document.createElement("script");
+      script.src = `chrome-extension://${detectedId}/assets/js/core/Start.js`;
+      script.onload = () => {
+        messageDiv.textContent = "✅ تم تشغيل العامل بنجاح!";
+      };
+      script.onerror = () => {
+        messageDiv.textContent = "⚠️ فشل تحميل Start.js من الإضافة.";
+      };
+      document.body.appendChild(script);
     }
 
-    // ================================
-    // 🔧 أدوات مساعدة
-    // ================================
-    async function simulateProgress(duration) {
-      for (let i = 1; i <= duration; i++) {
-        progressBar.style.width = `${(i / duration) * 100}%`;
-        await wait(1);
-      }
-      progressBar.style.width = "0%";
-    }
-
-    function randomInt(min, max) {
-      return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    function wait(sec) {
-      return new Promise(res => setTimeout(res, sec * 1000));
-    }
+    window.addEventListener("load", initWorker);
   </script>
 </body>
 </html>
