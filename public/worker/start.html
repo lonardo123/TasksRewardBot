@@ -2,7 +2,7 @@
 <html lang="ar">
 <head>
   <meta charset="utf-8" />
-  <title>Worker Start (بدون iframe)</title>
+  <title>👷‍♂️ Worker Auto Viewer</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body {
@@ -16,12 +16,11 @@
       align-items: center;
       justify-content: center;
       height: 100vh;
+      text-align: center;
     }
     #status-text {
       font-size: 20px;
       margin-top: 20px;
-      color: #333;
-      text-align: center;
     }
     #progress-bar {
       width: 80%;
@@ -37,139 +36,131 @@
       background-color: #1d4ed8;
       transition: width 1s linear;
     }
-    #next-btn {
-      margin-top: 30px;
-      background: #1d4ed8;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 16px;
-    }
   </style>
 </head>
 <body>
-  <h2>👷‍♂️ العامل قيد التشغيل...</h2>
-  <div id="status-text">جارٍ اختيار فيديو عشوائي...</div>
+  <h2>👷‍♂️ العامل يعمل تلقائيًا...</h2>
+  <div id="status-text">جارٍ تحميل الفيديوهات من السيرفر...</div>
   <div id="progress-bar"><div id="progress"></div></div>
-  <button id="next-btn" style="display:none;">▶️ عرض الفيديو الآن</button>
 
   <script>
     const USER_ID = new URLSearchParams(window.location.search).get("user_id") || "anonymous";
-    const API_CALLBACK = "https://perceptive-victory-production.up.railway.app/callback";
+    const API_BASE = "https://perceptive-victory-production.up.railway.app";
+    const API_PUBLIC = `${API_BASE}/api/public-videos`;
+    const API_MYVIDEOS = `${API_BASE}/api/my-videos?user_id=${USER_ID}`;
+    const API_CALLBACK = `${API_BASE}/video-callback`;
     const SECRET_KEY = "MySuperSecretKey123ForCallbackOnly";
 
     const statusText = document.getElementById("status-text");
     const progressBar = document.getElementById("progress");
-    const nextBtn = document.getElementById("next-btn");
 
-    const SOURCES = [
-      () => randomYouTube(),
-      () => randomFacebook(),
-      () => randomInstagram(),
-      () => randomGoogleSearch()
-    ];
+    // ================================
+    // 🧠 الخطوة 1: بدء دورة العمل
+    // ================================
+    async function startWorker() {
+      try {
+        statusText.textContent = "📡 يجري تحميل الفيديوهات...";
+        const [publicRes, myRes] = await Promise.all([
+          fetch(API_PUBLIC),
+          fetch(API_MYVIDEOS)
+        ]);
 
-    async function startLoop() {
-      while (true) {
-        const randomSource = SOURCES[Math.floor(Math.random() * SOURCES.length)];
-        const url = randomSource();
-        const duration = randomInt(20, 50);
+        const publicVideos = await publicRes.json();
+        const myVideos = await myRes.json();
 
-        statusText.textContent = `🔗 الرابط القادم من: ${getDomain(url)}`;
-        nextBtn.style.display = "block";
-        nextBtn.onclick = () => openVideo(url, duration);
-        break; // ينتظر المستخدم يضغط الزر
+        // استبعاد فيديوهات المستخدم نفسه
+        const myIds = new Set(myVideos.map(v => v.id));
+        const available = publicVideos.filter(v => !myIds.has(v.id));
+
+        if (available.length === 0) {
+          statusText.textContent = "😔 لا توجد فيديوهات متاحة حالياً.";
+          return;
+        }
+
+        const randomVideo = available[Math.floor(Math.random() * available.length)];
+        const videoUrl = randomVideo.url || randomVideo.link || randomVideo.video_url;
+        const duration = randomVideo.required_watch_seconds || randomInt(20, 60);
+
+        statusText.textContent = `🎬 فتح الفيديو (${duration} ثانية)...`;
+
+        // حفظ البيانات قبل الانتقال
+        localStorage.setItem("current_video", JSON.stringify({
+          video_id: randomVideo.id,
+          url: videoUrl,
+          duration,
+          start: Date.now(),
+          user: USER_ID
+        }));
+
+        // الانتقال لمشاهدة الفيديو فعلاً
+        window.location.href = videoUrl;
+
+      } catch (err) {
+        console.error(err);
+        statusText.textContent = "⚠️ فشل جلب الفيديوهات من السيرفر!";
       }
     }
 
-    async function openVideo(url, duration) {
-      nextBtn.style.display = "none";
-      statusText.textContent = `🎬 فتح الفيديو الآن (${duration} ثانية)...`;
-
-      // احفظ بيانات المشاهدة في localStorage مؤقتًا
-      localStorage.setItem("current_video", JSON.stringify({ url, duration, start: Date.now(), user: USER_ID }));
-
-      // فتح الرابط فعليًا في نفس التبويب
-      window.location.href = url;
-    }
-
-    // عند العودة من الفيديو إلى worker/start مرة أخرى
+    // ================================
+    // 🧩 الخطوة 2: عند العودة من الفيديو
+    // ================================
     window.addEventListener("load", async () => {
       const stored = localStorage.getItem("current_video");
+
       if (stored) {
-        const { url, duration, start, user } = JSON.parse(stored);
+        const { video_id, url, duration, start, user } = JSON.parse(stored);
         const watched = Math.floor((Date.now() - start) / 1000);
 
-        if (watched >= 5) {
-          await sendReward(url, Math.min(watched, duration));
+        if (watched >= duration) {
+          // تم استيفاء مدة المشاهدة المطلوبة بالكامل
+          await sendReward(user, video_id, duration);
           localStorage.removeItem("current_video");
           statusText.textContent = "✅ تمت إضافة المكافأة!";
           await wait(3);
+          await simulateProgress(3);
+          await startWorker(); // تشغيل الفيديو التالي تلقائيًا
+          return;
+        } else {
+          const remaining = duration - watched;
+          statusText.textContent = `⏳ تحتاج لمشاهدة ${remaining} ثانية إضافية لإكمال الفيديو.`;
+          await wait(remaining);
+          await sendReward(user, video_id, duration);
+          localStorage.removeItem("current_video");
+          statusText.textContent = "✅ تمت إضافة المكافأة!";
+          await wait(3);
+          await simulateProgress(3);
+          await startWorker(); // الفيديو التالي
+          return;
         }
       }
 
+      // في حال لا يوجد فيديو سابق مخزّن
       await simulateProgress(3);
-      await startLoop();
+      await startWorker();
     });
 
-    async function sendReward(sourceUrl, watched_seconds) {
+    // ================================
+    // 💰 إرسال الدفع بعد المشاهدة
+    // ================================
+    async function sendReward(user_id, video_id, watched_seconds) {
       try {
-        const payload = { user_id: USER_ID, source: sourceUrl, watched_seconds, secret: SECRET_KEY };
-        await fetch(API_CALLBACK, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        const callbackUrl = `${API_CALLBACK}?user_id=${user_id}&video_id=${video_id}&watched_seconds=${watched_seconds}&secret=${SECRET_KEY}`;
+        statusText.textContent = "💰 يتم إرسال المكافأة...";
+        await fetch(callbackUrl);
       } catch (err) {
-        console.warn("⚠️ فشل إرسال المكافأة:", err);
+        console.warn("⚠️ فشل إرسال الدفع:", err);
       }
     }
 
+    // ================================
+    // 🔧 أدوات مساعدة
+    // ================================
     async function simulateProgress(duration) {
       for (let i = 1; i <= duration; i++) {
         progressBar.style.width = `${(i / duration) * 100}%`;
         await wait(1);
       }
       progressBar.style.width = "0%";
-    }
-
-    function randomYouTube() {
-      const queries = ["music", "funny", "news", "science", "travel", "football"];
-      const q = queries[Math.floor(Math.random() * queries.length)];
-      return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
-    }
-
-    function randomFacebook() {
-      const pages = [
-        "https://www.facebook.com/UNILAD/",
-        "https://www.facebook.com/9GAG/",
-        "https://www.facebook.com/BBCNews/",
-        "https://www.facebook.com/NASA/"
-      ];
-      return pages[Math.floor(Math.random() * pages.length)];
-    }
-
-    function randomInstagram() {
-      const profiles = [
-        "https://www.instagram.com/natgeo/",
-        "https://www.instagram.com/nasa/",
-        "https://www.instagram.com/9gag/",
-        "https://www.instagram.com/bbcnews/"
-      ];
-      return profiles[Math.floor(Math.random() * profiles.length)];
-    }
-
-    function randomGoogleSearch() {
-      const topics = ["funny videos", "football", "animals", "movies", "food"];
-      const q = topics[Math.floor(Math.random() * topics.length)];
-      return `https://www.google.com/search?q=${encodeURIComponent(q)}&tbm=vid`;
-    }
-
-    function getDomain(url) {
-      try { return new URL(url).hostname.replace("www.", ""); }
-      catch { return "unknown"; }
     }
 
     function randomInt(min, max) {
