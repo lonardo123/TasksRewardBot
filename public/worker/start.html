@@ -50,98 +50,65 @@
     const loaderWrap = document.getElementById("loader-wrapper");
     const updateDiv = document.getElementById("update");
 
-    // حفظ user_id إن لم يكن موجود
+    // ✅ حفظ user_id إذا لم يكن موجود
     if (!localStorage.getItem("user_id")) {
       const uid = prompt("أدخل معرف المستخدم (user_id):");
       if (uid && uid.trim()) localStorage.setItem("user_id", uid.trim());
     }
 
-    // دالة مساعدة لتحويل callback-based sendMessage إلى Promise
-    function sendMessageToExt(extensionId, message) {
-      return new Promise((resolve, reject) => {
-        // تحقق من توافر chrome.runtime
-        if (!window.chrome || !chrome.runtime || !chrome.runtime.sendMessage) {
-          reject(new Error("chrome.runtime غير متاح في هذا السياق"));
-          return;
-        }
+    // ✅ المعرف الثابت للإضافة الحالية (يُقرأ تلقائيًا من الاتصال الخارجي)
+    const EXT_ALLOWED_ORIGIN = "chrome-extension://";
 
+    // ✅ محاولة الاتصال مباشرة بأي إضافة تدعم 'ping'
+    async function tryDetectExtension() {
+      const knownExts = [
+        chrome?.runtime?.id || "", // في حال فتح من داخل الإضافة
+        "jjohojjofkbnlaaeafmomokepnlfjpce" // مثال: معرفك الفعلي من manifest بعد التثبيت
+      ].filter(Boolean);
+
+      for (const id of knownExts) {
         try {
-          // استخدم صيغة sendMessage مع callback
-          chrome.runtime.sendMessage(extensionId, message, (response) => {
-            // إذا كان هناك lastError، اعتبرها فشل
-            if (chrome.runtime.lastError) {
-              // لا نرمي مباشرة لأن قد يكون خطأ بسيط، نمرره كرفض
-              reject(new Error(chrome.runtime.lastError.message || "chrome.runtime.lastError"));
-              return;
-            }
-            // رد الإضافة
-            resolve(response);
+          const res = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage(id, "ping", (resp) => {
+              if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+              else resolve(resp);
+            });
           });
-        } catch (err) {
-          reject(err);
-        }
-      });
-    }
-
-    // اطلب extensionId من المستخدم إن لم يخزن
-    function ensureExtensionId() {
-      let ext = localStorage.getItem("extension_id");
-      if (ext && ext.trim()) return ext.trim();
-
-      // اسأل المستخدم لصق الـ Extension ID لأن install عبر unpacked يعطي ID مختلف
-      const userInput = prompt("الصق معرف الإضافة (Extension ID) هنا (يمكن العثور عليه في chrome://extensions پسّ Developer mode):");
-      if (userInput && userInput.trim()) {
-        localStorage.setItem("extension_id", userInput.trim());
-        return userInput.trim();
+          if (res && res.installed) return id;
+        } catch (e) {}
       }
       return null;
     }
 
     async function initWorker() {
       messageDiv.textContent = "جارٍ التحقق من الإضافة...";
-      const extensionId = ensureExtensionId();
 
-      if (!extensionId) {
-        messageDiv.textContent = "⚠️ لم يتم توفير معرف الإضافة. يجب إدخاله لتشغيل العامل.";
-        loaderWrap.style.display = "none";
-        updateDiv.style.display = "block";
-        return;
-      }
-
-      // الآن نحاول إرسال رسالة "ping" إلى الإضافة
       try {
-        const resp = await sendMessageToExt(extensionId, "ping");
-        // نتحقق من استجابة الإضافة
-        if (resp && resp.installed) {
-          messageDiv.textContent = "✅ تم العثور على الإضافة. جاري تحميل Start.js ...";
-          // تحميل Start.js من داخل الإضافة
-          const s = document.createElement("script");
-          s.src = `chrome-extension://${extensionId}/assets/js/core/Start.js`;
-          s.onload = () => {
-            messageDiv.textContent = "✅ تم تشغيل العامل بنجاح!";
-          };
-          s.onerror = (e) => {
-            console.error("Failed to load Start.js:", e);
-            messageDiv.textContent = "⚠️ فشل تحميل Start.js من الإضافة. تأكد من المسار ووجود الملف داخل الإضافة.";
-          };
-          document.body.appendChild(s);
-          return;
-        } else {
-          messageDiv.textContent = "⚠️ الإضافة ردت لكنها لم ترسل حالة مثبتة.";
+        const extId = await tryDetectExtension();
+        if (!extId) {
+          messageDiv.textContent = "⚠️ لم يتم العثور على الإضافة. يرجى تثبيتها.";
           loaderWrap.style.display = "none";
           updateDiv.style.display = "block";
+          return;
         }
+
+        // ✅ تحميل Start.js مباشرة من داخل الإضافة
+        const s = document.createElement("script");
+        s.src = `${EXT_ALLOWED_ORIGIN}${extId}/assets/js/core/Start.js`;
+        s.onload = () => messageDiv.textContent = "✅ تم تشغيل العامل بنجاح!";
+        s.onerror = () => messageDiv.textContent = "⚠️ فشل تحميل Start.js من الإضافة. تأكد من وجود الملف.";
+        document.body.appendChild(s);
+
       } catch (err) {
-        console.warn("Detect extension error:", err && err.message ? err.message : err);
-        messageDiv.textContent = "⚠️ تعذر الاتصال بالإضافة. تأكد من تثبيتها وأنك أدخلت المعرف الصحيح.";
+        console.error("Extension detection failed:", err);
+        messageDiv.textContent = "⚠️ حدث خطأ أثناء محاولة تشغيل العامل.";
         loaderWrap.style.display = "none";
         updateDiv.style.display = "block";
       }
     }
 
     window.addEventListener("load", () => {
-      // نأجل بداية العمل قليلاً لظهور الواجهة
-      setTimeout(initWorker, 600);
+      setTimeout(initWorker, 500);
     });
   </script>
 </body>
