@@ -6,8 +6,6 @@
   <meta name="robots" content="noindex, nofollow" />
   <title>👷‍♂️ بدء العامل - TasksRewardBot</title>
 
-  <link rel="stylesheet" href="https://www.viewgrip.net/Main/Backend/Assets/css/worker_start.css?v=1:0:1">
-
   <style>
     body {
       display: flex;
@@ -35,81 +33,6 @@
     <div id="loader"></div>
     <div id="message">جارٍ تهيئة العامل...</div>
   </div>
-
-  <div id="update">
-    <div class="icons">
-      <div class="update_extension">لم يتم العثور على الإضافة.</div>
-    </div>
-    <div class="update_extension">
-      <a href="https://tasksrewardbot.neocities.org/help/install" target="_blank" class="updateButton" role="button">طريقة تثبيت الإضافة</a>
-    </div>
-  </div>
-
-  <script>
-    const messageDiv = document.getElementById("message");
-    const loaderWrap = document.getElementById("loader-wrapper");
-    const updateDiv = document.getElementById("update");
-
-    // ✅ حفظ user_id إذا لم يكن موجود
-    if (!localStorage.getItem("user_id")) {
-      const uid = prompt("أدخل معرف المستخدم (user_id):");
-      if (uid && uid.trim()) localStorage.setItem("user_id", uid.trim());
-    }
-
-    // ✅ المعرف الثابت للإضافة الحالية (يُقرأ تلقائيًا من الاتصال الخارجي)
-    const EXT_ALLOWED_ORIGIN = "chrome-extension://";
-
-    // ✅ محاولة الاتصال مباشرة بأي إضافة تدعم 'ping'
-    async function tryDetectExtension() {
-      const knownExts = [
-        chrome?.runtime?.id || "", // في حال فتح من داخل الإضافة
-        "jjohojjofkbnlaaeafmomokepnlfjpce" // مثال: معرفك الفعلي من manifest بعد التثبيت
-      ].filter(Boolean);
-
-      for (const id of knownExts) {
-        try {
-          const res = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage(id, "ping", (resp) => {
-              if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-              else resolve(resp);
-            });
-          });
-          if (res && res.installed) return id;
-        } catch (e) {}
-      }
-      return null;
-    }
-
-    async function initWorker() {
-      messageDiv.textContent = "جارٍ التحقق من الإضافة...";
-
-      try {
-        const extId = await tryDetectExtension();
-        if (!extId) {
-          messageDiv.textContent = "⚠️ لم يتم العثور على الإضافة. يرجى تثبيتها.";
-          loaderWrap.style.display = "none";
-          updateDiv.style.display = "block";
-          return;
-        }
-
-        // ✅ تحميل Start.js مباشرة من داخل الإضافة
-        const s = document.createElement("script");
-        s.src = `${EXT_ALLOWED_ORIGIN}${extId}/assets/js/core/Start.js`;
-        s.onload = () => messageDiv.textContent = "✅ تم تشغيل العامل بنجاح!";
-        s.onerror = () => messageDiv.textContent = "⚠️ فشل تحميل Start.js من الإضافة. تأكد من وجود الملف.";
-        document.body.appendChild(s);
-
-      } catch (err) {
-        console.error("Extension detection failed:", err);
-        messageDiv.textContent = "⚠️ حدث خطأ أثناء محاولة تشغيل العامل.";
-        loaderWrap.style.display = "none";
-        updateDiv.style.display = "block";
-      }
-    }
-
-    window.addEventListener("load", () => {
-      setTimeout(initWorker, 500);
-    });
-  </script>
+  
 </body>
 </html>
