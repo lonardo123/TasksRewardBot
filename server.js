@@ -553,7 +553,7 @@ app.get('/video-callback', async (req, res) => {
             `✅ فيديو ${video_id}: ${reward}$ للمشاهد ${user_id} — watched_seconds=${watched_seconds}`
         );
 
-        return res.status(200).send('Success');
+        return res.status(200).send({"status":"success"});
     } catch (err) {
         try {
             await pool.query('ROLLBACK');
