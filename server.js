@@ -224,44 +224,57 @@ app.post('/api/delete-video', async (req, res) => {
 
 app.get('/api/public-videos', async (req, res) => {
   try {
+    const { user_id } = req.query; // ✅ الخطوة 1: قراءة user_id
+
+    if (!user_id) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
     const videos = await pool.query(`
       SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id, uv.keywords,
              u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
       FROM user_videos uv
       JOIN users u ON uv.user_id = u.telegram_id
-      WHERE u.balance >= (uv.duration_seconds * 0.00002)
+      WHERE 
+        u.balance >= (uv.duration_seconds * 0.00002)
+        AND uv.user_id != $1
+        AND NOT EXISTS (
+          SELECT 1 FROM watched_videos w
+          WHERE 
+            w.video_id = uv.id
+            AND w.user_id = $1
+            AND w.watched_at > (NOW() - INTERVAL '28 hours')
+        )
       ORDER BY uv.views_count ASC, uv.created_at DESC
       LIMIT 50
-    `);
+    `, [user_id]); // ✅ تمرير user_id هنا
 
     const available = videos.rows.filter(v => v.has_enough_balance);
 
     const mapped = available.map(v => {
-  let keywords = [];
-
-  if (v.keywords) {
-    try {
-      // تأكد أن القيمة نصية قبل التحليل
-      if (typeof v.keywords === 'string') {
-        keywords = JSON.parse(v.keywords);
-      } else if (Array.isArray(v.keywords)) {
-        keywords = v.keywords;
+      let keywords = [];
+      if (v.keywords) {
+        try {
+          if (typeof v.keywords === 'string') {
+            keywords = JSON.parse(v.keywords);
+          } else if (Array.isArray(v.keywords)) {
+            keywords = v.keywords;
+          }
+        } catch (parseErr) {
+          console.warn(`⚠️ keywords غير صالحة للفيديو ID ${v.id}:`, v.keywords);
+          keywords = [];
+        }
       }
-    } catch (parseErr) {
-      console.warn(`⚠️ keywords غير صالحة للفيديو ID ${v.id}:`, v.keywords);
-      keywords = []; // أو استخدم [v.video_url] كخيار احتياطي
-    }
-  }
 
-  return {
-    id: v.id,
-    title: v.title,
-    video_url: v.video_url,
-    duration_seconds: v.duration_seconds,
-    user_id: v.user_id,
-    keywords: keywords.length > 0 ? keywords : [v.video_url?.split('v=')[1] || '']
-  };
-});
+      return {
+        id: v.id,
+        title: v.title,
+        video_url: v.video_url,
+        duration_seconds: v.duration_seconds,
+        user_id: v.user_id,
+        keywords: keywords.length > 0 ? keywords : [v.video_url?.split('v=')[1] || '']
+      };
+    });
 
     return res.json(mapped);
   } catch (err) {
@@ -546,7 +559,12 @@ app.get('/video-callback', async (req, res) => {
             'UPDATE user_videos SET views_count = views_count + 1 WHERE id = $1',
             [video_id]
         );
-
+           // ✅ تسجيل المشاهدة في جدول watched_videos
+      await pool.query(
+         `INSERT INTO watched_videos (user_id, video_id, watched_at)
+          VALUES ($1, $2, NOW())`,
+          [user_id, video_id]
+     );
         await pool.query('COMMIT');
 
         console.log(
