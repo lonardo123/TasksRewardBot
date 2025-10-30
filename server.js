@@ -224,30 +224,34 @@ app.post('/api/delete-video', async (req, res) => {
 
 app.get('/api/public-videos', async (req, res) => {
   try {
-    const { user_id } = req.query; // ✅ الخطوة 1: قراءة user_id
+    const user_id = req.query.user_id; // *** مهم لجلب المعرف المرسل
 
     if (!user_id) {
       return res.status(400).json({ error: 'user_id is required' });
     }
 
-    const videos = await pool.query(`
-      SELECT uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id, uv.keywords,
-             u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
+    const videos = await pool.query(
+      `
+      SELECT 
+        uv.id, uv.title, uv.video_url, uv.duration_seconds, uv.user_id, uv.keywords,
+        u.balance >= (uv.duration_seconds * 0.00002) AS has_enough_balance
       FROM user_videos uv
       JOIN users u ON uv.user_id = u.telegram_id
       WHERE 
         u.balance >= (uv.duration_seconds * 0.00002)
-        AND uv.user_id != $1
+        AND uv.user_id::text != $1::text
         AND NOT EXISTS (
           SELECT 1 FROM watched_videos w
           WHERE 
             w.video_id = uv.id
-            AND w.user_id = $1
+            AND w.user_id::text = $1::text
             AND w.watched_at > (NOW() - INTERVAL '28 hours')
         )
       ORDER BY uv.views_count ASC, uv.created_at DESC
       LIMIT 50
-    `, [user_id]); // ✅ تمرير user_id هنا
+    `,
+      [user_id]
+    );
 
     const available = videos.rows.filter(v => v.has_enough_balance);
 
@@ -255,17 +259,15 @@ app.get('/api/public-videos', async (req, res) => {
       let keywords = [];
       if (v.keywords) {
         try {
-          if (typeof v.keywords === 'string') {
+          if (typeof v.keywords === "string") {
             keywords = JSON.parse(v.keywords);
           } else if (Array.isArray(v.keywords)) {
             keywords = v.keywords;
           }
-        } catch (parseErr) {
-          console.warn(`⚠️ keywords غير صالحة للفيديو ID ${v.id}:`, v.keywords);
+        } catch {
           keywords = [];
         }
       }
-
       return {
         id: v.id,
         title: v.title,
@@ -282,6 +284,7 @@ app.get('/api/public-videos', async (req, res) => {
     return res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 
 /* ============================================================
