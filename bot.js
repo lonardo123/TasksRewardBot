@@ -161,7 +161,7 @@ bot.start(async (ctx) => {
       Markup.keyboard([
   ['💰 رصيدك', '🎁 مصادر الربح'],
   ['📤 طلب سحب', '👥 ريفيرال'],
-  ['📝 مهمات TasksRewardBot', '🎬 فيديوهاتي'],
+  ['📝 مهمات TasksRewardBot'],
   ['🔗 قيم البوت من هنا'],
   ['📩 تواصل معنا على فيسبوك']
 ]).resize()
@@ -243,8 +243,7 @@ bot.hears('🎁 مصادر الربح', async (ctx) => {
   await ctx.reply(
     '🎁 اختر مصدر الربح الذي تفضّله:',
     Markup.inlineKeyboard([
-      [Markup.button.url('🕒 TimeWall', timewallUrl)],
-      [Markup.button.webApp('🎬 الربح من مشاهدات يوتيوب', extensionUrl)]
+      [Markup.button.url('🕒 TimeWall', timewallUrl)]
     ])
   );
 
