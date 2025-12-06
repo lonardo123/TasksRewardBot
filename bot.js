@@ -581,7 +581,7 @@ bot.on('text', async (ctx, next) => {
       const withdrawAmount = Math.floor(balance * 100) / 100;
       const remaining = balance - withdrawAmount;
 
-      await pool.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
+      await pool.query('INSERT INTO withdrawals (user_id, amount, ltc_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
       await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
 
       await ctx.reply(`✅ تم تقديم طلب سحب بقيمة ${withdrawAmount.toFixed(2)}$. رصيدك المتبقي: ${remaining.toFixed(4)}$`);
