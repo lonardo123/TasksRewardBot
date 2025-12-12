@@ -1422,6 +1422,42 @@ bot.hears('🌐 العربية', async (ctx) => {
   setLang(ctx, "ar");
   await ctx.reply(t("ar", "lang_changed_ar"));
 });
+// ↩️ زر الرجوع — يعيد عرض القائمة الرئيسية مترجمة حسب لغة المستخدم
+bot.hears((text, ctx) => {
+  // دعم الحالات: النص المترجم أو الرموز الشائعة باللغتين
+  const backLabel = t(getLang(ctx), 'back');
+  return text === backLabel || text === '⬅️ رجوع' || text === '⬅️ Back';
+}, async (ctx) => {
+  try {
+    const userId = ctx.from.id;
+    const firstName = ctx.from.first_name || '';
+
+    // جلب الرصيد إن أمكن لعرضه في الترحيب
+    let balance = 0;
+    try {
+      const res = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+      if (res.rows.length) balance = parseFloat(res.rows[0].balance) || 0;
+    } catch (e) {
+      console.error('error fetching balance for back button:', e);
+    }
+
+    // عرض رسالة الترحيب + الكيبورد الرئيسي (مترجم)
+    await ctx.replyWithHTML(
+      t(getLang(ctx), 'welcome', { name: firstName, balance: balance.toFixed(4) }),
+      Markup.keyboard([
+        [t(getLang(ctx), 'your_balance'), t(getLang(ctx), 'earn_sources')],
+        [t(getLang(ctx), 'withdraw'), t(getLang(ctx), 'referral')],
+        [t(getLang(ctx), 'tasks')],
+        [t(getLang(ctx), 'language')],
+        [t(getLang(ctx), 'rate')],
+        [t(getLang(ctx), 'facebook')]
+      ]).resize()
+    );
+  } catch (err) {
+    console.error('Back button handler error:', err);
+    await ctx.reply(t(getLang(ctx), 'internal_error'));
+  }
+});
 
 bot.command('pay', async (ctx) => {
   if (!isAdmin(ctx)) return;
