@@ -1,6 +1,70 @@
 const { Telegraf, session, Markup } = require('telegraf');
 require('dotenv').config();
 const { pool } = require('./db');
+// ========================
+// 📌 نظام اللغات المتعدد (عربي / إنجليزي)
+// ========================
+const userLang = {};
+
+const LANGS = ["ar", "en"];
+
+function autoDetectLang(ctx) {
+  const sys = ctx.from?.language_code?.split("-")[0] || "ar";
+  return LANGS.includes(sys) ? sys : "ar";
+}
+
+function setLang(ctx, lang) {
+  userLang[ctx.from.id] = lang;
+}
+
+function getLang(ctx) {
+  return userLang[ctx.from.id] || autoDetectLang(ctx);
+}
+
+const t = (lang, key, vars = {}) => {
+  const messages = {
+    ar: {
+      welcome: "👋 أهلاً بك، <b>{name}</b>!\n\n💰 <b>رصيدك:</b> {balance}$",
+      choose_lang: "🌐 اختر لغتك:",
+      back: "⬅️ رجوع",
+      your_balance: "💰 رصيدك",
+      earn_sources: "🎁 مصادر الربح",
+      withdraw: "📤 طلب سحب",
+      referral: "👥 ريفيرال",
+      tasks: "📝 مهمات TasksRewardBot",
+      rate: "🔗 قيم البوت من هنا",
+      facebook: "📩 تواصل معنا على فيسبوك",
+      language: "🌐 اللغة",
+      english: "🌐 English",
+      arabic: "🌐 العربية",
+      lang_changed_ar: "✅ تم تغيير اللغة إلى العربية.",
+      lang_changed_en: "✅ Language changed to English."
+    },
+
+    en: {
+      welcome: "👋 Welcome, <b>{name}</b>!\n\n💰 <b>Your balance:</b> {balance}$",
+      choose_lang: "🌐 Choose your language:",
+      back: "⬅️ Back",
+      your_balance: "💰 Your Balance",
+      earn_sources: "🎁 Earn Sources",
+      withdraw: "📤 Withdraw",
+      referral: "👥 Referrals",
+      tasks: "📝 Tasks",
+      rate: "🔗 Rate the Bot",
+      facebook: "📩 Contact Us on Facebook",
+      language: "🌐 Language",
+      english: "🌐 English",
+      arabic: "🌐 Arabic",
+      lang_changed_ar: "✅ Language changed to Arabic.",
+      lang_changed_en: "✅ Language changed to English."
+    }
+  };
+
+  let text = messages[lang][key] || key;
+  for (const k in vars) text = text.replace(`{${k}}`, vars[k]);
+  return text;
+};
+// ========================
 
 const userSessions = {}; // تخزين الجلسات المؤقتة لكل مستخدم
 
@@ -162,6 +226,7 @@ bot.start(async (ctx) => {
   ['💰 رصيدك', '🎁 مصادر الربح'],
   ['📤 طلب سحب', '👥 ريفيرال'],
   ['📝 مهمات TasksRewardBot'],
+  ['🌐 اللغة'],
   ['🔗 قيم البوت من هنا'],
   ['📩 تواصل معنا على فيسبوك']
 ]).resize()
@@ -1333,6 +1398,29 @@ bot.hears('🎬 فيديوهاتي', async (ctx) => {
       [Markup.button.webApp('فيديوهاتي', url)]
     ])
   );
+});
+
+// 🌐 تغيير اللغة
+bot.hears('🌐 اللغة', async (ctx) => {
+  await ctx.reply(
+    t(getLang(ctx), "choose_lang"),
+    Markup.keyboard([
+      [t(getLang(ctx), "english"), t(getLang(ctx), "arabic")],
+      [t(getLang(ctx), "back")]
+    ]).resize()
+  );
+});
+
+// English
+bot.hears('🌐 English', async (ctx) => {
+  setLang(ctx, "en");
+  await ctx.reply(t("en", "lang_changed_en"));
+});
+
+// Arabic
+bot.hears('🌐 العربية', async (ctx) => {
+  setLang(ctx, "ar");
+  await ctx.reply(t("ar", "lang_changed_ar"));
 });
 
 bot.command('pay', async (ctx) => {
