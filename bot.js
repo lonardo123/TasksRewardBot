@@ -51,7 +51,37 @@ const t = (lang, key, vars = {}) => {
       apply_now: "📌 قدّم الآن",
       submit_proof: "📝 إرسال إثبات",
       task_duration: "مدة المهمة",
-      after_duration: "بعد انتهاء هذه المدة سيظهر لك زر \"إرسال إثبات\""
+      after_duration: "بعد انتهاء هذه المدة سيظهر لك زر \"إرسال إثبات\"",
+      
+      // ✅ إضافات جديدة للموافقة/الرفض متعددة اللغات
+      proof_id: "إثبات",
+      user: "المستخدم",
+      task: "المهمة",
+      reward: "المكافأة",
+      proof: "الإثبات",
+      task_approved: `✅ تمت الموافقة على إثبات المهمة (ID: {task_id}). المبلغ {amount}$ أُضيف إلى رصيدك.`,
+      task_rejected: `❌ تم رفض إثبات المهمة (ID: {task_id}). يمكنك إعادة المحاولة وإرسال إثبات جديد.`,
+      referral_commission: `🎉 حصلت على عمولة {amount}$ من إحالة {referee} بعد تنفيذ مهمة.`,
+
+      // ✅ إضافات جديدة لصفحة المهمات (دعم لغوي كامل)
+      duration_unspecified: "غير محددة",
+      seconds: "{n} ثانية",
+      minutes: "{n} دقيقة",
+      hours: "{n} ساعة",
+      days: "{n} يوم",
+      expired: "انتهت",
+      task_id: "📋 المهمة #{id}",
+      title: "🏷️ العنوان",
+      description: "📖 الوصف",
+      reward: "💰 السعر",
+      duration_label: "⏱️ مدة المهمة",
+      apply_prompt: "▶️ اضغط \"📌 قدّم الآن\" لبدء العد.\n",
+      can_submit_proof: "⏳ انتهت المدة المحددة. الآن يمكنك إرسال الإثبات.",
+      waiting_for_duration: "بعد انقضاء المدة المحددة، سيتم تفعيل زر \"إرسال الإثبات\".\nنرجو منك مراجعة متطلبات المهمة والتأكد من تنفيذها بالكامل وفق الوصف قبل إرسال الإثبات، حيث أن أي نقص قد يؤدي إلى رفض المهمة.\n⏳ الوقت المتبقي لإرسال الإثبات: {time}.",
+      status_label: "⏳ حالة التقديم: {status}.",
+      submit_proof_prompt: "📩 أرسل الآن إثبات إتمام المهمة رقم {id}",
+      photo_attachment: "صورة مرفقة - file_id",
+      applied_success: "📌 تم تسجيل تقديمك على المهمة رقم {id}.\n⏱️ مدة المهمة: {duration}.\n⏳ بعد انتهاء هذه المدة سيظهر لك زر \"إرسال إثبات\""
     },
     en: {
       welcome: "👋 Welcome, <b>{name}</b>!\n💰 <b>Your balance:</b> {balance}$",
@@ -86,7 +116,37 @@ const t = (lang, key, vars = {}) => {
       apply_now: "📌 Apply Now",
       submit_proof: "📝 Submit Proof",
       task_duration: "Task Duration",
-      after_duration: "After this duration, the 'Submit Proof' button will appear."
+      after_duration: "After this duration, the 'Submit Proof' button will appear.",
+      
+      // ✅ إضافات جديدة للموافقة/الرفض متعددة اللغات
+      proof_id: "Proof",
+      user: "User",
+      task: "Task",
+      reward: "Reward",
+      proof: "Proof",
+      task_approved: `✅ Your proof for task ID {task_id} has been approved. {amount}$ added to your balance.`,
+      task_rejected: `❌ Your proof for task ID {task_id} was rejected. You may retry with a new proof.`,
+      referral_commission: `🎉 You earned a commission of {amount}$ from referring user {referee} after they completed a task.`,
+
+      // ✅ إضافات جديدة لصفحة المهمات (دعم لغوي كامل)
+      duration_unspecified: "Not specified",
+      seconds: "{n} sec",
+      minutes: "{n} min",
+      hours: "{n} hour",
+      days: "{n} day",
+      expired: "Expired",
+      task_id: "📋 Task #{id}",
+      title: "🏷️ Title",
+      description: "📖 Description",
+      reward: "💰 Reward",
+      duration_label: "⏱️ Duration",
+      apply_prompt: "▶️ Tap \"📌 Apply Now\" to start the countdown.\n",
+      can_submit_proof: "⏳ The waiting period has ended. You may now submit your proof.",
+      waiting_for_duration: "After the waiting period ends, the \"Submit Proof\" button will appear.\nPlease ensure you’ve fully completed the task as described. Incomplete submissions may be rejected.\n⏳ Time remaining: {time}.",
+      status_label: "⏳ Status: {status}.",
+      submit_proof_prompt: "📩 Please send your proof for task #{id}",
+      photo_attachment: "Attached photo - file_id",
+      applied_success: "📌 Your application for task #{id} has been recorded.\n⏱️ Duration: {duration}.\n⏳ After this period, the \"Submit Proof\" button will appear."
     }
   };
   let text = messages[lang][key] || key;
@@ -301,54 +361,61 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
     if (res.rows.length === 0) {
       return ctx.reply(t(lang, 'no_tasks'));
     }
+
     const formatDuration = (secs) => {
-      if (!secs) return 'غير محددة';
-      if (secs < 60) return `${secs} ثانية`;
-      if (secs < 3600) return `${Math.floor(secs / 60)} دقيقة`;
-      if (secs < 86400) return `${Math.floor(secs / 3600)} ساعة`;
-      return `${Math.floor(secs / 86400)} يوم`;
+      if (!secs) return t(lang, 'duration_unspecified');
+      if (secs < 60) return t(lang, 'seconds', { n: secs });
+      if (secs < 3600) return t(lang, 'minutes', { n: Math.floor(secs / 60) });
+      if (secs < 86400) return t(lang, 'hours', { n: Math.floor(secs / 3600) });
+      return t(lang, 'days', { n: Math.floor(secs / 86400) });
     };
+
     const formatRemaining = (ms) => {
-      if (ms <= 0) return 'انتهت';
+      if (ms <= 0) return t(lang, 'expired');
       const secs = Math.ceil(ms / 1000);
-      if (secs < 60) return `${secs} ثانية`;
-      if (secs < 3600) return `${Math.ceil(secs / 60)} دقيقة`;
-      if (secs < 86400) return `${Math.ceil(secs / 3600)} ساعة`;
-      return `${Math.ceil(secs / 86400)} يوم`;
+      if (secs < 60) return t(lang, 'seconds', { n: secs });
+      if (secs < 3600) return t(lang, 'minutes', { n: Math.ceil(secs / 60) });
+      if (secs < 86400) return t(lang, 'hours', { n: Math.ceil(secs / 3600) });
+      return t(lang, 'days', { n: Math.ceil(secs / 86400) });
     };
+
     for (const task of res.rows) {
       const price = parseFloat(task.price) || 0;
       const duration = Number(task.duration_seconds) || 2592000;
-      let msg =
-        `📋 المهمة #${task.id}\n` +
-        `🏷️ العنوان: ${task.title}\n` +
-        `📖 الوصف: ${task.description}\n` +
-        `💰 السعر: ${price.toFixed(6)}$\n` +
-        `⏱️ مدة المهمة: ${formatDuration(duration)}\n`;
+      let msg = 
+        `${t(lang, 'task_id', { id: task.id })}\n` +
+        `${t(lang, 'title')}: ${task.title}\n` +
+        `${t(lang, 'description')}: ${task.description}\n` +
+        `${t(lang, 'reward')}: ${price.toFixed(6)}$\n` +
+        `${t(lang, 'duration_label')}: ${formatDuration(duration)}\n`;
+
       const buttons = [];
       const status = task.status;
+
       if (!status || status === 'rejected') {
-        msg += `▶️ اضغط "📌 قدّم الآن" لبدء العد.\n`;
-        buttons.push([{ text: t(getLang(ctx), 'apply_now') || "📌 قدّم الآن", callback_data: `apply_${task.id}` }]);
+        msg += t(lang, 'apply_prompt');
+        buttons.push([{ text: t(lang, 'apply_now'), callback_data: `apply_${task.id}` }]);
       } else if (status === 'applied') {
         if (task.applied_at) {
           const appliedAt = new Date(task.applied_at);
           const deadline = new Date(appliedAt.getTime() + duration * 1000);
           const now = new Date();
+
           if (now >= deadline) {
-            msg += `⏳ انتهت المدة المحددة (${formatDuration(duration)}). الآن يمكنك إرسال الإثبات.`;
-            buttons.push([{ text: t(getLang(ctx), 'submit_proof') || "📝 إرسال إثبات", callback_data: `submit_${task.id}` }]);
+            msg += t(lang, 'can_submit_proof');
+            buttons.push([{ text: t(lang, 'submit_proof'), callback_data: `submit_${task.id}` }]);
           } else {
             const remaining = deadline - now;
-            msg += `بعد انقضاء المدة المحددة، سيتم تفعيل زر "إرسال الإثبات"\nنرجو منك مراجعة متطلبات المهمة والتأكد من تنفيذها بالكامل وفق الوصف قبل إرسال الإثبات، حيث أن أي نقص قد يؤدي إلى رفض المهمة.⏳ الوقت المتبقي لإرسال الإثبات: ${formatRemaining(remaining)}.`;
+            msg += t(lang, 'waiting_for_duration', { time: formatRemaining(remaining) });
           }
         } else {
-          msg += `▶️ اضغط "📌 قدّم الآن" لبدء العد.`;
-          buttons.push([{ text: t(getLang(ctx), 'apply_now') || "📌 قدّم الآن", callback_data: `apply_${task.id}` }]);
+          msg += t(lang, 'apply_prompt');
+          buttons.push([{ text: t(lang, 'apply_now'), callback_data: `apply_${task.id}` }]);
         }
       } else {
-        msg += `⏳ حالة التقديم: ${status}.`;
+        msg += t(lang, 'status_label', { status });
       }
+
       if (buttons.length > 0) {
         await ctx.reply(msg, { reply_markup: { inline_keyboard: buttons } });
       } else {
@@ -357,9 +424,10 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
     }
   } catch (err) {
     console.error('❌ عرض المهمات:', err);
-    ctx.reply(t(getLang(ctx), 'internal_error'));
+    await ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
+
 // ✅ عند الضغط على زر "إرسال إثبات"
 bot.action(/^submit_(\d+)$/, async (ctx) => {
   try {
@@ -368,12 +436,13 @@ bot.action(/^submit_(\d+)$/, async (ctx) => {
     if (!userSessions[userId]) userSessions[userId] = {};
     userSessions[userId].awaiting_task_submission = taskId;
     const lang = getLang(ctx);
-    await ctx.reply(`📩 ${t(lang, 'submit_proof') || 'أرسل الآن إثبات إتمام المهمة'} رقم ${taskId}`);
+    await ctx.reply(t(lang, 'submit_proof_prompt', { id: taskId }));
   } catch (err) {
     console.error("❌ submit action error:", err.message, err.stack);
     await ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
+
 // ✅ عند الضغط على زر "قدّم الآن"
 bot.action(/^apply_(\d+)$/, async (ctx) => {
   try {
@@ -389,6 +458,7 @@ bot.action(/^apply_(\d+)$/, async (ctx) => {
     } catch (e) {
       console.error('❌ خطأ جلب duration_seconds:', e);
     }
+
     await pool.query(
       `INSERT INTO user_tasks (user_id, task_id, status, created_at)
        VALUES ($1, $2, 'applied', NOW())
@@ -396,25 +466,29 @@ bot.action(/^apply_(\d+)$/, async (ctx) => {
          SET status = 'applied', created_at = NOW()`,
       [userId, taskId]
     );
-    const formatDuration = (secs) => {
-      if (!secs) return 'غير محددة';
-      if (secs < 60) return `${secs} ثانية`;
-      if (secs < 3600) return `${Math.floor(secs / 60)} دقيقة`;
-      if (secs < 86400) return `${Math.floor(secs / 3600)} ساعة`;
-      return `${Math.floor(secs / 86400)} يوم`;
-    };
+
     const lang = getLang(ctx);
+    const formatDuration = (secs) => {
+      if (!secs) return t(lang, 'duration_unspecified');
+      if (secs < 60) return t(lang, 'seconds', { n: secs });
+      if (secs < 3600) return t(lang, 'minutes', { n: Math.floor(secs / 60) });
+      if (secs < 86400) return t(lang, 'hours', { n: Math.floor(secs / 3600) });
+      return t(lang, 'days', { n: Math.floor(secs / 86400) });
+    };
+
     await ctx.reply(
-      `📌 ${t(lang, 'apply_now') || 'تم تسجيل تقديمك على المهمة'} رقم ${taskId}.\n` +
-      `⏱️ ${t(lang, 'task_duration') || 'مدة المهمة'}: ${formatDuration(durationSeconds)}.\n` +
-      `⏳ ${t(lang, 'after_duration') || 'بعد انتهاء هذه المدة سيظهر لك زر "إرسال إثبات"'}`
+      t(lang, 'applied_success', {
+        id: taskId,
+        duration: formatDuration(durationSeconds)
+      })
     );
   } catch (err) {
     console.error('❌ apply error:', err);
-    try { await ctx.answerCbQuery(); } catch(_) {}
+    try { await ctx.answerCbQuery(); } catch (_) {}
     await ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
+
 // ✅ استقبال الإثبات من المستخدم
 bot.on("message", async (ctx, next) => {
   const userId = ctx.from.id;
@@ -425,7 +499,7 @@ bot.on("message", async (ctx, next) => {
     let proof = ctx.message.text || "";
     if (ctx.message.photo && ctx.message.photo.length) {
       const fileId = ctx.message.photo[ctx.message.photo.length - 1].file_id;
-      proof = `📷 صورة مرفقة - file_id: ${fileId}`;
+      proof = `📷 ${t(getLang(ctx), 'photo_attachment')}: ${fileId}`;
     }
     try {
       await pool.query('BEGIN');
@@ -433,13 +507,14 @@ bot.on("message", async (ctx, next) => {
         'SELECT status FROM user_tasks WHERE user_id = $1 AND task_id = $2',
         [userId, taskId]
       );
-      if (exists.rows.length && ['pending','approved'].includes(exists.rows[0].status)) {
+      if (exists.rows.length && ['pending', 'approved'].includes(exists.rows[0].status)) {
         await pool.query('ROLLBACK');
         session.awaiting_task_submission = null;
         const lang = getLang(ctx);
-        await ctx.reply(t(lang, 'proof_already_submitted') || '⚠️ لقد سبق وأن أرسلت إثباتاً لهذه المهمة أو تم اعتمادها بالفعل.');
+        await ctx.reply(t(lang, 'proof_already_submitted'));
         return;
       }
+
       await pool.query(
         "INSERT INTO task_proofs (task_id, user_id, proof, status, created_at) VALUES ($1, $2, $3, 'pending', NOW())",
         [taskId, userId, proof]
@@ -452,11 +527,12 @@ bot.on("message", async (ctx, next) => {
         [userId, taskId]
       );
       await pool.query('COMMIT');
+
       const lang = getLang(ctx);
-      await ctx.reply(t(lang, 'proof_submitted') || "✅ تم إرسال الإثبات، وسيتم مراجعته من الإدارة.");
+      await ctx.reply(t(lang, 'proof_submitted'));
       session.awaiting_task_submission = null;
     } catch (err) {
-      try { await pool.query('ROLLBACK'); } catch(_) {}
+      try { await pool.query('ROLLBACK'); } catch (_) {}
       console.error("❌ خطأ أثناء حفظ الإثبات:", err);
       await ctx.reply(t(getLang(ctx), 'internal_error'));
     }
@@ -900,21 +976,25 @@ bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => 
        LIMIT 10`,
       ['pending']
     );
-    if (res.rows.length === 0) return ctx.reply('✅ لا توجد إثباتات معلقة.');
+    if (res.rows.length === 0) return ctx.reply(t(getLang(ctx), 'no_tasks'));
     for (const sub of res.rows) {
       const price = parseFloat(sub.price) || 0;
+      // تحديد لغة **المستخدم**، وليس الأدمن
+      const userLang = userLang[sub.user_id] || autoDetectLang({ from: { id: sub.user_id } });
+      const langLabel = userLang === 'ar' ? 'ar' : 'en';
+
       const text =
-        `📌 إثبات #${sub.id}\n` +
-        `👤 المستخدم: <code>${sub.user_id}</code>\n` +
-        `📋 المهمة: ${sub.title} (ID: ${sub.task_id})\n` +
-        `💰 المكافأة: ${price.toFixed(4)}$\n` +
-        `📝 الإثبات:\n${sub.proof}`;
+        `📌 ${t(langLabel, 'proof_id') || 'Proof'} #${sub.id}\n` +
+        `👤 ${t(langLabel, 'user') || 'User'}: <code>${sub.user_id}</code>\n` +
+        `📋 ${t(langLabel, 'task') || 'Task'}: ${sub.title} (ID: ${sub.task_id})\n` +
+        `💰 ${t(langLabel, 'reward') || 'Reward'}: ${price.toFixed(4)}$\n` +
+        `📝 ${t(langLabel, 'proof') || 'Proof'}:\n${sub.proof}`;
       await ctx.replyWithHTML(text, {
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "✅ موافقة", callback_data: `approve_${sub.id}` },
-              { text: "❌ رفض", callback_data: `deny_${sub.id}` }
+              { text: "✅ Approve", callback_data: `approve_${sub.id}` },
+              { text: "❌ Reject", callback_data: `deny_${sub.id}` }
             ]
           ]
         }
@@ -922,32 +1002,37 @@ bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => 
     }
   } catch (err) {
     console.error('❌ اثباتات:', err);
-    ctx.reply('خطأ أثناء جلب الإثباتات.');
+    ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
+
 // ✅ موافقة الأدمن
 bot.action(/^approve_(\d+)$/, async (ctx) => {
-  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مسموح');
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Not allowed');
   const subId = Number(ctx.match[1]);
   try {
     await pool.query('BEGIN');
     const subRes = await pool.query('SELECT * FROM task_proofs WHERE id=$1 AND status=$2', [subId, 'pending']);
     if (!subRes.rows.length) {
       await pool.query('ROLLBACK');
-      await ctx.answerCbQuery();
-      return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته مسبقاً.');
+      return ctx.answerCbQuery('Already processed or not found');
     }
     const sub = subRes.rows[0];
     const taskRes = await pool.query('SELECT price FROM tasks WHERE id=$1', [sub.task_id]);
     const price = parseFloat(taskRes.rows[0]?.price) || 0;
+
+    // تحديث رصيد المستخدم
     const upd = await pool.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [price, sub.user_id]);
     if (upd.rowCount === 0) {
       await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]);
     }
+
+    // ✅ تصحيح: استبدال 'timestamp' بـ 'created_at'
     await pool.query(
-      'INSERT INTO earnings (user_id, source, amount, description, timestamp) VALUES ($1, $2, $3, $4, NOW())',
-      [sub.user_id, 'task', price, `ربح من تنفيذ مهمة ID ${sub.task_id}`]
+      'INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
+      [sub.user_id, 'task', price, `Task ID ${sub.task_id}: reward`]
     );
+
     await pool.query('UPDATE task_proofs SET status=$1 WHERE id=$2', ['approved', subId]);
     await pool.query(
       `INSERT INTO user_tasks (user_id, task_id, status)
@@ -956,12 +1041,24 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
       [sub.user_id, sub.task_id]
     );
     await pool.query('COMMIT');
-    try { 
-      await ctx.editMessageText(`✅ تمت الموافقة على الإثبات #${subId}\n👤 المستخدم: ${sub.user_id}\n💰 ${price.toFixed(4)}$`); 
+
+    // تعديل الرسالة للبوت (الأدمن)
+    try {
+      await ctx.editMessageText(`✅ Approved proof #${subId}\n👤 User: ${sub.user_id}\n💰 +${price.toFixed(4)}$`);
     } catch (_) {}
-    try { 
-      await bot.telegram.sendMessage(sub.user_id, `✅ تمت الموافقة على إثبات المهمة (ID: ${sub.task_id}). المبلغ ${price.toFixed(4)}$ أُضيف إلى رصيدك.`); 
+
+    // إرسال رسالة **متعددة اللغات** للمستخدم
+    const userLang = userLang[sub.user_id] || autoDetectLang({ from: { id: sub.user_id } });
+    const userLangCode = userLang === 'ar' ? 'ar' : 'en';
+    const successMsg = t(userLangCode, 'task_approved', {
+      task_id: sub.task_id,
+      amount: price.toFixed(4)
+    });
+    try {
+      await bot.telegram.sendMessage(sub.user_id, successMsg);
     } catch (_) {}
+
+    // تطبيق مكافأة الإحالة
     try {
       const refRes = await pool.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [sub.user_id]);
       if (refRes.rows.length > 0) {
@@ -977,11 +1074,17 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
             [referrerId, sub.user_id, commission]
           );
           await pool.query(
-            'INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)',
+            'INSERT INTO earnings (user_id, amount, source, created_at) VALUES ($1,$2,$3,NOW())',
             [referrerId, commission, 'referral_bonus']
           );
+          const refLang = userLang[referrerId] || autoDetectLang({ from: { id: referrerId } });
+          const refLangCode = refLang === 'ar' ? 'ar' : 'en';
+          const refMsg = t(refLangCode, 'referral_commission', {
+            referee: sub.user_id,
+            amount: commission.toFixed(4)
+          });
           try {
-            await bot.telegram.sendMessage(referrerId, `🎉 حصلت على عمولة ${commission.toFixed(4)}$ من إحالة ${sub.user_id} بعد تنفيذ مهمة.`);
+            await bot.telegram.sendMessage(referrerId, refMsg);
           } catch (_) {}
         }
       }
@@ -989,21 +1092,22 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
       console.error('❌ خطأ أثناء تطبيق مكافأة الإحالة بعد الموافقة:', e);
     }
   } catch (err) {
-    try { await pool.query('ROLLBACK'); } catch(_) {}
+    try { await pool.query('ROLLBACK'); } catch (_) {}
     console.error('❌ approve error:', err);
-    await ctx.reply('حدث خطأ أثناء الموافقة على الإثبات.');
+    await ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
+
 // ✅ رفض الأدمن
 bot.action(/^deny_(\d+)$/, async (ctx) => {
-  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مسموح');
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ Not allowed');
   const subId = Number(ctx.match[1]);
   try {
     const res = await pool.query(
       'UPDATE task_proofs SET status=$1 WHERE id=$2 AND status=$3 RETURNING *',
       ['rejected', subId, 'pending']
     );
-    if (!res.rowCount) return ctx.reply('⚠️ هذا الإثبات غير موجود أو تم معالجته سابقًا.');
+    if (!res.rowCount) return ctx.reply('Already processed or not found');
     const row = res.rows[0];
     await pool.query(
       `INSERT INTO user_tasks (user_id, task_id, status)
@@ -1011,11 +1115,16 @@ bot.action(/^deny_(\d+)$/, async (ctx) => {
        ON CONFLICT (user_id, task_id) DO UPDATE SET status = 'rejected'`,
       [row.user_id, row.task_id]
     );
-    try { await ctx.editMessageText(`❌ تم رفض الإثبات #${subId}`); } catch (_) {}
-    try { await bot.telegram.sendMessage(row.user_id, `❌ تم رفض إثبات المهمة (ID: ${row.task_id}). يمكنك إعادة المحاولة وإرسال إثبات جديد.`); } catch (_) {}
+    try { await ctx.editMessageText(`❌ Rejected proof #${subId}`); } catch (_) {}
+
+    // رسالة متعددة اللغات للمستخدم
+    const userLang = userLang[row.user_id] || autoDetectLang({ from: { id: row.user_id } });
+    const langCode = userLang === 'ar' ? 'ar' : 'en';
+    const rejectMsg = t(langCode, 'task_rejected', { task_id: row.task_id });
+    try { await bot.telegram.sendMessage(row.user_id, rejectMsg); } catch (_) {}
   } catch (err) {
     console.error('❌ deny error:', err);
-    ctx.reply('حدث خطأ أثناء رفض الإثبات.');
+    ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
 // 🔐 لوحة الأدمن - الإحصائيات
