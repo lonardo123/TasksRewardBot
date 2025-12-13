@@ -228,7 +228,6 @@ bot.start(async (ctx) => {
         [t(lang, 'your_balance'), t(lang, 'earn_sources')],
         [t(lang, 'withdraw'), t(lang, 'referral')],
         [t(lang, 'tasks')],
-        [t(lang, 'videos')],
         [t(lang, 'language')],
         [t(lang, 'rate')],
         [t(lang, 'facebook')]
@@ -1069,7 +1068,7 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
    Markup.keyboard([
     [t(lang, 'your_balance'), t(lang, 'earn_sources')],
     [t(lang, 'withdraw'), t(lang, 'referral')],
-    [t(lang, 'tasks'), t(lang, 'videos')],
+    [t(lang, 'tasks')],
     [t(lang, 'rate')],
     [t(lang, 'facebook')]
    ]).resize()
