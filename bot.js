@@ -1299,6 +1299,18 @@ bot.hears('🌐 العربية', async (ctx) => {
   setLang(ctx, "ar");
   await ctx.reply(t("ar", "lang_changed_ar"));
 });
+// 🌐 Language (English support)
+bot.hears('🌐 Language', async (ctx) => {
+  const lang = getLang(ctx);
+  await ctx.reply(
+    t(lang, "choose_lang"),
+    Markup.keyboard([
+      [t('en', "english"), t('ar', "arabic")],
+      [t(lang, "back")]
+    ]).resize()
+  );
+});
+
 // ↩️ زر الرجوع
 bot.hears((text, ctx) => {
   const lang = getLang(ctx);
@@ -1333,6 +1345,11 @@ bot.hears((text, ctx) => {
     await ctx.reply(t(getLang(ctx), 'internal_error'));
   }
 });
+// 🔁 دعم زر الرجوع باللغتين في أي مكان
+bot.hears(['⬅️ Back', '⬅️ رجوع'], async (ctx) => {
+  await ctx.reply('🔄');
+});
+
 bot.command('pay', async (ctx) => {
   if (!isAdmin(ctx)) return;
   const id = Number((ctx.message.text.split(' ')[1] || '').trim());
