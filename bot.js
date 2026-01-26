@@ -30,7 +30,6 @@ const t = (lang, key, vars = {}) => {
       rate: "🔗 قيم البوت من هنا",
       facebook: "📩 تواصل معنا على فيسبوك",
       language: "🌐 اللغة",
-      videos: "🎬 فيديوهاتي",
       english: "🌐 English",
       arabic: "🌐 العربية",
       lang_changed_ar: "✅ تم تغيير اللغة إلى العربية.",
@@ -95,7 +94,6 @@ const t = (lang, key, vars = {}) => {
       rate: "🔗 Rate the Bot",
       facebook: "📩 Contact Us on Facebook",
       language: "🌐 Language",
-      videos: "🎬 My Videos",
       english: "🌐 English",
       arabic: "🌐 Arabic",
       lang_changed_ar: "✅ Language changed to Arabic.",
@@ -673,7 +671,6 @@ bot.on('text', async (ctx, next) => {
     t(currentLang, 'withdraw'),
     t(currentLang, 'referral'),
     t(currentLang, 'tasks'),
-    t(currentLang, 'videos'),
     t(currentLang, 'language'),
     t(currentLang, 'rate'),
     t(currentLang, 'facebook'),
@@ -686,7 +683,6 @@ bot.on('text', async (ctx, next) => {
     '📝 اثباتات مهمات المستخدمين',
     '👥 ريفيرال',
     '🚪 خروج من لوحة الأدمن',
-    '🎬 فيديوهاتي'
   ].includes(text);
   if (isMenuText) return next();
   return next();
