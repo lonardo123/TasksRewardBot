@@ -1,6 +1,7 @@
 const { Telegraf, session, Markup } = require('telegraf');
 require('dotenv').config();
 const { pool } = require('./db');
+const translate = require('@vitalets/google-translate-api');
 // ========================
 // 📌 نظام اللغات المتعدد (عربي / إنجليزي)
 // ========================
@@ -179,6 +180,14 @@ bot.use((ctx, next) => {
 });
 // Utility: ensure admin
 const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
+// 📢 رسالة جماعية (لوحة الأدمن)
+bot.hears('📢 رسالة جماعية', async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply('❌ غير مصرح.');
+
+  ctx.session.awaitingBroadcast = true;
+  await ctx.reply('✉️ أرسل الآن الرسالة التي تريد إرسالها لجميع المستخدمين:');
+});
+
 // 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%) عند إضافة أرباح للمستخدم
 async function applyReferralBonus(earnerId, earnedAmount) {
   try {
@@ -244,6 +253,7 @@ bot.command('admin', async (ctx) => {
     ['📋 عرض الطلبات', '📊 الإحصائيات'],
     ['➕ إضافة رصيد', '➖ خصم رصيد'],
     ['➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين'],
+    ['📢 رسالة جماعية'],
     ['👥 ريفيرال', '🚪 خروج من لوحة الأدمن']
   ]).resize()
   );
@@ -604,6 +614,52 @@ bot.on('text', async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim();
   const lang = getLang(ctx);
+
+  // 📢 رسالة جماعية مع ترجمة تلقائية  ✅ المكان الصحيح
+  if (ctx.session?.awaitingBroadcast) {
+    if (!isAdmin(ctx)) {
+      ctx.session.awaitingBroadcast = false;
+      return ctx.reply('❌ غير مصرح.');
+    }
+
+    const originalMessage = ctx.message.text;
+    ctx.session.awaitingBroadcast = false;
+
+    try {
+      let translatedEn = originalMessage;
+      try {
+        const res = await translate(originalMessage, { to: 'en' });
+        translatedEn = res.text;
+      } catch (e) {
+        console.error('⚠️ فشل الترجمة');
+      }
+
+      const users = await pool.query('SELECT telegram_id FROM users');
+      let sent = 0;
+
+      for (const row of users.rows) {
+        const uid = row.telegram_id;
+        const uLang = userLang[uid] || 'ar';
+
+        const finalMessage =
+          uLang === 'ar'
+            ? originalMessage
+            : translatedEn;
+
+        try {
+          await bot.telegram.sendMessage(uid, finalMessage, { parse_mode: 'HTML' });
+          sent++;
+        } catch (_) {}
+      }
+
+      await ctx.reply(`✅ تم إرسال الرسالة بنجاح إلى ${sent} مستخدم.`);
+    } catch (err) {
+      console.error('❌ Broadcast error:', err);
+      await ctx.reply('❌ حدث خطأ أثناء الإرسال.');
+    }
+
+    return; // ⛔ مهم جدًا: يمنع تنفيذ أي منطق آخر
+  }
   // —— طلب السحب ——
   if (ctx.session.awaiting_withdraw) {
     if (!/^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|ltc1[a-z0-9]{39,59})$/i.test(text)) {
