@@ -2,7 +2,7 @@ const { Telegraf, session, Markup } = require('telegraf');
 require('dotenv').config();
 const { pool } = require('./db');
 const translate = require('@vitalets/google-translate-api');
-const https = require('https'); // ✅ استخدام وحدة أصلية بدون تثبيت
+const https = require('https');
 
 // ========================
 // 📌 نظام اللغات المتعدد (عربي / إنجليزي)
@@ -54,7 +54,6 @@ const t = (lang, key, vars = {}) => {
             submit_proof: "📝 إرسال إثبات",
             task_duration: "مدة المهمة",
             after_duration: "بعد انتهاء هذه المدة سيظهر لك زر \"إرسال إثبات\"",
-            // ✅ إضافات جديدة للموافقة/الرفض متعددة اللغات
             proof_id: "إثبات",
             user: "المستخدم",
             task: "المهمة",
@@ -63,7 +62,6 @@ const t = (lang, key, vars = {}) => {
             task_approved: `✅ تمت الموافقة على إثبات المهمة (ID: {task_id}). المبلغ {amount}$ أُضيف إلى رصيدك.`,
             task_rejected: `❌ تم رفض إثبات المهمة (ID: {task_id}). يمكنك إعادة المحاولة وإرسال إثبات جديد.`,
             referral_commission: `🎉 حصلت على عمولة {amount}$ من إحالة {referee} بعد تنفيذ مهمة.`,
-            // ✅ إضافات جديدة لصفحة المهمات (دعم لغوي كامل)
             duration_unspecified: "غير محددة",
             seconds: "{n} ثانية",
             minutes: "{n} دقيقة",
@@ -116,7 +114,6 @@ const t = (lang, key, vars = {}) => {
             submit_proof: "📝 Submit Proof",
             task_duration: "Task Duration",
             after_duration: "After this duration, the 'Submit Proof' button will appear.",
-            // ✅ إضافات جديدة للموافقة/الرفض متعددة اللغات
             proof_id: "Proof",
             user: "User",
             task: "Task",
@@ -125,7 +122,6 @@ const t = (lang, key, vars = {}) => {
             task_approved: `✅ Your proof for task ID {task_id} has been approved. {amount}$ added to your balance.`,
             task_rejected: `❌ Your proof for task ID {task_id} was rejected. You may retry with a new proof.`,
             referral_commission: `🎉 You earned a commission of {amount}$ from referring user {referee} after they completed a task.`,
-            // ✅ إضافات جديدة لصفحة المهمات (دعم لغوي كامل)
             duration_unspecified: "Not specified",
             seconds: "{n} sec",
             minutes: "{n} min",
@@ -151,8 +147,7 @@ const t = (lang, key, vars = {}) => {
     return text;
 };
 
-// ========================
-const userSessions = {}; // تخزين الجلسات المؤقتة لكل مستخدم
+const userSessions = {};
 
 // ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
@@ -161,7 +156,6 @@ console.log('🗄 DATABASE_URL:', process.env.DATABASE_URL ? 'موجود' : 'م�
 console.log('🎯 ADMIN_ID المحدد:', process.env.ADMIN_ID);
 
 // ====== إعداد اتصال قاعدة البيانات ======
-// 🟢 التقاط أي أخطاء لاحقة
 pool.on('error', (err) => {
     console.error('⚠️ PG client error:', err);
 });
@@ -174,7 +168,6 @@ if (!process.env.BOT_TOKEN) {
 const bot = new Telegraf(process.env.BOT_TOKEN);
 bot.use(session());
 
-// تسجيل الرسائل الواردة
 bot.use((ctx, next) => {
     const from = ctx.from ? `${ctx.from.id} (${ctx.from.username || ctx.from.first_name})` : 'unknown';
     const text = ctx.message?.text || ctx.updateType;
@@ -182,7 +175,6 @@ bot.use((ctx, next) => {
     return next();
 });
 
-// Utility: ensure admin
 const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
 
 // 💰 FaucetPay Payment Function (Litecoin فقط) - بدون axios
@@ -244,7 +236,7 @@ async function sendFaucetPayPayment(address, amount) {
     });
 }
 
-// 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%) عند إضافة أرباح للمستخدم
+// 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%)
 async function applyReferralBonus(earnerId, earnedAmount) {
     try {
         const ref = await pool.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [earnerId]);
@@ -274,7 +266,6 @@ async function applyReferralBonus(earnerId, earnedAmount) {
     }
 }
 
-// 🔵 أمر أدمن اختياري لاختبار إضافة أرباح + تطبيق مكافأة الإحالة
 bot.command('credit', async (ctx) => {
     if (!isAdmin(ctx)) return;
     const parts = (ctx.message.text || '').trim().split(/\s+/);
@@ -296,7 +287,7 @@ bot.command('credit', async (ctx) => {
     }
 });
 
-// 🛠 أمر /admin - ✅ تم إصلاح ترتيب الأزرار وإضافة "معالجة الدفع" في سطر منفصل
+// 🛠 أمر /admin - قائمة الأدمن مع جميع الأزرار في أسطر منفصلة
 bot.command('admin', async (ctx) => {
     if (!ctx.session) ctx.session = {};
     const userId = String(ctx.from.id);
@@ -311,7 +302,7 @@ bot.command('admin', async (ctx) => {
         ['📋 عرض الطلبات', '📊 الإحصائيات'],
         ['➕ إضافة رصيد', '➖ خصم رصيد'],
         ['➕ إضافة مهمة جديدة', '📝 المهمات'],
-        ['📝 اثباتات مهمات المستخدمين'], // ✅ زر منفصل ليعمل بشكل صحيح
+        ['📝 اثباتات مهمات المستخدمين'],
         ['💰 معالجة الدفع', '👥 ريفيرال'],
         ['📢 رسالة جماعية'],
         ['🚪 خروج من لوحة الأدمن']
@@ -381,10 +372,10 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'your_balance'), async (ctx) =
     }
 });
 
-// 🔵 👥 ريفيرال — عرض رابط الإحالة + شرح
+// 🔵 👥 ريفيرال
 bot.hears((text, ctx) => text === t(getLang(ctx), 'referral'), async (ctx) => {
     const userId = ctx.from.id;
-    const botUsername = 'TasksRewardBot'; // اسم البوت
+    const botUsername = 'TasksRewardBot';
     const lang = getLang(ctx);
     try {
         const refLink = `https://t.me/${botUsername}?start=ref_${userId}`;
@@ -666,84 +657,113 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'withdraw'), async (ctx) => {
     }
 });
 
-// 💰 معالجة الدفع اليدوي عبر FaucetPay - ✅ الزر الجديد (بدون axios)
+// 💰 معالجة الدفع اليدوي عبر FaucetPay
 bot.hears('💰 معالجة الدفع', async (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.session.awaitingAction = 'awaiting_wallet_for_payment';
-    ctx.session.paymentStep = 'address'; // الخطوة الأولى: العنوان
+    ctx.session.paymentStep = 'address';
     await ctx.reply('💳 أدخل عنوان محفظة Litecoin:');
 });
 
-// معالجة المدخلات للدفع اليدوي
+// 📢 رسالة جماعية
+bot.hears('📢 رسالة جماعية', async (ctx) => {
+    if (!isAdmin(ctx)) return;
+    ctx.session.awaitingBroadcast = true;
+    await ctx.reply('✉️ أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:');
+});
+
+// 📥 معالج جميع الرسائل النصية
 bot.on('text', async (ctx, next) => {
     if (!ctx.session) ctx.session = {};
+    const text = ctx.message?.text?.trim() || '';
     
-    // 📢 رسالة جماعية مع ترجمة تلقائية
-    if (ctx.session?.awaitingBroadcast) {
+    // 🚫 تجاهل معالجة الأزرار هنا
+    const adminButtons = [
+        '📋 عرض الطلبات', '📊 الإحصائيات', '➕ إضافة رصيد', '➖ خصم رصيد',
+        '➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين',
+        '💰 معالجة الدفع', '👥 ريفيرال', '📢 رسالة جماعية', '🚪 خروج من لوحة الأدمن'
+    ];
+    if (adminButtons.includes(text)) {
+        return next();
+    }
+    
+    // 📢 معالجة الرسالة الجماعية
+    if (ctx.session.awaitingBroadcast) {
         if (!isAdmin(ctx)) {
             ctx.session.awaitingBroadcast = false;
             return ctx.reply('❌ غير مصرح.');
         }
-        const originalMessage = ctx.message.text;
+        const originalMessage = text;
         ctx.session.awaitingBroadcast = false;
+        
         try {
-            let translatedEn = originalMessage;
-            try {
-                const res = await translate(originalMessage, { to: 'en' });
-                translatedEn = res.text;
-            } catch (e) {
-                console.error('⚠️ فشل الترجمة');
-            }
+            await ctx.reply('📤 جاري إرسال الرسالة إلى جميع المستخدمين...');
+            
             const users = await pool.query('SELECT telegram_id FROM users');
+            const total = users.rows.length;
             let sent = 0;
-            for (const row of users.rows) {
-                const uid = row.telegram_id;
-                const uLang = userLang[uid] || 'ar';
-                const finalMessage =
-                    uLang === 'ar'
-                        ? originalMessage
-                        : translatedEn;
+            let failed = 0;
+            
+            for (let i = 0; i < users.rows.length; i++) {
+                const uid = users.rows[i].telegram_id;
+                const userLangCode = userLang[uid] || 'ar';
+                let finalMessage = originalMessage;
+                
+                if (userLangCode === 'en') {
+                    try {
+                        const res = await translate(originalMessage, { to: 'en' });
+                        finalMessage = res.text;
+                    } catch (e) {
+                        console.warn(`⚠️ فشل ترجمة للمستخدم ${uid}`);
+                    }
+                }
+                
                 try {
                     await bot.telegram.sendMessage(uid, finalMessage, { parse_mode: 'HTML' });
                     sent++;
-                } catch (_) {}
+                } catch (e) {
+                    failed++;
+                }
+                
+                if ((i + 1) % 50 === 0 || i === users.rows.length - 1) {
+                    await ctx.reply(`🔄 ${i + 1}/${total} (${Math.round(((i + 1) / total) * 100)}%)`);
+                }
             }
-            await ctx.reply(`✅ تم إرسال الرسالة بنجاح إلى ${sent} مستخدم.`);
+            
+            await ctx.reply(
+                `✅ اكتمل الإرسال!\n` +
+                `📬 ناجح: ${sent}\n` +
+                `❌ فشل: ${failed}\n` +
+                `📊 المجموع: ${total}`
+            );
         } catch (err) {
             console.error('❌ Broadcast error:', err);
-            await ctx.reply('❌ حدث خطأ أثناء الإرسال.');
+            await ctx.reply(`❌ فشل الإرسال: ${err.message || 'خطأ غير معروف'}`);
         }
         return;
     }
     
-    // 💰 معالجة الدفع اليدوي عبر FaucetPay
+    // 💰 معالجة الدفع اليدوي
     if (ctx.session.awaitingAction === 'awaiting_wallet_for_payment') {
         if (ctx.session.paymentStep === 'address') {
-            const address = ctx.message.text.trim();
-            // تحقق من صحة عنوان Litecoin (يبدأ بـ L أو M أو ltc1)
+            const address = text;
             if (!/^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|ltc1[a-z0-9]{39,59})$/i.test(address)) {
                 return ctx.reply('❌ عنوان محفظة غير صالح. يجب أن يكون عنوان Litecoin صالح (يبدأ بـ L أو M أو ltc1).');
             }
             ctx.session.paymentWallet = address;
             ctx.session.paymentStep = 'amount';
-            return ctx.reply('💵 أدخل المبلغ بالدولار (مثال: 5.50):');
+            return ctx.reply('💵 أدخل المبلغ بالدولار (الحد الأدنى: 0.01$)\nمثال: 5.50');
         } else if (ctx.session.paymentStep === 'amount') {
-            const amountStr = ctx.message.text.trim();
-            const amount = parseFloat(amountStr);
-            
-            if (isNaN(amount) || amount <= 0 || amount > 100) {
+            const amount = parseFloat(text);
+            if (isNaN(amount) || amount < 0.01 || amount > 100) {
                 return ctx.reply('❌ المبلغ غير صالح. أدخل رقمًا بين 0.01 و 100 دولار.');
             }
             
             const wallet = ctx.session.paymentWallet;
-            
             try {
-                await ctx.reply('⏳ جاري تنفيذ الدفع عبر FaucetPay... (قد يستغرق 10-20 ثانية)');
-                
-                // تنفيذ الدفع الفعلي باستخدام وحدة https الأصلية
+                await ctx.reply('⏳ جاري تنفيذ الدفع عبر FaucetPay...');
                 const result = await sendFaucetPayPayment(wallet, amount);
                 
-                // إرسال رسالة نجاح للأدمن فقط
                 await ctx.reply(
                     `تم الدفع بنجاح ✅\n` +
                     `🪙 العملة: لايتكوين (LTC)\n` +
@@ -751,21 +771,14 @@ bot.on('text', async (ctx, next) => {
                     `🔗 TXID: ${result.txid}`
                 );
                 
-                // مسح حالة الجلسة
                 ctx.session.awaitingAction = null;
                 ctx.session.paymentStep = null;
                 ctx.session.paymentWallet = null;
-                
             } catch (error) {
                 await ctx.reply(
                     `❌ فشل الدفع\n` +
-                    `⚠️ السبب: ${error.message || 'خطأ غير معروف'}\n` +
-                    `💡 تأكد من:\n` +
-                    `- صحة المفتاح API في .env (FAUCETPAY_API_KEY)\n` +
-                    `- رصيد كافٍ في حساب FaucetPay\n` +
-                    `- صحة عنوان المحفظة`
+                    `⚠️ السبب: ${error.message || 'خطأ غير معروف'}`
                 );
-                // مسح حالة الجلسة عند الفشل
                 ctx.session.awaitingAction = null;
                 ctx.session.paymentStep = null;
                 ctx.session.paymentWallet = null;
@@ -776,27 +789,25 @@ bot.on('text', async (ctx, next) => {
     
     // —— طلب السحب ——
     if (ctx.session.awaiting_withdraw) {
-        const text = ctx.message?.text?.trim();
-        const lang = getLang(ctx);
         if (!/^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|ltc1[a-z0-9]{39,59})$/i.test(text)) {
-            return ctx.reply(t(lang, 'invalid_ltc'));
+            return ctx.reply(t(getLang(ctx), 'invalid_ltc'));
         }
         const userId = ctx.from.id;
         try {
             const userRes = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
             let balance = parseFloat(userRes.rows[0]?.balance) || 0;
             if (balance < MIN_WITHDRAW) {
-                return ctx.reply(t(lang, 'min_withdraw_error', { min: MIN_WITHDRAW, balance: balance.toFixed(4) }));
+                return ctx.reply(t(getLang(ctx), 'min_withdraw_error', { min: MIN_WITHDRAW, balance: balance.toFixed(4) }));
             }
             const withdrawAmount = Math.floor(balance * 100) / 100;
             const remaining = balance - withdrawAmount;
             await pool.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
             await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
-            await ctx.reply(t(lang, 'withdrawal_submitted', { amount: withdrawAmount.toFixed(2), remaining: remaining.toFixed(4) }));
+            await ctx.reply(t(getLang(ctx), 'withdrawal_submitted', { amount: withdrawAmount.toFixed(2), remaining: remaining.toFixed(4) }));
             ctx.session.awaiting_withdraw = false;
         } catch (err) {
             console.error('❌ خطأ في معالجة السحب:', err);
-            await ctx.reply(t(lang, 'internal_error'));
+            await ctx.reply(t(getLang(ctx), 'internal_error'));
         }
         return;
     }
@@ -925,7 +936,7 @@ bot.on('text', async (ctx, next) => {
         return;
     }
     
-    // 📌 استلام بيانات التعديل (عند إرسال الأدمن للنص الجديد) — محدث لدعم المدة
+    // 📌 استلام بيانات التعديل
     if (!ctx.session || !ctx.session.awaitingEdit) return next();
     if (!isAdmin(ctx)) {
         ctx.session.awaitingEdit = null;
@@ -1113,7 +1124,7 @@ bot.action(/^delete_(\d+)$/, async (ctx) => {
     }
 });
 
-// =================== إثباتات مهمات المستخدمين (للأدمن) - ✅ الزر مُصلح ويعمل بشكل صحيح ===================
+// =================== إثباتات مهمات المستخدمين (للأدمن) ===================
 bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => {
     if (!isAdmin(ctx)) return;
     try {
@@ -1129,7 +1140,6 @@ bot.hears('📝 اثباتات مهمات المستخدمين', async (ctx) => 
         if (res.rows.length === 0) return ctx.reply(t(getLang(ctx), 'no_tasks'));
         for (const sub of res.rows) {
             const price = parseFloat(sub.price) || 0;
-            // تحديد لغة **المستخدم**، وليس الأدمن
             const userLangCode = userLang[sub.user_id] || autoDetectLang({ from: { id: sub.user_id } });
             const langLabel = userLangCode === 'ar' ? 'ar' : 'en';
             const text =
@@ -1169,12 +1179,10 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
         const sub = subRes.rows[0];
         const taskRes = await pool.query('SELECT price FROM tasks WHERE id=$1', [sub.task_id]);
         const price = parseFloat(taskRes.rows[0]?.price) || 0;
-        // تحديث رصيد المستخدم
         const upd = await pool.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [price, sub.user_id]);
         if (upd.rowCount === 0) {
             await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [sub.user_id, price]);
         }
-        // ✅ تصحيح: استبدال 'timestamp' بـ 'created_at'
         await pool.query(
             'INSERT INTO earnings (user_id, source, amount, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
             [sub.user_id, 'task', price, `Task ID ${sub.task_id}: reward`]
@@ -1187,11 +1195,9 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
             [sub.user_id, sub.task_id]
         );
         await pool.query('COMMIT');
-        // تعديل الرسالة للبوت (الأدمن)
         try {
             await ctx.editMessageText(`✅ Approved proof #${subId}\n👤 User: ${sub.user_id}\n💰 +${price.toFixed(4)}$`);
         } catch (_) {}
-        // إرسال رسالة **متعددة اللغات** للمستخدم
         const userLangCode = userLang[sub.user_id] || autoDetectLang({ from: { id: sub.user_id } });
         const langCode = userLangCode === 'ar' ? 'ar' : 'en';
         const successMsg = t(langCode, 'task_approved', {
@@ -1201,7 +1207,6 @@ bot.action(/^approve_(\d+)$/, async (ctx) => {
         try {
             await bot.telegram.sendMessage(sub.user_id, successMsg);
         } catch (_) {}
-        // تطبيق مكافأة الإحالة
         try {
             const refRes = await pool.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [sub.user_id]);
             if (refRes.rows.length > 0) {
@@ -1259,7 +1264,6 @@ bot.action(/^deny_(\d+)$/, async (ctx) => {
             [row.user_id, row.task_id]
         );
         try { await ctx.editMessageText(`❌ Rejected proof #${subId}`); } catch (_) {}
-        // رسالة متعددة اللغات للمستخدم
         const userLangCode = userLang[row.user_id] || autoDetectLang({ from: { id: row.user_id } });
         const langCode = userLangCode === 'ar' ? 'ar' : 'en';
         const rejectMsg = t(langCode, 'task_rejected', { task_id: row.task_id });
@@ -1327,19 +1331,6 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
             [t(lang, 'rate')],
             [t(lang, 'facebook')]
         ]).resize()
-    );
-});
-
-// 🎬 فيديوهاتي
-bot.hears((text, ctx) => text === t(getLang(ctx), 'videos'), async (ctx) => {
-    const userId = ctx.from.id;
-    const lang = getLang(ctx);
-    const url = `https://perceptive-victory-production.up.railway.app/my-videos.html?user_id=${userId}`;
-    await ctx.reply(
-        t(lang, 'videos_message'),
-        Markup.inlineKeyboard([
-            [Markup.button.webApp(t(lang, 'videos'), url)]
-        ])
     );
 });
 
