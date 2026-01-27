@@ -590,7 +590,7 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'facebook'), async (ctx) => {
     await ctx.reply(t(lang, 'internal_error'));
   }
 });
-const MIN_WITHDRAW = 1.00;
+const MIN_WITHDRAW = 0.25;
 // 📤 طلب سحب
 bot.hears((text, ctx) => text === t(getLang(ctx), 'withdraw'), async (ctx) => {
   if (!ctx.session) ctx.session = {};
