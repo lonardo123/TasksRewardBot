@@ -2,7 +2,7 @@ const { Telegraf, session, Markup } = require('telegraf');
 require('dotenv').config();
 const { pool } = require('./db');
 const translate = require('@vitalets/google-translate-api');
-const axios = require('axios'); // ✅ إضافة axios لـ FaucetPay API
+const https = require('https'); // ✅ استخدام وحدة أصلية بدون تثبيت
 
 // ========================
 // 📌 نظام اللغات المتعدد (عربي / إنجليزي)
@@ -41,7 +41,7 @@ const t = (lang, key, vars = {}) => {
             earn_sources_instructions: `📌 <b>طريقة العمل:</b>\n1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.\n2️⃣ اختر 🕒 <b>TimeWall</b>.\n3️⃣ اربط حسابك عبر الرابط الظاهر.\n4️⃣ نفّذ المهام (مشاهدة إعلانات – تنفيذ مهمات بسيطة).\n🔑 <b>طريقة سحب المال من TimeWall:</b>\n- ادخل صفحة Withdraw\n- اضغط على زر "سحب" أعلى الصفحة\n✅ الأرباح تضاف لحسابك مباشرة 💵\n💰 <b>السحب من البوت:</b>\n- الحد الأدنى: 1.00$\n- اختر 📤 <b>طلب سحب</b>\n- أدخل محفظة <b>بعملة Litecoin (LTC)</b>\n- بعد مراجعة الأدمن يتم الدفع ✅`,
             no_tasks: "❌ لا توجد مهمات متاحة حالياً.",
             min_withdraw_error: "❌ الحد الأدنى للسحب هو {min}$. رصيدك: {balance}$",
-            request_wallet: `⚡ لإستلام أرباحك:\nالرجاء إدخال عنوان محفظتك الخاص بعملة Litecoin (LTC)،  FaucetPay .\nمثال على العنوان:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n\nتنبيه مهم:\nتأكد من نسخ العنوان بالكامل وصحيح 100%، أي خطأ قد يؤدي إلى فقدان الأموال.`,
+            request_wallet: `⚡ لإستلام أرباحك:\nالرجاء إدخال عنوان محفظتك الخاص بعملة Litecoin (LTC)، FaucetPay.\nمثال على العنوان:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n\nتنبيه مهم:\nتأكد من نسخ العنوان بالكامل وصحيح 100%، أي خطأ قد يؤدي إلى فقدان الأموال.`,
             invalid_ltc: "❌ عنوان محفظة Litecoin غير صالح. يجب أن يبدأ بـ L أو M أو ltc1 ويكون بطول صحيح.",
             withdrawal_submitted: "✅ تم تقديم طلب سحب بقيمة {amount}$. رصيدك المتبقي: {remaining}$",
             videos_message: "🎬 اضغط على الزر لعرض وإدارة فيديوهاتك:",
@@ -103,7 +103,7 @@ const t = (lang, key, vars = {}) => {
             earn_sources_instructions: `📌 <b>How it works:</b>\n1️⃣ Tap 🎁 <b>Earn Sources</b> in the menu.\n2️⃣ Choose 🕒 <b>TimeWall</b>.\n3️⃣ Link your account using the shown link.\n4️⃣ Complete tasks (watch ads – do simple tasks).\n🔑 <b>How to withdraw from TimeWall:</b>\n- Go to Withdraw page\n- Click the "Withdraw" button at the top\n✅ Earnings are added instantly to your account 💵\n💰 <b>Withdraw from bot:</b>\n- Minimum: 1.00$\n- Choose 📤 <b>Withdraw</b>\n- Enter your <b>LTC (Litecoin) wallet</b>\n- Admin will review and pay you ✅`,
             no_tasks: "❌ No tasks available right now.",
             min_withdraw_error: "❌ Minimum withdrawal is {min}$. Your balance: {balance}$",
-            request_wallet: `⚡ To receive your earnings:\nPlease enter your Litecoin (LTC) wallet address (FaucetPay ).\nExample:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n\n⚠️ Important:\nMake sure the address is 100% correct. Any mistake may result in lost funds.`,
+            request_wallet: `⚡ To receive your earnings:\nPlease enter your Litecoin (LTC) wallet address (FaucetPay).\nExample:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n\n⚠️ Important:\nMake sure the address is 100% correct. Any mistake may result in lost funds.`,
             invalid_ltc: "❌ Invalid Litecoin wallet. Must start with L, M, or ltc1 and have correct length.",
             withdrawal_submitted: "✅ Withdrawal request for {amount}$ submitted. Remaining balance: {remaining}$",
             videos_message: "🎬 Tap the button to view/manage your videos:",
@@ -185,41 +185,63 @@ bot.use((ctx, next) => {
 // Utility: ensure admin
 const isAdmin = (ctx) => String(ctx.from?.id) === String(process.env.ADMIN_ID);
 
-// 💰 FaucetPay Payment Function (Litecoin فقط) - دفع يدوي
+// 💰 FaucetPay Payment Function (Litecoin فقط) - بدون axios
 async function sendFaucetPayPayment(address, amount) {
-    try {
+    return new Promise((resolve, reject) => {
         const apiKey = process.env.FAUCETPAY_API_KEY;
         if (!apiKey) {
-            throw new Error('❌ FAUCETPAY_API_KEY غير موجود في ملف .env');
+            return reject(new Error('❌ FAUCETPAY_API_KEY غير موجود في ملف .env'));
         }
 
-        const response = await axios.post(
-            'https://faucetpay.io/api/v1/send',
-            {
-                api_key: apiKey,
-                to: address,
-                amount: amount,
-                currency: 'LTC',
-                ref: `manual_payment_${Date.now()}`
-            },
-            {
-                headers: { 'Content-Type': 'application/json' }
+        const postData = JSON.stringify({
+            api_key: apiKey,
+            to: address,
+            amount: amount,
+            currency: 'LTC',
+            ref: `manual_payment_${Date.now()}`
+        });
+
+        const options = {
+            hostname: 'faucetpay.io',
+            port: 443,
+            path: '/api/v1/send',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(postData)
             }
-        );
+        };
 
-        if (response.data.status === 200) {
-            return {
-                success: true,
-                txid: response.data.txid,
-                amount: response.data.amount
-            };
-        } else {
-            throw new Error(response.data.message || 'فشل الدفع');
-        }
-    } catch (error) {
-        console.error('❌ FaucetPay Error:', error.response?.data || error.message);
-        throw error;
-    }
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                try {
+                    const response = JSON.parse(data);
+                    if (response.status === 200) {
+                        resolve({
+                            success: true,
+                            txid: response.txid,
+                            amount: response.amount
+                        });
+                    } else {
+                        reject(new Error(response.message || 'فشل الدفع'));
+                    }
+                } catch (e) {
+                    reject(new Error('فشل تحليل استجابة FaucetPay'));
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            reject(error);
+        });
+
+        req.write(postData);
+        req.end();
+    });
 }
 
 // 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%) عند إضافة أرباح للمستخدم
@@ -274,7 +296,7 @@ bot.command('credit', async (ctx) => {
     }
 });
 
-// 🛠 أمر /admin - ✅ تم إصلاح ترتيب الأزرار وإضافة "معالجة الدفع"
+// 🛠 أمر /admin - ✅ تم إصلاح ترتيب الأزرار وإضافة "معالجة الدفع" في سطر منفصل
 bot.command('admin', async (ctx) => {
     if (!ctx.session) ctx.session = {};
     const userId = String(ctx.from.id);
@@ -289,8 +311,9 @@ bot.command('admin', async (ctx) => {
         ['📋 عرض الطلبات', '📊 الإحصائيات'],
         ['➕ إضافة رصيد', '➖ خصم رصيد'],
         ['➕ إضافة مهمة جديدة', '📝 المهمات'],
-        ['📝 اثباتات مهمات المستخدمين', '💰 معالجة الدفع'],
-        ['👥 ريفيرال', '📢 رسالة جماعية'],
+        ['📝 اثباتات مهمات المستخدمين'], // ✅ زر منفصل ليعمل بشكل صحيح
+        ['💰 معالجة الدفع', '👥 ريفيرال'],
+        ['📢 رسالة جماعية'],
         ['🚪 خروج من لوحة الأدمن']
     ]).resize());
 });
@@ -643,7 +666,7 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'withdraw'), async (ctx) => {
     }
 });
 
-// 💰 معالجة الدفع اليدوي عبر FaucetPay - ✅ الزر الجديد
+// 💰 معالجة الدفع اليدوي عبر FaucetPay - ✅ الزر الجديد (بدون axios)
 bot.hears('💰 معالجة الدفع', async (ctx) => {
     if (!isAdmin(ctx)) return;
     ctx.session.awaitingAction = 'awaiting_wallet_for_payment';
@@ -717,7 +740,7 @@ bot.on('text', async (ctx, next) => {
             try {
                 await ctx.reply('⏳ جاري تنفيذ الدفع عبر FaucetPay... (قد يستغرق 10-20 ثانية)');
                 
-                // تنفيذ الدفع الفعلي
+                // تنفيذ الدفع الفعلي باستخدام وحدة https الأصلية
                 const result = await sendFaucetPayPayment(wallet, amount);
                 
                 // إرسال رسالة نجاح للأدمن فقط
@@ -738,7 +761,7 @@ bot.on('text', async (ctx, next) => {
                     `❌ فشل الدفع\n` +
                     `⚠️ السبب: ${error.message || 'خطأ غير معروف'}\n` +
                     `💡 تأكد من:\n` +
-                    `- صحة المفتاح API في .env\n` +
+                    `- صحة المفتاح API في .env (FAUCETPAY_API_KEY)\n` +
                     `- رصيد كافٍ في حساب FaucetPay\n` +
                     `- صحة عنوان المحفظة`
                 );
@@ -780,7 +803,6 @@ bot.on('text', async (ctx, next) => {
     
     // —— إضافة / خصم رصيد ——
     if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
-        const text = ctx.message?.text?.trim();
         if (!ctx.session.targetUser) {
             ctx.session.targetUser = text;
             return ctx.reply('💵 أرسل المبلغ:');
