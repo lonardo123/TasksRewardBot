@@ -81,6 +81,22 @@ const t = (lang, key, vars = {}) => {
             submit_proof_prompt: "📩 أرسل الآن إثبات إتمام المهمة رقم {id}",
             photo_attachment: "صورة مرفقة - file_id",
             applied_success: "📌 تم تسجيل تقديمك على المهمة رقم {id}.\n⏱️ مدة المهمة: {duration}.\n⏳ بعد انتهاء هذه المدة سيظهر لك زر \"إرسال إثبات\""
+            earn_videos: "💰 الربح من الفيديوهات",
+earn_videos_instructions: 
+`🎬 <b>الربح من الفيديوهات</b>
+
+📌 <b>طريقة العمل:</b>
+1️⃣ قم بتحميل إضافة متصفح <b>Google Chrome</b>.
+2️⃣ ثبّت الإضافة على <b>متصفح جديد</b>.
+3️⃣ اضغط على أيقونة الإضافة.
+4️⃣ اكتب <b>رقم حسابك الخاص في البوت</b>.
+5️⃣ اضغط <b>حفظ</b>.
+6️⃣ اضغط على زر <b>Start Worker</b>.
+
+🚀 سيبدأ العمل تلقائيًا،
+👁️‍🗨️ كل فيديو يتم مشاهدته بنجاح
+💰 يتم إضافة الرصيد إلى حسابك في البوت تلقائيًا.`
+
         },
         en: {
             welcome: "👋 Welcome, <b>{name}</b>!\n💰 <b>Your balance:</b> {balance}$",
@@ -142,6 +158,22 @@ const t = (lang, key, vars = {}) => {
             submit_proof_prompt: "📩 Please send your proof for task #{id}",
             photo_attachment: "Attached photo - file_id",
             applied_success: "📌 Your application for task #{id} has been recorded.\n⏱️ Duration: {duration}.\n⏳ After this period, the \"Submit Proof\" button will appear."
+           earn_videos: "💰 Earn From Videos",
+earn_videos_instructions:
+`🎬 <b>Earn From Videos</b>
+
+📌 <b>How it works:</b>
+1️⃣ Download the <b>Google Chrome extension</b>.
+2️⃣ Install it on a <b>new browser</b>.
+3️⃣ Click the extension icon.
+4️⃣ Enter <b>your bot account ID</b>.
+5️⃣ Click <b>Save</b>.
+6️⃣ Press <b>Start Worker</b>.
+
+🚀 The worker will start automatically,
+👁️‍🗨️ Each successfully watched video
+💰 earnings are added to your bot balance automatically.`
+ 
         }
     };
     let text = messages[lang][key] || key;
@@ -347,7 +379,7 @@ bot.start(async (ctx) => {
             t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
             Markup.keyboard([
                 [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-                [t(lang, 'withdraw'), t(lang, 'referral')],
+                [t(lang, 'videos'), t(lang, 'referral')],
                 [t(lang, 'tasks')],
                 [t(lang, 'language')],
                 [t(lang, 'rate')],
@@ -395,12 +427,18 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'earn_sources'), async (ctx) =
     const userId = ctx.from.id;
     const lang = getLang(ctx);
     const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
+
     await ctx.reply(
         t(lang, 'earn_sources'),
-        Markup.inlineKeyboard([[Markup.button.url(t(lang, 'earn_sources'), timewallUrl)]])
+        Markup.inlineKeyboard([
+            [Markup.button.url('🕒 TimeWall', timewallUrl)],
+            [Markup.button.callback(t(lang, 'earn_videos'), 'earn_videos')]
+        ])
     );
+
     await ctx.replyWithHTML(t(lang, 'earn_sources_instructions'));
 });
+
 
 // ✅ عرض المهمات (للمستخدمين)
 bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
@@ -484,6 +522,12 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
         console.error('❌ عرض المهمات:', err);
         await ctx.reply(t(getLang(ctx), 'internal_error'));
     }
+});
+
+bot.action('earn_videos', async (ctx) => {
+    const lang = getLang(ctx);
+    await ctx.answerCbQuery();
+    await ctx.replyWithHTML(t(lang, 'earn_videos_instructions'));
 });
 
 // ✅ عند الضغط على زر "إرسال إثبات"
