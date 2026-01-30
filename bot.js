@@ -40,6 +40,20 @@ const t = (lang, key, vars = {}) => {
             lang_changed_en: "✅ Language changed to English.",
             referral_message: `👥 <b>برنامج الإحالة</b>\nهذا رابطك الخاص، شاركه مع أصدقائك واربح من نشاطهم:\n🔗 <code>{refLink}</code>\n💡 <b>كيف تُحتسب أرباح الإحالة؟</b>\nتحصل على <b>5%</b> من أرباح كل مستخدم ينضم من طرفك.\n📊 <b>إحصاءاتك</b>\n- عدد الإحالات: <b>{refsCount}</b>`,
             earn_sources_instructions: `📌 <b>طريقة العمل:</b>\n1️⃣ اضغط على 🎁 <b>مصادر الربح</b> في القائمة.\n2️⃣ اختر 🕒 <b>TimeWall</b>.\n3️⃣ اربط حسابك عبر الرابط الظاهر.\n4️⃣ نفّذ المهام (مشاهدة إعلانات – تنفيذ مهمات بسيطة).\n🔑 <b>طريقة سحب المال من TimeWall:</b>\n- ادخل صفحة Withdraw\n- اضغط على زر "سحب" أعلى الصفحة\n✅ الأرباح تضاف لحسابك مباشرة 💵\n💰 <b>السحب من البوت:</b>\n- الحد الأدنى: 1.00$\n- اختر 📤 <b>طلب سحب</b>\n- أدخل محفظة <b>بعملة Litecoin (LTC)</b>\n- بعد مراجعة الأدمن يتم الدفع ✅`,
+            earn_videos: "💰 الربح من الفيديوهات",
+            earn_videos_instructions: `🎬 <b>الربح من الفيديوهات</b>
+
+📌 <b>طريقة العمل:</b>
+1️⃣ قم بتحميل إضافة متصفح <b>Google Chrome</b>.
+2️⃣ ثبّت الإضافة على <b>متصفح جديد</b>.
+3️⃣ اضغط على أيقونة الإضافة.
+4️⃣ اكتب <b>رقم حسابك الخاص في البوت</b>.
+5️⃣ اضغط <b>حفظ</b>.
+6️⃣ اضغط على زر <b>Start Worker</b>.
+
+🚀 سيبدأ العمل تلقائيًا،
+👁️‍🗨️ كل فيديو يتم مشاهدته بنجاح
+💰 يتم إضافة الرصيد إلى حسابك في البوت تلقائيًا.`,
             no_tasks: "❌ لا توجد مهمات متاحة حالياً.",
             min_withdraw_error: "❌ الحد الأدنى للسحب هو {min}$. رصيدك: {balance}$",
             request_wallet: `⚡ لإستلام أرباحك:\nالرجاء إدخال عنوان محفظتك الخاص بعملة Litecoin (LTC)، FaucetPay.\nمثال على العنوان:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n\nتنبيه مهم:\nتأكد من نسخ العنوان بالكامل وصحيح 100%، أي خطأ قد يؤدي إلى فقدان الأموال.`,
@@ -81,7 +95,6 @@ const t = (lang, key, vars = {}) => {
             submit_proof_prompt: "📩 أرسل الآن إثبات إتمام المهمة رقم {id}",
             photo_attachment: "صورة مرفقة - file_id",
             applied_success: "📌 تم تسجيل تقديمك على المهمة رقم {id}.\n⏱️ مدة المهمة: {duration}.\n⏳ بعد انتهاء هذه المدة سيظهر لك زر \"إرسال إثبات\""
-            
         },
         en: {
             welcome: "👋 Welcome, <b>{name}</b>!\n💰 <b>Your balance:</b> {balance}$",
@@ -102,6 +115,20 @@ const t = (lang, key, vars = {}) => {
             lang_changed_en: "✅ Language changed to English.",
             referral_message: `👥 <b>Referral Program</b>\nYour personal link — share it and earn from your friends' activity:\n🔗 <code>{refLink}</code>\n💡 <b>How referral earnings work?</b>\nYou get <b>5%</b> of all earnings from users who join via your link.\n📊 <b>Your Stats</b>\n- Referrals: <b>{refsCount}</b>`,
             earn_sources_instructions: `📌 <b>How it works:</b>\n1️⃣ Tap 🎁 <b>Earn Sources</b> in the menu.\n2️⃣ Choose 🕒 <b>TimeWall</b>.\n3️⃣ Link your account using the shown link.\n4️⃣ Complete tasks (watch ads – do simple tasks).\n🔑 <b>How to withdraw from TimeWall:</b>\n- Go to Withdraw page\n- Click the "Withdraw" button at the top\n✅ Earnings are added instantly to your account 💵\n💰 <b>Withdraw from bot:</b>\n- Minimum: 1.00$\n- Choose 📤 <b>Withdraw</b>\n- Enter your <b>LTC (Litecoin) wallet</b>\n- Admin will review and pay you ✅`,
+            earn_videos: "💰 Earn From Videos",
+            earn_videos_instructions: `🎬 <b>Earn From Videos</b>
+
+📌 <b>How it works:</b>
+1️⃣ Download the <b>Google Chrome extension</b>.
+2️⃣ Install it on a <b>new browser</b>.
+3️⃣ Click the extension icon.
+4️⃣ Enter <b>your bot account ID</b>.
+5️⃣ Click <b>Save</b>.
+6️⃣ Press <b>Start Worker</b>.
+
+🚀 The worker will start automatically,
+👁️‍🗨️ Each successfully watched video
+💰 earnings are added to your bot balance automatically.`,
             no_tasks: "❌ No tasks available right now.",
             min_withdraw_error: "❌ Minimum withdrawal is {min}$. Your balance: {balance}$",
             request_wallet: `⚡ To receive your earnings:\nPlease enter your Litecoin (LTC) wallet address (FaucetPay).\nExample:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n\n⚠️ Important:\nMake sure the address is 100% correct. Any mistake may result in lost funds.`,
@@ -143,8 +170,6 @@ const t = (lang, key, vars = {}) => {
             submit_proof_prompt: "📩 Please send your proof for task #{id}",
             photo_attachment: "Attached photo - file_id",
             applied_success: "📌 Your application for task #{id} has been recorded.\n⏱️ Duration: {duration}.\n⏳ After this period, the \"Submit Proof\" button will appear."
-           
- 
         }
     };
     let text = messages[lang][key] || key;
@@ -153,6 +178,7 @@ const t = (lang, key, vars = {}) => {
 };
 
 const userSessions = {};
+
 
 // ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
