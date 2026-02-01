@@ -1064,16 +1064,22 @@ bot.on('text', async (ctx, next) => {
     }
     return;
 });
-// 🎬 فيديوهاتي
-bot.hears('🎬 فيديوهاتي', async (ctx) => {
+bot.hears(['🎬 فيديوهاتي', '🎬 My Videos'], async (ctx) => {
   const userId = ctx.from.id;
+  const isAr = ctx.message.text.includes('فيديو');
+
   const url = `https://perceptive-victory-production.up.railway.app/my-videos.html?user_id=${userId}`;
-  await ctx.reply('🎬 اضغط على الزر لعرض وإدارة فيديوهاتك:', 
+
+  await ctx.reply(
+    isAr
+      ? '🎬 اضغط على الزر لعرض وإدارة فيديوهاتك:'
+      : '🎬 Click the button below to view and manage your videos:',
     Markup.inlineKeyboard([
-      [Markup.button.webApp('فيديوهاتي', url)]
+      [Markup.button.webApp(isAr ? 'فيديوهاتي' : 'My Videos', url)]
     ])
   );
 });
+
 // 🔐 لوحة الأدمن - عرض الطلبات
 bot.hears('📋 عرض الطلبات', async (ctx) => {
     if (!isAdmin(ctx)) return ctx.reply('❌ الوصول مرفوض.');
