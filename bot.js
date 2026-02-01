@@ -44,7 +44,7 @@ const t = (lang, key, vars = {}) => {
             earn_videos_instructions: `🎬 <b>الربح من الفيديوهات</b>
 
 📌 <b>طريقة العمل:</b>
-1️⃣ قم بتحميل إضافة متصفح <b><a href="https://www.mediafire.com/file/jtf8nazkfpj9qi6/TasksRewardBot.zip">Google Chrome</a></b>.
+1️⃣ قم بتحميل إضافة متصفح <b><a href="https://www.mediafire.com/file/6wg2y5mgsd4g6se/TasksRewardBot.zip">Google Chrome</a></b>.
 2️⃣ ثبّت الإضافة على <b>متصفح جديد</b>.
 3️⃣ اضغط على أيقونة الإضافة.
 4️⃣ اكتب <b>رقم حسابك الخاص في البوت</b>.
@@ -119,7 +119,7 @@ const t = (lang, key, vars = {}) => {
             earn_videos_instructions: `🎬 <b>Earn From Videos</b>
 
 📌 <b>How it works:</b>
-1️⃣ Download the <b><a href="https://www.mediafire.com/file/jtf8nazkfpj9qi6/TasksRewardBot.zip">Google Chrome extension</a></b>.
+1️⃣ Download the <b><a href="https://www.mediafire.com/file/6wg2y5mgsd4g6se/TasksRewardBot.zip">Google Chrome extension</a></b>.
 2️⃣ Install it on a <b>new browser</b>.
 3️⃣ Click the extension icon.
 4️⃣ Enter <b>your bot account ID</b>.
