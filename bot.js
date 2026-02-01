@@ -1444,7 +1444,7 @@ bot.hears((text, ctx) => {
             Markup.keyboard([
                 [t(lang, 'your_balance'), t(lang, 'earn_sources')],
                 [t(lang, 'withdraw'), t(lang, 'referral')],
-                [t(lang, 'tasks')],
+                [t(lang, 'tasks'), t(lang, 'videos')],
                 [t(lang, 'language')],
                 [t(lang, 'rate')],
                 [t(lang, 'facebook')]
