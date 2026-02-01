@@ -376,8 +376,8 @@ bot.start(async (ctx) => {
             t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
             Markup.keyboard([
                 [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-                [t(lang, 'videos'), t(lang, 'referral')],
-                [t(lang, 'tasks')],
+                [t(lang, 'Withdraw'), t(lang, 'referral')],
+                [t(lang, 'tasks'), t(lang, 'videos')],
                 [t(lang, 'language')],
                 [t(lang, 'rate')],
                 [t(lang, 'facebook')]
@@ -679,7 +679,7 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'facebook'), async (ctx) => {
     }
 });
 
-const MIN_WITHDRAW = 0.25;
+const MIN_WITHDRAW = 1.00;
 
 // 📤 طلب سحب
 bot.hears((text, ctx) => text === t(getLang(ctx), 'withdraw'), async (ctx) => {
