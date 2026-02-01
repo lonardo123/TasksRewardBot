@@ -376,7 +376,7 @@ bot.start(async (ctx) => {
             t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
             Markup.keyboard([
                 [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-                [t(lang, 'Withdraw'), t(lang, 'referral')],
+                [t(lang, 'withdraw'), t(lang, 'referral')],
                 [t(lang, 'tasks'), t(lang, 'videos')],
                 [t(lang, 'language')],
                 [t(lang, 'rate')],
