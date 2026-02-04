@@ -48,6 +48,32 @@ app.get("/api/worker/message", (req, res) => {
   }
 });
 
+app.get('/api/investment-data', async (req,res)=>{
+  const {user_id} = req.query;
+
+  const price = await pool.query(
+    'SELECT price FROM stock_settings ORDER BY updated_at DESC LIMIT 1'
+  );
+
+  const stocks = await pool.query(
+    'SELECT stocks FROM user_stocks WHERE user_id=$1',[user_id]
+  );
+
+  const limit = await pool.query(
+    'SELECT max_buy FROM stock_limits LIMIT 1'
+  );
+
+  const history = await pool.query(
+    'SELECT price, updated_at::date FROM stock_settings ORDER BY updated_at ASC LIMIT 30'
+  );
+
+  res.json({
+    price: price.rows[0].price,
+    stocks: stocks.rows[0]?.stocks || 0,
+    max_buy: limit.rows[0].max_buy,
+    history: history.rows.map(r=>({price:r.price,date:r.updated_at}))
+  });
+});
 
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
