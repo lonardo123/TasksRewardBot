@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Investment</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  background:#020617;
+  color:#fff;
+  font-family:Arial;
+  padding:20px;
+}
+.card {
+  background:#1e293b;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:15px;
+}
+input,button {
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+}
+button {
+  background:#22c55e;
+  border:none;
+  font-size:16px;
+}
+</style>
+</head>
+<body>
+
+<h2>⚙️ Investment Admin</h2>
+
+<div class="card">
+  <h3>💰 Change Stock Price</h3>
+  <input id="price" placeholder="New price">
+  <button onclick="setPrice()">Update Price</button>
+</div>
+
+<div class="card">
+  <h3>🔒 Max Buy Limit</h3>
+  <input id="max" placeholder="Max stocks">
+  <button onclick="setMax()">Update Limit</button>
+</div>
+
+<script>
+function setPrice(){
+  const v = document.getElementById("price").value;
+  fetch('/admin/set-price',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({price:v})
+  }).then(r=>r.json()).then(alert);
+}
+
+function setMax(){
+  const v = document.getElementById("max").value;
+  fetch('/admin/set-max',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({max:v})
+  }).then(r=>r.json()).then(alert);
+}
+</script>
+
+</body>
+</html>
