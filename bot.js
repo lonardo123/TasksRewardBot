@@ -25,6 +25,8 @@ const t = (lang, key, vars = {}) => {
             welcome: "👋 أهلاً بك، <b>{name}</b>!\n💰 <b>رصيدك:</b> {balance}$",
             choose_lang: "🌐 اختر لغتك:",
             back: "⬅️ رجوع",
+            contact_admin: "📩 مراسلة الإدارة",
+            write_message_to_admin: "✍️ اكتب رسالتك أو استفسارك وسيتم إرساله للإدارة.",
             your_balance: "💰 رصيدك",
             earn_sources: "🎁 مصادر الربح",
             withdraw: "📤 طلب سحب",
@@ -100,6 +102,8 @@ const t = (lang, key, vars = {}) => {
             welcome: "👋 Welcome, <b>{name}</b>!\n💰 <b>Your balance:</b> {balance}$",
             choose_lang: "🌐 Choose your language:",
             back: "⬅️ Back",
+            contact_admin: "📩 Contact Admin",
+            write_message_to_admin: "✍️ Write your message or inquiry and it will be sent to the admin.",
             your_balance: "💰 Your Balance",
             earn_sources: "🎁 Earn Sources",
             withdraw: "📤 Withdraw",
@@ -336,6 +340,7 @@ bot.command('admin', async (ctx) => {
         ['📝 اثباتات مهمات المستخدمين'],
         ['💰 معالجة الدفع', '👥 ريفيرال'],
         ['📢 رسالة جماعية'],
+        ['📬 رسائل المستخدمين'],
         ['🚪 خروج من لوحة الأدمن']
     ]).resize());
 });
@@ -380,7 +385,7 @@ bot.start(async (ctx) => {
                 [t(lang, 'tasks'), t(lang, 'videos')],
                 [t(lang, 'language')],
                 [t(lang, 'rate')],
-                [t(lang, 'facebook')]
+                [t(lang, 'contact_admin')]
             ]).resize()
         );
         await ctx.replyWithHTML(t(lang, 'earn_sources_instructions'));
@@ -434,6 +439,36 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'earn_sources'), async (ctx) =
     );
 
     await ctx.replyWithHTML(t(lang, 'earn_sources_instructions'));
+});
+
+bot.hears(
+  (text, ctx) => text === t(getLang(ctx), 'contact_admin'),
+  async (ctx) => {
+    if (!ctx.session) ctx.session = {};
+    ctx.session.awaitingAdminMessage = true;
+    await ctx.reply(t(getLang(ctx), 'write_message_to_admin'));
+  }
+);
+
+bot.hears('📬 رسائل المستخدمين', async (ctx) => {
+    if (!isAdmin(ctx)) return;
+
+    const res = await pool.query(
+        'SELECT * FROM admin_messages WHERE replied = false ORDER BY created_at ASC LIMIT 10'
+    );
+
+    if (res.rows.length === 0) {
+        return ctx.reply('📭 لا توجد رسائل جديدة.');
+    }
+
+    for (const msg of res.rows) {
+        await ctx.reply(
+            `📩 رسالة #${msg.id}\n` +
+            `👤 المستخدم: ${msg.user_id}\n` +
+            `📝 ${msg.message}\n\n` +
+            `✍️ للرد أرسل:\n/reply ${msg.id} نص الرد`
+        );
+    }
 });
 
 
@@ -729,7 +764,33 @@ bot.on('text', async (ctx, next) => {
     if (adminButtons.includes(text)) {
         return next();
     }
-    
+
+    if (ctx.session.awaitingAdminMessage) {
+    const userId = ctx.from.id;
+    const message = ctx.message.text;
+
+    await pool.query(
+        'INSERT INTO admin_messages (user_id, message) VALUES ($1, $2)',
+        [userId, message]
+    );
+
+    ctx.session.awaitingAdminMessage = false;
+
+    await ctx.reply(
+        getLang(ctx) === 'ar'
+        ? '✅ تم إرسال رسالتك للإدارة، سيتم الرد عليك قريبًا.'
+        : '✅ Your message has been sent to the admin. You will receive a reply soon.'
+    );
+
+    // إرسال نسخة للإدمن
+    await bot.telegram.sendMessage(
+        process.env.ADMIN_ID,
+        `📩 رسالة جديدة من مستخدم\n\n👤 ID: ${userId}\n📝 الرسالة:\n${message}`
+    );
+
+    return;
+}
+
     // 📢 معالجة الرسالة الجماعية
     if (ctx.session.awaitingBroadcast) {
         if (!isAdmin(ctx)) {
@@ -1386,8 +1447,7 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
             [t(lang, 'your_balance'), t(lang, 'earn_sources')],
             [t(lang, 'withdraw'), t(lang, 'referral')],
             [t(lang, 'tasks')],
-            [t(lang, 'rate')],
-            [t(lang, 'facebook')]
+            [t(lang, 'rate')]
         ]).resize()
     );
 });
@@ -1453,7 +1513,7 @@ bot.hears((text, ctx) => {
                 [t(lang, 'tasks'), t(lang, 'videos')],
                 [t(lang, 'language')],
                 [t(lang, 'rate')],
-                [t(lang, 'facebook')]
+                [t(lang, 'contact_admin')]
             ]).resize()
         );
     } catch (err) {
@@ -1523,6 +1583,41 @@ bot.command('reject', async (ctx) => {
         console.error('❌ reject:', e);
         await ctx.reply('فشل تحديث الحالة.');
     }
+});
+
+bot.command('reply', async (ctx) => {
+    if (!isAdmin(ctx)) return;
+
+    const parts = ctx.message.text.split(' ');
+    const msgId = parts[1];
+    const replyText = parts.slice(2).join(' ');
+
+    if (!msgId || !replyText) {
+        return ctx.reply('استخدم:\n/reply رقم_الرسالة نص_الرد');
+    }
+
+    const res = await pool.query(
+        'SELECT * FROM admin_messages WHERE id = $1 AND replied = false',
+        [msgId]
+    );
+
+    if (res.rows.length === 0) {
+        return ctx.reply('❌ الرسالة غير موجودة أو تم الرد عليها.');
+    }
+
+    const userId = res.rows[0].user_id;
+
+    await pool.query(
+        'UPDATE admin_messages SET admin_reply = $1, replied = true WHERE id = $2',
+        [replyText, msgId]
+    );
+
+    await bot.telegram.sendMessage(
+        userId,
+        `📩 رد الإدارة:\n\n${replyText}`
+    );
+
+    await ctx.reply('✅ تم إرسال الرد للمستخدم.');
 });
 
 // ==================== التشغيل النهائي ====================
