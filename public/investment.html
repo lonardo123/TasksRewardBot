@@ -1,13 +1,128 @@
-<h2 id="title"></h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Investment</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #fff;
+  padding: 20px;
+}
+.card {
+  background: #1e293b;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+}
+button {
+  padding: 10px;
+  margin: 5px;
+  width: 48%;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+.buy { background:#22c55e; }
+.sell { background:#ef4444; }
+input {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+}
+</style>
+</head>
+
+<body>
+
+<h2 id="title">📈 Investment</h2>
 
 <div class="card">
-  <p>💰 <span id="price"></span></p>
-  <p>📦 <span id="myStocks"></span></p>
-  <p>🔒 <span id="maxBuy"></span></p>
+  <p>💰 Price: <span id="price">--</span></p>
+  <p>📦 My Stocks: <span id="myStocks">--</span></p>
+  <p>🔒 Max Buy: <span id="maxBuy">--</span></p>
 </div>
 
-<input type="number" id="qty" min="1">
-<button onclick="buy()">🛒 Buy</button>
-<button onclick="sell()">💸 Sell</button>
+<input type="number" id="qty" min="1" placeholder="Enter quantity">
 
-<canvas id="chart"></canvas>
+<div>
+  <button class="buy" onclick="buy()">🛒 Buy</button>
+  <button class="sell" onclick="sell()">💸 Sell</button>
+</div>
+
+<div class="card">
+  <canvas id="chart"></canvas>
+</div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const userId = params.get('user_id');
+const lang = params.get('lang') || 'en';
+
+const texts = {
+  ar: {
+    title: "📈 استثماري",
+    buy: "تم الشراء بنجاح",
+    sell: "تم البيع بنجاح"
+  },
+  en: {
+    title: "📈 My Investment",
+    buy: "Purchase completed",
+    sell: "Sell completed"
+  }
+};
+
+document.getElementById("title").innerText = texts[lang].title;
+
+async function loadData(){
+  const res = await fetch(`/api/investment-data?user_id=${userId}`);
+  const d = await res.json();
+
+  document.getElementById("price").innerText = d.price + "$";
+  document.getElementById("myStocks").innerText = d.stocks;
+  document.getElementById("maxBuy").innerText = d.max_buy;
+
+  drawChart(d.history);
+}
+
+function buy(){
+  const q = document.getElementById("qty").value;
+  fetch('/api/buy-stocks',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({user_id:userId, quantity:q})
+  }).then(r=>r.json()).then(d=>alert(d.message));
+}
+
+function sell(){
+  const q = document.getElementById("qty").value;
+  fetch('/api/sell-stocks',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({user_id:userId, quantity:q})
+  }).then(r=>r.json()).then(d=>alert(d.message));
+}
+
+function drawChart(history){
+  new Chart(document.getElementById('chart'),{
+    type:'line',
+    data:{
+      labels: history.map(h=>h.date),
+      datasets:[{
+        data: history.map(h=>h.price),
+        borderWidth: 2
+      }]
+    }
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
