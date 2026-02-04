@@ -29,6 +29,7 @@ const t = (lang, key, vars = {}) => {
             write_message_to_admin: "✍️ اكتب رسالتك أو استفسارك وسيتم إرساله للإدارة.",
             your_balance: "💰 رصيدك",
             earn_sources: "🎁 مصادر الربح",
+            investment: "📈 استثماري",
             withdraw: "📤 طلب سحب",
             referral: "👥 ريفيرال",
             tasks: "📝 مهمات TasksRewardBot",
@@ -106,6 +107,7 @@ const t = (lang, key, vars = {}) => {
             write_message_to_admin: "✍️ Write your message or inquiry and it will be sent to the admin.",
             your_balance: "💰 Your Balance",
             earn_sources: "🎁 Earn Sources",
+            investment: "📈 My Investment",
             withdraw: "📤 Withdraw",
             referral: "👥 Referrals",
             tasks: "📝 Tasks",
@@ -383,7 +385,7 @@ bot.start(async (ctx) => {
                 [t(lang, 'your_balance'), t(lang, 'earn_sources')],
                 [t(lang, 'withdraw'), t(lang, 'referral')],
                 [t(lang, 'tasks'), t(lang, 'videos')],
-                [t(lang, 'language')],
+                [t(lang, 'language'), t(lang,'investment')],
                 [t(lang, 'rate')],
                 [t(lang, 'contact_admin')]
             ]).resize()
@@ -1140,6 +1142,22 @@ bot.hears(['🎬 فيديوهاتي', '🎬 My Videos'], async (ctx) => {
     ])
   );
 });
+
+bot.hears(
+  (text, ctx) => text === t(getLang(ctx), 'investment'),
+  async (ctx) => {
+    const userId = ctx.from.id;
+    const lang = getLang(ctx);
+    const url = `${MAIN_URL}/investment.html?user_id=${userId}&lang=${lang}`;
+    await ctx.reply("📈 افتح صفحة الاستثمار:", {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: "📈 Open Investment", url }
+        ]]
+      }
+    });
+  }
+);
 
 // 🔐 لوحة الأدمن - عرض الطلبات
 bot.hears('📋 عرض الطلبات', async (ctx) => {
