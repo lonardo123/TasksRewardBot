@@ -2,154 +2,90 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Investment</title>
+<title>User Investment</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
 body {
-  font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: #fff;
-  padding: 20px;
+  background:#020617;
+  color:#fff;
+  font-family:Arial;
+  padding:20px;
 }
 .card {
-  background: #1e293b;
-  padding: 15px;
-  border-radius: 10px;
-  margin-bottom: 15px;
-}
-.info {
-  background:#020617;
-  border:1px solid #334155;
+  background:#1e293b;
   padding:15px;
   border-radius:10px;
   margin-bottom:15px;
-  line-height:1.6;
-  font-size:14px;
 }
-button {
-  padding: 10px;
-  margin: 5px;
-  width: 48%;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-  cursor: pointer;
-}
-.buy { background:#22c55e; }
-.sell { background:#ef4444; }
-input {
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
+.message {
+  margin-top:10px;
+  color:#22c55e;
+  font-weight:bold;
 }
 </style>
 </head>
-
 <body>
 
-<h2 id="title">📈 Investment</h2>
-
-<!-- شرح الاستثمار -->
-<div class="info" id="investmentInfo"></div>
+<h2>💰 My Investment</h2>
 
 <div class="card">
-  <p>💰 Price: <span id="price">--</span></p>
-  <p>📦 My Stocks: <span id="myStocks">--</span></p>
-  <p>🔒 Max Buy: <span id="maxBuy">--</span></p>
-</div>
-
-<input type="number" id="qty" min="1" placeholder="Enter quantity">
-
-<div>
-  <button class="buy" onclick="buy()">🛒 Buy</button>
-  <button class="sell" onclick="sell()">💸 Sell</button>
-</div>
-
-<div class="card">
-  <canvas id="chart"></canvas>
+  <p id="priceDisplay">💰 Price: ...</p>
+  <p id="stocksDisplay">📦 My Stocks: ...</p>
+  <p id="maxDisplay">🔒 Max Buy: ...</p>
+  <div id="actionMsg" class="message"></div>
 </div>
 
 <script>
-const params = new URLSearchParams(location.search);
-const userId = params.get('user_id');
-const lang = params.get('lang') || 'en';
+const user_id = 123456789; // استبدل بـ telegram_id المستخدم
 
-const texts = {
-  ar: {
-    title: "📈 استثماري",
-    info: `
-    يمكنك شراء الأسهم والاحتفاظ بها، حيث يرتفع وينخفض سعر السهم حسب السوق.<br>
-    نحن نعمل في استثمارات طويلة المدى، ويمكنك بيع أسهمك في أي وقت.<br>
-    💰 عند الشراء أو البيع يتم خصم عمولة الإدارة.
-    `,
-    buy: "تم تنفيذ عملية الشراء",
-    sell: "تم تنفيذ عملية البيع"
-  },
-  en: {
-    title: "📈 My Investment",
-    info: `
-    You can buy stocks and hold them while prices rise and fall based on the market.<br>
-    We operate long-term investment strategies, and you can sell your stocks at any time.<br>
-    💰 Administration fees apply on every buy or sell operation.
-    `,
-    buy: "Purchase completed",
-    sell: "Sell completed"
+// جلب بيانات الاستثمار
+async function loadInvestment(){
+  const priceEl = document.getElementById("priceDisplay");
+  const stocksEl = document.getElementById("stocksDisplay");
+  const maxEl = document.getElementById("maxDisplay");
+
+  try{
+    const res = await fetch(`/api/investment-data?user_id=${user_id}`);
+    const data = await res.json();
+
+    priceEl.textContent = `💰 Price: ${data.price ?? 0}$`;
+    stocksEl.textContent = `📦 My Stocks: ${data.stocks ?? 0}`;
+    maxEl.textContent = `🔒 Max Buy: ${data.max_buy ?? 0}`;
+  }catch(err){
+    console.error(err);
+    priceEl.textContent = `💰 Price: error`;
+    stocksEl.textContent = `📦 My Stocks: error`;
+    maxEl.textContent = `🔒 Max Buy: error`;
   }
-};
-
-document.getElementById("title").innerText = texts[lang].title;
-document.getElementById("investmentInfo").innerHTML = texts[lang].info;
-
-async function loadData(){
-  const res = await fetch(`/api/investment-data?user_id=${userId}`);
-  const d = await res.json();
-
-  document.getElementById("price").innerText = d.price + "$";
-  document.getElementById("myStocks").innerText = d.stocks;
-  document.getElementById("maxBuy").innerText = d.max_buy;
-
-  drawChart(d.history);
 }
 
-function buy(){
-  const q = document.getElementById("qty").value;
-  fetch('/api/buy-stocks',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({user_id:userId, quantity:q})
-  })
-  .then(r=>r.json())
-  .then(d=>alert(d.message));
+// بعد أي عملية شراء أو بيع
+function showActionMessage(msg){
+  const msgDiv = document.getElementById("actionMsg");
+  msgDiv.textContent = msg;
+  setTimeout(()=> msgDiv.textContent = "", 3000);
 }
 
-function sell(){
-  const q = document.getElementById("qty").value;
-  fetch('/api/sell-stocks',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({user_id:userId, quantity:q})
-  })
-  .then(r=>r.json())
-  .then(d=>alert(d.message));
-}
-
-function drawChart(history){
-  new Chart(document.getElementById('chart'),{
-    type:'line',
-    data:{
-      labels: history.map(h=>h.date),
-      datasets:[{
-        data: history.map(h=>h.price),
-        borderWidth: 2
-      }]
+// مثال على شراء سهم
+async function buyStock(){
+  try{
+    const res = await fetch(`/api/buy-stock?user_id=${user_id}`, {method:'POST'});
+    const data = await res.json();
+    if(data.success){
+      showActionMessage("✅ Stock bought successfully!");
+      loadInvestment();
+    }else{
+      showActionMessage("❌ " + (data.message || "Error buying stock"));
     }
-  });
+  }catch(err){
+    console.error(err);
+    showActionMessage("❌ Error buying stock");
+  }
 }
 
-loadData();
+// استدعاء عند تحميل الصفحة
+loadInvestment();
 </script>
+
 </body>
 </html>
