@@ -309,22 +309,26 @@ app.post('/admin/set-max', async (req,res)=>{
   }
 });
 
-app.get('/admin/users-stocks', async (req,res)=>{
+// مثال endpoint في السيرفر
+app.get('/admin/users-stocks', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT u.id, u.telegram_id AS user, u.balance, COALESCE(SUM(s.stocks),0) AS total_stocks
+      SELECT 
+        u.telegram_id AS user,   -- ← هذا سيُرسل إلى الجدول
+        u.balance,
+        COALESCE(SUM(s.stocks),0) AS total_stocks
       FROM users u
       LEFT JOIN user_stocks s ON u.telegram_id = s.user_id
-      GROUP BY u.id
+      GROUP BY u.id, u.telegram_id, u.balance
       ORDER BY u.id ASC
     `);
-
     res.json(result.rows);
-  } catch(err){
+  } catch(err) {
     console.error(err);
-    res.status(500).json({message:"فشل جلب بيانات المستخدمين"});
+    res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 app.post('/api/delete-video', async (req, res) => {
   const { user_id, video_id } = req.body;
