@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <title>Admin Investment</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body {
   background:#020617;
   color:#fff;
-  font-family:Arial;
+  font-family:Arial, sans-serif;
   padding:20px;
 }
 .card {
@@ -17,26 +18,31 @@ body {
   border-radius:10px;
   margin-bottom:15px;
 }
-input,button {
+input, button {
   width:100%;
   padding:10px;
   margin-top:10px;
-  border-radius:5px;
+  border-radius:6px;
+  border:none;
 }
 button {
   background:#22c55e;
-  border:none;
+  color:#000;
   font-size:16px;
   cursor:pointer;
 }
 .message {
   margin-top:8px;
+  font-size:14px;
   color:#22c55e;
-  font-weight:bold;
+}
+.error {
+  color:#ef4444;
 }
 table {
   width:100%;
   border-collapse:collapse;
+  margin-top:10px;
 }
 th, td {
   border:1px solid #334155;
@@ -48,27 +54,38 @@ th {
 }
 </style>
 </head>
+
 <body>
 
 <h2>⚙️ Investment Admin</h2>
 
-<!-- تغيير سعر السهم -->
+<!-- 🔹 تغيير سعر السهم -->
 <div class="card">
   <h3>💰 Change Stock Price</h3>
-  <input id="price" placeholder="New price">
+  <input
+    id="price"
+    type="number"
+    step="0.000001"
+    min="0"
+    placeholder="New price (e.g. 0.0001)">
   <button onclick="setPrice()">Update Price</button>
   <div id="priceMsg" class="message"></div>
 </div>
 
-<!-- تغيير الحد الأقصى للشراء -->
+<!-- 🔹 تغيير الحد الأقصى للشراء -->
 <div class="card">
   <h3>🔒 Max Buy Limit</h3>
-  <input id="max" placeholder="Max stocks">
+  <input
+    id="max"
+    type="number"
+    step="1"
+    min="0"
+    placeholder="Max stocks">
   <button onclick="setMax()">Update Limit</button>
   <div id="maxMsg" class="message"></div>
 </div>
 
-<!-- عرض المستخدمين وعدد الأسهم -->
+<!-- 🔹 عرض المستخدمين وعدد الأسهم -->
 <div class="card">
   <h3>📊 Users Stocks</h3>
   <table id="usersTable">
@@ -84,47 +101,67 @@ th {
 </div>
 
 <script>
+// =====================
 // تحديث سعر السهم
+// =====================
 async function setPrice(){
-  const v = document.getElementById("price").value;
-  const msgDiv = document.getElementById("priceMsg");
-  msgDiv.textContent = "Updating...";
+  const price = document.getElementById("price").value;
+  const msg = document.getElementById("priceMsg");
+  msg.textContent = "Updating...";
+  msg.className = "message";
 
-  try{
+  try {
     const res = await fetch('/admin/set-price',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({price:v})
+      body:JSON.stringify({ price })
     });
     const data = await res.json();
-    msgDiv.textContent = data.message || "Price updated successfully!";
-  }catch(err){
-    msgDiv.textContent = "Error updating price!";
-    console.error(err);
+
+    if(data.success){
+      msg.textContent = data.message || "✅ Price updated successfully";
+    } else {
+      msg.textContent = data.message || "❌ Failed to update price";
+      msg.classList.add("error");
+    }
+  } catch(err){
+    msg.textContent = "❌ Server error";
+    msg.classList.add("error");
   }
 }
 
-// تحديث الحد الأقصى للشراء
+// =====================
+// تحديث الحد الأقصى
+// =====================
 async function setMax(){
-  const v = document.getElementById("max").value;
-  const msgDiv = document.getElementById("maxMsg");
-  msgDiv.textContent = "Updating...";
+  const max = document.getElementById("max").value;
+  const msg = document.getElementById("maxMsg");
+  msg.textContent = "Updating...";
+  msg.className = "message";
 
-  try{
+  try {
     const res = await fetch('/admin/set-max',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({max:v})
+      body:JSON.stringify({ max })
     });
     const data = await res.json();
-    msgDiv.textContent = data.message || "Max buy updated successfully!";
-  }catch(err){
-    msgDiv.textContent = "Error updating max buy!";
-    console.error(err);
+
+    if(data.success){
+      msg.textContent = data.message || "✅ Max buy updated successfully";
+    } else {
+      msg.textContent = data.message || "❌ Failed to update max buy";
+      msg.classList.add("error");
+    }
+  } catch(err){
+    msg.textContent = "❌ Server error";
+    msg.classList.add("error");
   }
 }
 
-// جلب بيانات المستخدمين وعدد الأسهم
+// =====================
+// جلب المستخدمين والأسهم
+// =====================
 async function loadUsersStocks(){
   try {
     const res = await fetch('/admin/users-stocks');
@@ -137,17 +174,17 @@ async function loadUsersStocks(){
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td>${u.user}</td>
-        <td>${parseFloat(u.balance).toFixed(2)}</td>
+        <td>${parseFloat(u.balance).toFixed(6)}</td>
         <td>${u.total_stocks}</td>
       `;
       tbody.appendChild(tr);
     });
   } catch(err){
-    console.error("Error fetching users stocks:", err);
+    console.error("Error loading users stocks", err);
   }
 }
 
-// استدعاء عند تحميل الصفحة
+// تحميل البيانات عند فتح الصفحة
 loadUsersStocks();
 </script>
 
