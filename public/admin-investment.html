@@ -1,23 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Investment</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  background:#020617;
+  color:#fff;
+  font-family:Arial;
+  padding:20px;
+}
+.card {
+  background:#1e293b;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:15px;
+}
+input,button {
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  border-radius:5px;
+}
+button {
+  background:#22c55e;
+  border:none;
+  font-size:16px;
+  cursor:pointer;
+}
+table {
+  width:100%;
+  border-collapse:collapse;
+}
+th, td {
+  border:1px solid #334155;
+  padding:8px;
+  text-align:left;
+}
+th {
+  background:#334155;
+}
+</style>
+</head>
 <body>
 
 <h2>⚙️ Investment Admin</h2>
 
+<!-- تغيير سعر السهم -->
 <div class="card">
   <h3>💰 Change Stock Price</h3>
   <input id="price" placeholder="New price">
   <button onclick="setPrice()">Update Price</button>
 </div>
 
+<!-- تغيير الحد الأقصى للشراء -->
 <div class="card">
   <h3>🔒 Max Buy Limit</h3>
   <input id="max" placeholder="Max stocks">
   <button onclick="setMax()">Update Limit</button>
 </div>
 
-<!-- هنا تضيف الجدول الجديد -->
+<!-- عرض المستخدمين وعدد الأسهم -->
 <div class="card">
   <h3>📊 Users Stocks</h3>
-  <table id="usersTable" border="1" width="100%" style="border-collapse:collapse;color:#fff;">
+  <table id="usersTable">
     <thead>
       <tr>
         <th>User</th>
@@ -29,38 +76,52 @@
   </table>
 </div>
 
-<!-- السكريبتات في آخر الصفحة -->
 <script>
+// تحديث سعر السهم
 function setPrice(){
   const v = document.getElementById("price").value;
   fetch('/admin/set-price',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({price:v})
-  }).then(r=>r.json()).then(alert);
+  })
+  .then(r=>r.json())
+  .then(alert);
 }
 
+// تحديث الحد الأقصى للشراء
 function setMax(){
   const v = document.getElementById("max").value;
   fetch('/admin/set-max',{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({max:v})
-  }).then(r=>r.json()).then(alert);
+  })
+  .then(r=>r.json())
+  .then(alert);
 }
 
-// هنا تضيف جلب البيانات للجدول
+// جلب بيانات المستخدمين وعدد الأسهم
 async function loadUsersStocks(){
-  const res = await fetch('/admin/users-stocks');
-  const users = await res.json();
+  try {
+    const res = await fetch('/admin/users-stocks');
+    const users = await res.json();
 
-  const tbody = document.querySelector("#usersTable tbody");
-  tbody.innerHTML = "";
-  users.forEach(u=>{
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${u.name}</td><td>${u.balance}</td><td>${u.totalStocks}</td>`;
-    tbody.appendChild(tr);
-  });
+    const tbody = document.querySelector("#usersTable tbody");
+    tbody.innerHTML = "";
+
+    users.forEach(u=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${u.name}</td>
+        <td>${u.balance}</td>
+        <td>${u.total_stocks}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch(err){
+    console.error("Error fetching users stocks:", err);
+  }
 }
 
 // استدعاء عند تحميل الصفحة
@@ -68,3 +129,4 @@ loadUsersStocks();
 </script>
 
 </body>
+</html>
