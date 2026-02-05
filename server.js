@@ -281,18 +281,24 @@ app.get('/api/my-videos', async (req, res) => {
   }
 });
 
-app.post('/admin/set-price', async (req,res)=>{
-  const {price} = req.body;
-  try {
-    await pool.query(
-      'INSERT INTO stock_settings(price) VALUES($1)',
-      [price]
-    );
-    res.json({message:"تم تحديث سعر السهم"});
-  } catch(err){
-    console.error(err);
-    res.status(500).json({message:"فشل تحديث السعر"});
+app.post('/admin/set-price', async (req, res) => {
+  const { price } = req.body;
+
+  const parsedPrice = parseFloat(price);
+
+  if (isNaN(parsedPrice) || parsedPrice < 0) {
+    return res.json({ success: false, message: "❌ Invalid price" });
   }
+
+  await pool.query(
+    'INSERT INTO stock_settings (price, updated_at) VALUES ($1, NOW())',
+    [parsedPrice]
+  );
+
+  res.json({
+    success: true,
+    message: `✅ Price updated to ${parsedPrice}`
+  });
 });
 
 app.post('/admin/set-max', async (req,res)=>{
