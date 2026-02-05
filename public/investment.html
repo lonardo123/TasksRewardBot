@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <title>User Investment</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
 body {
   background:#020617;
   color:#fff;
-  font-family:Arial;
+  font-family:Arial, sans-serif;
   padding:20px;
 }
 .card {
@@ -17,73 +18,133 @@ body {
   border-radius:10px;
   margin-bottom:15px;
 }
+button {
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  border-radius:6px;
+  border:none;
+  background:#22c55e;
+  color:#000;
+  font-size:16px;
+  cursor:pointer;
+}
 .message {
   margin-top:10px;
-  color:#22c55e;
   font-weight:bold;
+  color:#22c55e;
+}
+.error {
+  color:#ef4444;
 }
 </style>
 </head>
+
 <body>
 
 <h2>💰 My Investment</h2>
 
 <div class="card">
-  <p id="priceDisplay">💰 Price: ...</p>
-  <p id="stocksDisplay">📦 My Stocks: ...</p>
-  <p id="maxDisplay">🔒 Max Buy: ...</p>
+  <p id="priceDisplay">💰 Price: 0$</p>
+  <p id="stocksDisplay">📦 My Stocks: 0</p>
+  <p id="maxDisplay">🔒 Max Buy: 0</p>
+
+  <button onclick="buyStock()">➕ Buy Stock</button>
+  <button onclick="sellStock()">➖ Sell Stock</button>
+
   <div id="actionMsg" class="message"></div>
 </div>
 
 <script>
-const user_id = 123456789; // استبدل بـ telegram_id المستخدم
+// =====================
+// telegram_id المستخدم
+// =====================
+const telegram_id = 123456789; // يتم تمريره من البوت أو السيرفر
 
-// جلب بيانات الاستثمار
+// =====================
+// تحميل بيانات الاستثمار
+// =====================
 async function loadInvestment(){
   const priceEl = document.getElementById("priceDisplay");
   const stocksEl = document.getElementById("stocksDisplay");
   const maxEl = document.getElementById("maxDisplay");
 
-  try{
-    const res = await fetch(`/api/investment-data?user_id=${user_id}`);
+  try {
+    const res = await fetch(`/api/investment-data?telegram_id=${telegram_id}`);
     const data = await res.json();
 
-    priceEl.textContent = `💰 Price: ${data.price ?? 0}$`;
-    stocksEl.textContent = `📦 My Stocks: ${data.stocks ?? 0}`;
-    maxEl.textContent = `🔒 Max Buy: ${data.max_buy ?? 0}`;
-  }catch(err){
-    console.error(err);
-    priceEl.textContent = `💰 Price: error`;
-    stocksEl.textContent = `📦 My Stocks: error`;
-    maxEl.textContent = `🔒 Max Buy: error`;
+    priceEl.textContent  = `💰 Price: ${Number(data.price || 0).toFixed(6)}$`;
+    stocksEl.textContent = `📦 My Stocks: ${data.stocks || 0}`;
+    maxEl.textContent    = `🔒 Max Buy: ${data.max_buy || 0}`;
+  } catch (err) {
+    priceEl.textContent  = "💰 Price: error";
+    stocksEl.textContent = "📦 My Stocks: error";
+    maxEl.textContent    = "🔒 Max Buy: error";
   }
 }
 
-// بعد أي عملية شراء أو بيع
-function showActionMessage(msg){
-  const msgDiv = document.getElementById("actionMsg");
-  msgDiv.textContent = msg;
-  setTimeout(()=> msgDiv.textContent = "", 3000);
+// =====================
+// رسالة داخلية
+// =====================
+function showMessage(text, isError = false){
+  const msg = document.getElementById("actionMsg");
+  msg.textContent = text;
+  msg.className = isError ? "message error" : "message";
 }
 
-// مثال على شراء سهم
+// =====================
+// شراء سهم
+// =====================
 async function buyStock(){
-  try{
-    const res = await fetch(`/api/buy-stock?user_id=${user_id}`, {method:'POST'});
+  showMessage("Processing...");
+
+  try {
+    const res = await fetch('/api/buy-stock', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ telegram_id })
+    });
     const data = await res.json();
+
     if(data.success){
-      showActionMessage("✅ Stock bought successfully!");
+      showMessage("✅ Stock bought successfully");
       loadInvestment();
-    }else{
-      showActionMessage("❌ " + (data.message || "Error buying stock"));
+    } else {
+      showMessage(data.message || "❌ Cannot buy stock", true);
     }
-  }catch(err){
-    console.error(err);
-    showActionMessage("❌ Error buying stock");
+  } catch(err){
+    showMessage("❌ Server error", true);
   }
 }
 
-// استدعاء عند تحميل الصفحة
+// =====================
+// بيع سهم
+// =====================
+async function sellStock(){
+  showMessage("Processing...");
+
+  try {
+    const res = await fetch('/api/sell-stock', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ telegram_id })
+    });
+    const data = await res.json();
+
+    if(data.success){
+      showMessage("✅ Stock sold successfully");
+      loadInvestment();
+    } else {
+      showMessage(data.message || "❌ Cannot sell stock", true);
+    }
+  } catch(err){
+    showMessage("❌ Server error", true);
+  }
+}
+
+// =====================
+// تحميل البيانات عند فتح الصفحة
+// =====================
 loadInvestment();
 </script>
 
