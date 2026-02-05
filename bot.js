@@ -759,14 +759,43 @@ bot.on('text', async (ctx, next) => {
     
     // 🚫 تجاهل معالجة الأزرار هنا
     const adminButtons = [
-        '📋 عرض الطلبات', '📊 الإحصائيات', '➕ إضافة رصيد', '➖ خصم رصيد',
-        '➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين',
-        '💰 معالجة الدفع', '👥 ريفيرال', '📢 رسالة جماعية', '🚪 خروج من لوحة الأدمن'
-    ];
+  '📋 عرض الطلبات',
+  '📊 الإحصائيات',
+  '➕ إضافة رصيد',
+  '➖ خصم رصيد',
+  '➕ إضافة مهمة جديدة',
+  '📝 المهمات',
+  '📝 اثباتات مهمات المستخدمين',
+  '💰 معالجة الدفع',
+  '👥 ريفيرال',
+  '📢 رسالة جماعية',
+  '📬 رسائل المستخدمين',
+  '📈 إدارة الاستثمار',
+  '📈 استثماري',
+  '🚪 خروج من لوحة الأدمن'
+];
+
     if (adminButtons.includes(text)) {
         return next();
     }
+ // 🚫 تجاهل أزرار المستخدم (ديناميكية حسب اللغة)
+    const lang = getLang(ctx);
+    const userButtons = [
+      t(lang, 'videos'),
+      t(lang, 'investment'),
+      t(lang, 'your_balance'),
+      t(lang, 'earn_sources'),
+      t(lang, 'withdraw'),
+      t(lang, 'referral'),
+      t(lang, 'tasks'),
+      t(lang, 'rate'),
+      t(lang, 'facebook')
+    ];
 
+    if (userButtons.includes(text)) {
+        return next(); 
+    }
+    
     if (ctx.session.awaitingAdminMessage) {
     const userId = ctx.from.id;
     const message = ctx.message.text;
@@ -917,7 +946,7 @@ bot.on('text', async (ctx, next) => {
         }
         return;
     }
-    
+   
     // —— إضافة / خصم رصيد ——
     if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
         if (!ctx.session.targetUser) {
@@ -1125,7 +1154,8 @@ bot.on('text', async (ctx, next) => {
         console.error('❌ تعديل المهمة:', err);
         await ctx.reply('حدث خطأ أثناء تعديل المهمة.');
     }
-    return;
+     
+    return next();
 });
 bot.hears(['🎬 فيديوهاتي', '🎬 My Videos'], async (ctx) => {
   const userId = ctx.from.id;
