@@ -51,28 +51,80 @@ app.get("/api/worker/message", (req, res) => {
 app.get('/api/investment-data', async (req,res)=>{
   const {user_id} = req.query;
 
-  const price = await pool.query(
-    'SELECT price FROM stock_settings ORDER BY updated_at DESC LIMIT 1'
-  );
+  try {
+    const price = await pool.query(
+      'SELECT price FROM stock_settings ORDER BY updated_at DESC LIMIT 1'
+    );
 
-  const stocks = await pool.query(
-    'SELECT stocks FROM user_stocks WHERE user_id=$1',[user_id]
-  );
+    const stocks = await pool.query(
+      'SELECT SUM(stocks) as stocks FROM user_stocks WHERE user_id=$1',
+      [user_id]
+    );
 
-  const limit = await pool.query(
-    'SELECT max_buy FROM stock_limits LIMIT 1'
-  );
+    const limit = await pool.query(
+      'SELECT max_buy FROM stock_limits ORDER BY updated_at DESC LIMIT 1'
+    );
 
-  const history = await pool.query(
-    'SELECT price, updated_at::date FROM stock_settings ORDER BY updated_at ASC LIMIT 30'
-  );
+    const history = await pool.query(
+      'SELECT price, updated_at::date FROM stock_settings ORDER BY updated_at ASC LIMIT 30'
+    );
 
-  res.json({
-    price: price.rows[0].price,
-    stocks: stocks.rows[0]?.stocks || 0,
-    max_buy: limit.rows[0].max_buy,
-    history: history.rows.map(r=>({price:r.price,date:r.updated_at}))
-  });
+    res.json({
+      price: price.rows[0]?.price || 0,
+      stocks: stocks.rows[0]?.stocks || 0,
+      max_buy: limit.rows[0]?.max_buy || 0,
+      history: history.rows.map(r=>({price:r.price,date:r.updated_at}))
+    });
+  } catch(err){
+    console.error(err);
+    res.status(500).json({error:"Server error"});
+  }
+});
+
+// شراء الأسهم
+app.post('/api/buy-stocks', async (req,res)=>{
+  const {user_id, quantity} = req.body;
+
+  try {
+    // إضافة الأسهم للمستخدم
+    await pool.query(
+      'INSERT INTO user_stocks(user_id, stocks) VALUES($1,$2)',
+      [user_id, quantity]
+    );
+    res.json({message:"تم تنفيذ عملية الشراء"});
+  } catch(err){
+    console.error(err);
+    res.status(500).json({message:"فشل الشراء"});
+  }
+});
+
+// بيع الأسهم
+app.post('/api/sell-stocks', async (req,res)=>{
+  const {user_id, quantity} = req.body;
+
+  try {
+    // التحقق من الأسهم المملوكة
+    const result = await pool.query(
+      'SELECT SUM(stocks) as stocks FROM user_stocks WHERE user_id=$1',
+      [user_id]
+    );
+    const totalStocks = result.rows[0].stocks || 0;
+
+    if(totalStocks < quantity){
+      return res.json({message:"ليس لديك عدد كافي من الأسهم"});
+    }
+
+    // خصم الأسهم المباعة
+    await pool.query(
+      'INSERT INTO user_stocks(user_id, stocks) VALUES($1,$2)',
+      [user_id, -quantity]
+    );
+
+    res.json({message:"تم تنفيذ عملية البيع"});
+  } catch(err){
+    console.error(err);
+    res.status(500).json({message:"فشل البيع"});
+  }
 });
 
 // ===========================================
@@ -226,6 +278,51 @@ app.get('/api/my-videos', async (req, res) => {
   } catch (err) {
     console.error('Error in /api/my-videos:', err);
     return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+app.post('/admin/set-price', async (req,res)=>{
+  const {price} = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO stock_settings(price) VALUES($1)',
+      [price]
+    );
+    res.json({message:"تم تحديث سعر السهم"});
+  } catch(err){
+    console.error(err);
+    res.status(500).json({message:"فشل تحديث السعر"});
+  }
+});
+
+app.post('/admin/set-max', async (req,res)=>{
+  const {max} = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO stock_limits(max_buy) VALUES($1)',
+      [max]
+    );
+    res.json({message:"تم تحديث الحد الأقصى"});
+  } catch(err){
+    console.error(err);
+    res.status(500).json({message:"فشل تحديث الحد الأقصى"});
+  }
+});
+
+app.get('/admin/users-stocks', async (req,res)=>{
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.telegram_id AS user, u.balance, COALESCE(SUM(s.stocks),0) AS total_stocks
+      FROM users u
+      LEFT JOIN user_stocks s ON u.telegram_id = s.user_id
+      GROUP BY u.id
+      ORDER BY u.id ASC
+    `);
+
+    res.json(result.rows);
+  } catch(err){
+    console.error(err);
+    res.status(500).json({message:"فشل جلب بيانات المستخدمين"});
   }
 });
 
