@@ -67,7 +67,7 @@ th {
   <table id="usersTable">
     <thead>
       <tr>
-        <th>User</th>
+        <th>User (telegram_id)</th>
         <th>Balance ($)</th>
         <th>Total Stocks</th>
       </tr>
@@ -104,7 +104,7 @@ function setMax(){
 // جلب بيانات المستخدمين وعدد الأسهم
 async function loadUsersStocks(){
   try {
-    const res = await fetch('/admin/users-stocks');
+    const res = await fetch('/admin/users-stocks'); // تأكد أن هذا endpoint موجود في السيرفر
     const users = await res.json();
 
     const tbody = document.querySelector("#usersTable tbody");
@@ -113,8 +113,8 @@ async function loadUsersStocks(){
     users.forEach(u=>{
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${u.name}</td>
-        <td>${u.balance}</td>
+        <td>${u.user}</td> <!-- هنا telegram_id مباشرة -->
+        <td>${parseFloat(u.balance).toFixed(2)}</td>
         <td>${u.total_stocks}</td>
       `;
       tbody.appendChild(tr);
