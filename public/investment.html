@@ -20,6 +20,15 @@ body {
   border-radius: 10px;
   margin-bottom: 15px;
 }
+.info {
+  background:#020617;
+  border:1px solid #334155;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:15px;
+  line-height:1.6;
+  font-size:14px;
+}
 button {
   padding: 10px;
   margin: 5px;
@@ -42,6 +51,9 @@ input {
 <body>
 
 <h2 id="title">📈 Investment</h2>
+
+<!-- شرح الاستثمار -->
+<div class="info" id="investmentInfo"></div>
 
 <div class="card">
   <p>💰 Price: <span id="price">--</span></p>
@@ -68,17 +80,28 @@ const lang = params.get('lang') || 'en';
 const texts = {
   ar: {
     title: "📈 استثماري",
-    buy: "تم الشراء بنجاح",
-    sell: "تم البيع بنجاح"
+    info: `
+    يمكنك شراء الأسهم والاحتفاظ بها، حيث يرتفع وينخفض سعر السهم حسب السوق.<br>
+    نحن نعمل في استثمارات طويلة المدى، ويمكنك بيع أسهمك في أي وقت.<br>
+    💰 عند الشراء أو البيع يتم خصم عمولة الإدارة.
+    `,
+    buy: "تم تنفيذ عملية الشراء",
+    sell: "تم تنفيذ عملية البيع"
   },
   en: {
     title: "📈 My Investment",
+    info: `
+    You can buy stocks and hold them while prices rise and fall based on the market.<br>
+    We operate long-term investment strategies, and you can sell your stocks at any time.<br>
+    💰 Administration fees apply on every buy or sell operation.
+    `,
     buy: "Purchase completed",
     sell: "Sell completed"
   }
 };
 
 document.getElementById("title").innerText = texts[lang].title;
+document.getElementById("investmentInfo").innerHTML = texts[lang].info;
 
 async function loadData(){
   const res = await fetch(`/api/investment-data?user_id=${userId}`);
@@ -97,7 +120,9 @@ function buy(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({user_id:userId, quantity:q})
-  }).then(r=>r.json()).then(d=>alert(d.message));
+  })
+  .then(r=>r.json())
+  .then(d=>alert(d.message));
 }
 
 function sell(){
@@ -106,7 +131,9 @@ function sell(){
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({user_id:userId, quantity:q})
-  }).then(r=>r.json()).then(d=>alert(d.message));
+  })
+  .then(r=>r.json())
+  .then(d=>alert(d.message));
 }
 
 function drawChart(history){
