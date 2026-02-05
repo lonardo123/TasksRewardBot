@@ -437,21 +437,24 @@ bot.hears(
 );
 
 bot.hears('📬 رسائل المستخدمين', async (ctx) => {
-  if (!isAdmin(ctx)) return;
-  const res = await pool.query(
-    'SELECT * FROM admin_messages WHERE replied = false ORDER BY created_at ASC LIMIT 10'
-  );
-  if (res.rows.length === 0) {
-    return ctx.reply('📭 لا توجد رسائل جديدة.');
-  }
-  for (const msg of res.rows) {
-    await ctx.reply(
-      `📩 رسالة #${msg.id}\n` +
-      `👤 المستخدم: ${msg.user_id}\n` +
-      `📝 ${msg.message}\n` +
-      `✍️ للرد أرسل:\n/reply ${msg.id} نص الرد`
+    if (!isAdmin(ctx)) return;
+
+    const res = await pool.query(
+        'SELECT * FROM admin_messages WHERE replied = false ORDER BY created_at ASC LIMIT 10'
     );
-  }
+
+    if (res.rows.length === 0) {
+        return ctx.reply('📭 لا توجد رسائل جديدة.');
+    }
+
+    for (const msg of res.rows) {
+        await ctx.reply(
+            `📩 رسالة #${msg.id}\n` +
+            `👤 المستخدم: ${msg.user_id}\n` +
+            `📝 ${msg.message}\n\n` +
+            `✍️ للرد أرسل:\n/reply ${msg.id} نص الرد`
+        );
+    }
 });
 
 // ✅ عرض المهمات (للمستخدمين)
@@ -727,10 +730,11 @@ bot.hears('💰 معالجة الدفع', async (ctx) => {
 
 // 📢 رسالة جماعية
 bot.hears('📢 رسالة جماعية', async (ctx) => {
-  if (!isAdmin(ctx)) return;
-  ctx.session.awaitingBroadcast = true;
-  await ctx.reply('✉️ أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:');
+    if (!isAdmin(ctx)) return;
+    ctx.session.awaitingBroadcast = true;
+    await ctx.reply('✉️ أرسل الرسالة التي تريد إرسالها لجميع المستخدمين:');
 });
+
 
 // 📥 معالج جميع الرسائل النصية
 bot.on('text', async (ctx, next) => {
@@ -1628,30 +1632,38 @@ bot.command('reject', async (ctx) => {
 });
 
 bot.command('reply', async (ctx) => {
-  if (!isAdmin(ctx)) return;
-  const parts = ctx.message.text.split(' ');
-  const msgId = parts[1];
-  const replyText = parts.slice(2).join(' ');
-  if (!msgId || !replyText) {
-    return ctx.reply('استخدم:\n/reply رقم_الرسالة نص_الرد');
-  }
-  const res = await pool.query(
-    'SELECT * FROM admin_messages WHERE id = $1 AND replied = false',
-    [msgId]
-  );
-  if (res.rows.length === 0) {
-    return ctx.reply('❌ الرسالة غير موجودة أو تم الرد عليها.');
-  }
-  const userId = res.rows[0].user_id;
-  await pool.query(
-    'UPDATE admin_messages SET admin_reply = $1, replied = true WHERE id = $2',
-    [replyText, msgId]
-  );
-  await bot.telegram.sendMessage(
-    userId,
-    `📩 رد الإدارة:\n${replyText}`
-  );
-  await ctx.reply('✅ تم إرسال الرد للمستخدم.');
+    if (!isAdmin(ctx)) return;
+
+    const parts = ctx.message.text.split(' ');
+    const msgId = parts[1];
+    const replyText = parts.slice(2).join(' ');
+
+    if (!msgId || !replyText) {
+        return ctx.reply('استخدم:\n/reply رقم_الرسالة نص_الرد');
+    }
+
+    const res = await pool.query(
+        'SELECT * FROM admin_messages WHERE id = $1 AND replied = false',
+        [msgId]
+    );
+
+    if (res.rows.length === 0) {
+        return ctx.reply('❌ الرسالة غير موجودة أو تم الرد عليها.');
+    }
+
+    const userId = res.rows[0].user_id;
+
+    await pool.query(
+        'UPDATE admin_messages SET admin_reply = $1, replied = true WHERE id = $2',
+        [replyText, msgId]
+    );
+
+    await bot.telegram.sendMessage(
+        userId,
+        `📩 رد الإدارة:\n\n${replyText}`
+    );
+
+    await ctx.reply('✅ تم إرسال الرد للمستخدم.');
 });
 
 // ==================== التشغيل النهائي ====================
