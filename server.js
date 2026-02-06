@@ -48,82 +48,195 @@ app.get("/api/worker/message", (req, res) => {
   }
 });
 
-app.get('/api/investment-data', async (req,res)=>{
-  const {user_id} = req.query;
-
+app.get('/api/investment-data', async (req, res) => {
   try {
-    const price = await pool.query(
-      'SELECT price FROM stock_settings ORDER BY updated_at DESC LIMIT 1'
+    const { user_id } = req.query;
+
+    const priceQ = await pool.query(
+      `SELECT price, admin_fee_fixed, admin_fee_percent
+       FROM stock_settings
+       ORDER BY updated_at DESC
+       LIMIT 1`
     );
 
-    const stocks = await pool.query(
-      'SELECT SUM(stocks) as stocks FROM user_stocks WHERE user_id=$1',
+    const userQ = await pool.query(
+      `SELECT balance FROM users WHERE telegram_id=$1`,
       [user_id]
     );
 
-    const limit = await pool.query(
-      'SELECT max_buy FROM stock_limits ORDER BY updated_at DESC LIMIT 1'
-    );
-
-    const history = await pool.query(
-      'SELECT price, updated_at::date FROM stock_settings ORDER BY updated_at ASC LIMIT 30'
+    const stocksQ = await pool.query(
+      `SELECT stocks FROM user_stocks WHERE user_id=$1`,
+      [user_id]
     );
 
     res.json({
-      price: price.rows[0]?.price || 0,
-      stocks: stocks.rows[0]?.stocks || 0,
-      max_buy: limit.rows[0]?.max_buy || 0,
-      history: history.rows.map(r=>({price:r.price,date:r.updated_at}))
+      price: Number(priceQ.rows[0]?.price || 0),
+      balance: Number(userQ.rows[0]?.balance || 0),
+      stocks: Number(stocksQ.rows[0]?.stocks || 0),
+      fee_fixed: Number(priceQ.rows[0]?.admin_fee_fixed || 0),
+      fee_percent: Number(priceQ.rows[0]?.admin_fee_percent || 0)
     });
-  } catch(err){
+
+  } catch (err) {
     console.error(err);
-    res.status(500).json({error:"Server error"});
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
 // شراء الأسهم
-app.post('/api/buy-stocks', async (req,res)=>{
-  const {user_id, quantity} = req.body;
-
+app.post('/api/buy-stock', async (req, res) => {
+  const client = await pool.connect();
   try {
-    // إضافة الأسهم للمستخدم
-    await pool.query(
-      'INSERT INTO user_stocks(user_id, stocks) VALUES($1,$2)',
+    const { user_id, quantity } = req.body;
+    if (quantity <= 0) return res.json({ success:false, message:'Invalid quantity' });
+
+    await client.query('BEGIN');
+
+    const priceQ = await client.query(
+      `SELECT price, admin_fee_fixed, admin_fee_percent
+       FROM stock_settings ORDER BY updated_at DESC LIMIT 1`
+    );
+
+    const userQ = await client.query(
+      `SELECT balance FROM users WHERE telegram_id=$1 FOR UPDATE`,
+      [user_id]
+    );
+
+    const price = Number(priceQ.rows[0].price);
+    const fee = Number(priceQ.rows[0].admin_fee_fixed) +
+                (price * quantity * priceQ.rows[0].admin_fee_percent / 100);
+
+    const total = (price * quantity) + fee;
+    const balance = Number(userQ.rows[0].balance);
+
+    if (balance < total) {
+      await client.query('ROLLBACK');
+      return res.json({ success:false, message:'Insufficient balance' });
+    }
+
+    await client.query(
+      `UPDATE users SET balance=balance-$1 WHERE telegram_id=$2`,
+      [total, user_id]
+    );
+
+    await client.query(
+      `INSERT INTO user_stocks(user_id,stocks)
+       VALUES($1,$2)
+       ON CONFLICT (user_id)
+       DO UPDATE SET stocks=user_stocks.stocks+$2`,
       [user_id, quantity]
     );
-    res.json({message:"تم تنفيذ عملية الشراء"});
-  } catch(err){
+
+    await client.query(
+      `INSERT INTO stock_transactions
+       (user_id,type,quantity,price,fee,total)
+       VALUES($1,'BUY',$2,$3,$4,$5)`,
+      [user_id, quantity, price, fee, total]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success:true });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({message:"فشل الشراء"});
+    res.status(500).json({ success:false, message:'Server error' });
+  } finally {
+    client.release();
   }
 });
 
-// بيع الأسهم
-app.post('/api/sell-stocks', async (req,res)=>{
-  const {user_id, quantity} = req.body;
 
+// بيع الأسهم
+app.post('/api/sell-stock', async (req, res) => {
+  const client = await pool.connect();
   try {
-    // التحقق من الأسهم المملوكة
-    const result = await pool.query(
-      'SELECT SUM(stocks) as stocks FROM user_stocks WHERE user_id=$1',
+    const { user_id, quantity } = req.body;
+    if (quantity <= 0) return res.json({ success:false });
+
+    await client.query('BEGIN');
+
+    const priceQ = await client.query(
+      `SELECT price, admin_fee_fixed, admin_fee_percent
+       FROM stock_settings ORDER BY updated_at DESC LIMIT 1`
+    );
+
+    const stocksQ = await client.query(
+      `SELECT stocks FROM user_stocks WHERE user_id=$1 FOR UPDATE`,
       [user_id]
     );
-    const totalStocks = result.rows[0].stocks || 0;
 
-    if(totalStocks < quantity){
-      return res.json({message:"ليس لديك عدد كافي من الأسهم"});
+    const owned = Number(stocksQ.rows[0]?.stocks || 0);
+    if (owned < quantity) {
+      await client.query('ROLLBACK');
+      return res.json({ success:false, message:'Not enough stocks' });
     }
 
-    // خصم الأسهم المباعة
-    await pool.query(
-      'INSERT INTO user_stocks(user_id, stocks) VALUES($1,$2)',
-      [user_id, -quantity]
+    const price = Number(priceQ.rows[0].price);
+    const fee = Number(priceQ.rows[0].admin_fee_fixed) +
+                (price * quantity * priceQ.rows[0].admin_fee_percent / 100);
+
+    const total = (price * quantity) - fee;
+
+    await client.query(
+      `UPDATE users SET balance=balance+$1 WHERE telegram_id=$2`,
+      [total, user_id]
     );
 
-    res.json({message:"تم تنفيذ عملية البيع"});
-  } catch(err){
+    await client.query(
+      `UPDATE user_stocks SET stocks=stocks-$1 WHERE user_id=$2`,
+      [quantity, user_id]
+    );
+
+    await client.query(
+      `INSERT INTO stock_transactions
+       (user_id,type,quantity,price,fee,total)
+       VALUES($1,'SELL',$2,$3,$4,$5)`,
+      [user_id, quantity, price, fee, total]
+    );
+
+    await client.query('COMMIT');
+    res.json({ success:true });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({message:"فشل البيع"});
+    res.status(500).json({ success:false });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/transactions', async (req,res)=>{
+  try{
+    const { user_id } = req.query;
+    const q = await pool.query(
+      `SELECT type,quantity,price,total,created_at
+       FROM stock_transactions
+       WHERE user_id=$1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [user_id]
+    );
+    res.json(q.rows);
+  }catch(err){
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
+app.get('/api/stock-chart', async (req,res)=>{
+  try{
+    const q = await pool.query(
+      `SELECT price, updated_at::date AS date
+       FROM stock_settings
+       ORDER BY updated_at ASC
+       LIMIT 30`
+    );
+    res.json(q.rows);
+  }catch(err){
+    console.error(err);
+    res.status(500).json([]);
   }
 });
 
