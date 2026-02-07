@@ -303,45 +303,40 @@ async function loadInvestment() {
     loading.style.display = "block";
     userData.style.display = "none";
 
-    // 1. جلب بيانات الملف الشخصي (للحصول على الرصيد الحقيقي)
-    const profileRes = await fetch(`https://perceptive-victory-production.up.railway.app/api/user/profile?user_id=${telegram_id}`);
-    const profileData = await profileRes.json();
+     const res = await fetch(`/api/investment-data?user_id=${telegram_id}`);
+
     
-    if (profileData.status !== "success" || !profileData.data) {
-      throw new Error(profileData.message || "فشل تحميل بيانات الملف الشخصي");
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // 2. جلب بيانات الاستثمار (الأسهم، السعر، إلخ)
-    const investRes = await fetch(`/api/investment-data?user_id=${telegram_id}`);
-    const investData = await investRes.json();
+    const data = await response.json();
     
-    if (investData.status !== "success") {
-      throw new Error(investData.message || "فشل تحميل بيانات الاستثمار");
+    if (data.status !== "success") {
+      showMsg(data.message || texts[lang].serverError, false);
+      return;
     }
 
-    // 3. تحديث الواجهة بالبيانات الصحيحة
-    stockPrice = Number(investData.data.price);
-    adminFeeFixed = Number(investData.data.admin_fee_fixed);
-    adminFeePercent = Number(investData.data.admin_fee_percent);
+    stockPrice = Number(data.data.price);
+    adminFeeFixed = Number(data.data.admin_fee_fixed);
+    adminFeePercent = Number(data.data.admin_fee_percent);
 
-    // ✅ استخدام المعرف والرصيد من نقطة النهاية الصحيحة
-    document.getElementById("userId").textContent = `👤 ${lang === 'ar' ? 'معرف المستخدم' : 'User ID'}: ${profileData.data.user_id || telegram_id}`;
-    document.getElementById("balance").textContent = `💵 ${lang === 'ar' ? 'الرصيد' : 'Balance'}: ${Number(profileData.data.balance || 0).toFixed(6)}$`;
-    
-    // باقي البيانات من نقطة نهاية الاستثمار
+    document.getElementById("userId").textContent = `👤 ${lang === 'ar' ? 'معرف المستخدم' : 'User ID'}: ${telegram_id}`;
     document.getElementById("price").textContent = `💰 ${lang === 'ar' ? 'سعر السهم' : 'Price'}: ${stockPrice.toFixed(6)}$`;
-    document.getElementById("stocks").textContent = `📦 ${lang === 'ar' ? 'أسهمي' : 'My Stocks'}: ${investData.data.stocks || 0}`;
+    document.getElementById("balance").textContent = `💵 ${lang === 'ar' ? 'الرصيد' : 'Balance'}: ${Number(data.data.balance).toFixed(6)}$`;
+    document.getElementById("stocks").textContent = `📦 ${lang === 'ar' ? 'أسهمي' : 'My Stocks'}: ${data.data.stocks}`;
     document.getElementById("fee").textContent = `🧾 ${lang === 'ar' ? 'رسوم الإدارة' : 'Admin Fee'}: ${adminFeeFixed}$ + ${adminFeePercent}%`;
 
     loading.style.display = "none";
     userData.style.display = "block";
   } catch (err) {
-    console.error("❌ خطأ في تحميل البيانات:", err);
-    showMsg(`فشل التحميل: ${err.message || "يرجى المحاولة لاحقاً"}`, false);
-    loading.style.display = "none";
-    userData.style.display = "block";
+    console.error("Error loading investment data:", err);
+    showMsg(texts[lang].serverError, false);
+    document.getElementById("loadingUser").style.display = "none";
+    document.getElementById("userData").style.display = "block";
   }
 }
+
 /* ===================== تأكيد العملية ===================== */
 function prepareAction(type) {
   const qty = Number(document.getElementById("amount").value);
@@ -459,165 +454,35 @@ async function loadTransactions() {
   }
 }
 
-/* ===================== الرسم البياني ===================== */
-let chartInstance = null;
+// ====================== رسم بياني حي ======================
+async function loadChart(){
+  try{
+    const res = await fetch('/api/stock-chart');
+    const d = await res.json();
+    if(d.status !== "success") throw new Error(d.message);
 
-async function loadChart() {
-  try {
-    document.getElementById("chartLoading").style.display = "block";
-    document.getElementById("priceChart").style.display = "none";
-
-    const response = await fetch('/api/stock-chart');
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    if (data.status !== "success" || !data.data || data.data.length === 0) {
-      document.getElementById("chartLoading").textContent = "لا توجد بيانات للمخطط";
-      return;
-    }
-
-    // تدمير المخطط القديم إذا كان موجوداً
-    if (chartInstance) {
-      chartInstance.destroy();
-    }
-
-    const ctx = document.getElementById("priceChart").getContext('2d');
-    chartInstance = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: data.data.map(x => {
-          const date = new Date(x.date);
-          return date.toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US');
-        }),
-        datasets: [{
-          label: lang === 'ar' ? "السعر" : "Price",
-          data: data.data.map(x => Number(x.price)),
-          borderColor: "#22c55e",
-          backgroundColor: "rgba(34, 197, 94, 0.1)",
-          borderWidth: 3,
-          tension: 0.4,
-          fill: true,
-          pointRadius: 4,
-          pointHoverRadius: 6
+    new Chart(document.getElementById("priceChart"),{
+      type:"line",
+      data:{
+        labels:d.data.map(x=>x.date),
+        datasets:[{
+          label:"Price",
+          data:d.data.map(x=>x.price),
+          borderColor:"#22c55e",
+          backgroundColor:"rgba(34,197,94,0.2)",
+          borderWidth:2,
+          tension:0.4
         }]
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            display: true,
-            position: 'top',
-            labels: {
-              color: '#fff',
-              font: {
-                size: 14
-              }
-            }
-          },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            backgroundColor: 'rgba(30, 41, 59, 0.9)',
-            titleColor: '#fff',
-            bodyColor: '#fff',
-            borderColor: '#334155',
-            borderWidth: 1
-          }
-        },
-        scales: {
-          x: {
-            ticks: {
-              color: '#94a3b8',
-              maxRotation: 45,
-              minRotation: 45
-            },
-            grid: {
-              color: 'rgba(51, 65, 85, 0.3)'
-            }
-          },
-          y: {
-            ticks: {
-              color: '#94a3b8',
-              callback: function(value) {
-                return value.toFixed(6) + '$';
-              }
-            },
-            grid: {
-              color: 'rgba(51, 65, 85, 0.3)'
-            }
-          }
-        },
-        interaction: {
-          mode: 'nearest',
-          axis: 'x',
-          intersect: false
-        }
+      options:{
+        plugins:{legend:{display:false}},
+        scales:{y:{ticks:{callback:v=>v.toFixed(6)}}}
       }
     });
-
-    document.getElementById("chartLoading").style.display = "none";
-    document.getElementById("priceChart").style.display = "block";
-    
-    // ✅ تخزين آخر تاريخ تحديث للرسم البياني
-    window.lastChartUpdate = new Date().toISOString();
-    console.log("📊 تم تحميل الرسم البياني بنجاح");
-
-  } catch (err) {
-    console.error("❌ خطأ في تحميل الرسم البياني:", err);
-    document.getElementById("chartLoading").textContent = texts[lang].serverError;
-  }
+  }catch(err){console.error(err);}
 }
-
-/* ===================== تحديث الرسم البياني عند تغيير السعر من الادمن ===================== */
-async function checkForPriceUpdate() {
-  try {
-    const response = await fetch('/api/stock-chart');
-    const data = await response.json();
-    
-    if (data.status !== "success" || !data.data || data.data.length === 0) {
-      return;
-    }
-
-    // الحصول على آخر سعر مسجل
-    const latestPrice = data.data[data.data.length - 1];
-    const latestDate = new Date(latestPrice.date).toISOString();
-
-    // مقارنة مع آخر تحديث
-    if (!window.lastChartUpdate || latestDate > window.lastChartUpdate) {
-      console.log("📈 تم اكتشاف تحديث جديد للسعر من الادمن!");
-      await loadChart(); // تحديث الرسم البياني
-    }
-  } catch (err) {
-    console.error("خطأ في التحقق من تحديث السعر:", err);
-  }
-}
-
-/* ===================== الاستماع للرسائل من الادمن ===================== */
-async function listenForAdminUpdates() {
-  try {
-    const response = await fetch('/api/worker/message');
-    const message = await response.json();
-
-    if (message.action === "PRICE_UPDATED" || message.action === "CHART_UPDATED") {
-      console.log("🔔 استلام رسالة من الادمن:", message);
-      // تحديث الرسم البياني فوراً
-      await loadChart();
-      
-      // تحديث بيانات الاستثمار أيضاً
-      await loadInvestment();
-    }
-  } catch (err) {
-    console.error("خطأ في الاستماع للتحديثات:", err);
-  }
-}
-
 /* ===================== تشغيل ===================== */
-// تحميل البيانات الأولية
+// تحميل البيانات بشكل متوازي
 Promise.all([
   loadInvestment(),
   loadTransactions(),
@@ -626,17 +491,11 @@ Promise.all([
   console.error("Error initializing page:", err);
 });
 
-// ✅ تحديث الصفقات والبيانات كل 30 ثانية (بدون الرسم البياني)
+// تحديث البيانات كل 30 ثانية
 setInterval(() => {
   loadInvestment();
   loadTransactions();
 }, 30000);
-
-// ✅ التحقق من تحديثات السعر من الادمن كل 5 ثوانٍ
-setInterval(checkForPriceUpdate, 5000);
-
-// ✅ الاستماع للرسائل المباشرة من الادمن
-setInterval(listenForAdminUpdates, 3000);
 </script>
 
 </body>
