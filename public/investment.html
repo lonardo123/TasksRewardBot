@@ -456,6 +456,7 @@ async function loadTransactions() {
 
 /* ===================== الرسم البياني ===================== */
 let chartInstance = null;
+let lastPriceCheck = null;
 
 async function loadChart() {
   try {
@@ -555,11 +556,12 @@ async function loadChart() {
       }
     });
 
+    // تخزين آخر تاريخ تحديث
+    const latestEntry = data.data[data.data.length - 1];
+    lastPriceCheck = latestEntry.date;
+
     document.getElementById("chartLoading").style.display = "none";
     document.getElementById("priceChart").style.display = "block";
-    
-    // ✅ تخزين آخر تاريخ تحديث للرسم البياني
-    window.lastChartUpdate = new Date().toISOString();
     console.log("📊 تم تحميل الرسم البياني بنجاح");
 
   } catch (err) {
@@ -568,7 +570,7 @@ async function loadChart() {
   }
 }
 
-/* ===================== تحديث الرسم البياني عند تغيير السعر من الادمن ===================== */
+/* ===================== التحقق من تحديثات السعر من قاعدة البيانات ===================== */
 async function checkForPriceUpdate() {
   try {
     const response = await fetch('/api/stock-chart');
@@ -578,36 +580,23 @@ async function checkForPriceUpdate() {
       return;
     }
 
-    // الحصول على آخر سعر مسجل
-    const latestPrice = data.data[data.data.length - 1];
-    const latestDate = new Date(latestPrice.date).toISOString();
+    // الحصول على آخر تحديث
+    const latestEntry = data.data[data.data.length - 1];
+    const latestDate = latestEntry.date;
 
-    // مقارنة مع آخر تحديث
-    if (!window.lastChartUpdate || latestDate > window.lastChartUpdate) {
-      console.log("📈 تم اكتشاف تحديث جديد للسعر من الادمن!");
-      await loadChart(); // تحديث الرسم البياني
+    // إذا كان هناك تحديث جديد
+    if (!lastPriceCheck || latestDate > lastPriceCheck) {
+      console.log("📈 تم اكتشاف تحديث جديد للسعر في قاعدة البيانات!");
+      
+      // تحديث كل شيء
+      await loadChart();      // الرسم البياني
+      await loadInvestment(); // السعر والرصيد
+      await loadTransactions(); // الصفقات
+      
+      lastPriceCheck = latestDate;
     }
   } catch (err) {
     console.error("خطأ في التحقق من تحديث السعر:", err);
-  }
-}
-
-/* ===================== الاستماع للرسائل من الادمن ===================== */
-async function listenForAdminUpdates() {
-  try {
-    const response = await fetch('/api/worker/message');
-    const message = await response.json();
-
-    if (message.action === "PRICE_UPDATED" || message.action === "CHART_UPDATED") {
-      console.log("🔔 استلام رسالة من الادمن:", message);
-      // تحديث الرسم البياني فوراً
-      await loadChart();
-      
-      // تحديث بيانات الاستثمار أيضاً
-      await loadInvestment();
-    }
-  } catch (err) {
-    console.error("خطأ في الاستماع للتحديثات:", err);
   }
 }
 
@@ -621,17 +610,8 @@ Promise.all([
   console.error("Error initializing page:", err);
 });
 
-// ✅ تحديث الصفقات والبيانات كل 30 ثانية (بدون الرسم البياني)
-setInterval(() => {
-  loadInvestment();
-  loadTransactions();
-}, 30000);
-
-// ✅ التحقق من تحديثات السعر من الادمن كل 5 ثوانٍ
+// ✅ التحقق من تحديثات قاعدة البيانات كل 5 ثوانٍ
 setInterval(checkForPriceUpdate, 5000);
-
-// ✅ الاستماع للرسائل المباشرة من الادمن
-setInterval(listenForAdminUpdates, 3000);
 </script>
 
 </body>
