@@ -230,6 +230,7 @@ let currentAction = null;
 let adminFeeFixed = 0.05;
 let adminFeePercent = 2;
 let chartInstance = null;
+let lastPriceCheck = null;
 
 /* ===================== النصوص ===================== */
 const texts = {
@@ -303,8 +304,7 @@ async function loadInvestment() {
     loading.style.display = "block";
     userData.style.display = "none";
 
-     const res = await fetch(`/api/investment-data?user_id=${telegram_id}`);
-
+    const response = await fetch(`/api/investment-data?user_id=${telegram_id}`);
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -436,7 +436,7 @@ async function loadTransactions() {
       data.data.forEach(t => {
         const row = document.createElement("tr");
         row.innerHTML = `
-          <td>${t.type === 'BUY' ? 'شراء' : 'بيع'}</td>
+          <td>${t.type === 'BUY' ? (lang === 'ar' ? 'شراء' : 'Buy') : (lang === 'ar' ? 'بيع' : 'Sell')}</td>
           <td>${t.quantity}</td>
           <td>${Number(t.price).toFixed(6)}$</td>
           <td>${Number(t.total).toFixed(6)}$</td>
@@ -455,9 +455,6 @@ async function loadTransactions() {
 }
 
 /* ===================== الرسم البياني ===================== */
-let chartInstance = null;
-let lastPriceCheck = null;
-
 async function loadChart() {
   try {
     document.getElementById("chartLoading").style.display = "block";
@@ -472,7 +469,7 @@ async function loadChart() {
     const data = await response.json();
     
     if (data.status !== "success" || !data.data || data.data.length === 0) {
-      document.getElementById("chartLoading").textContent = "لا توجد بيانات للمخطط";
+      document.getElementById("chartLoading").textContent = lang === 'ar' ? "لا توجد بيانات للمخطط" : "No chart data available";
       return;
     }
 
@@ -484,14 +481,14 @@ async function loadChart() {
     const ctx = document.getElementById("priceChart").getContext('2d');
     chartInstance = new Chart(ctx, {
       type: "line",
-       {
+      data: {
         labels: data.data.map(x => {
           const date = new Date(x.date);
           return date.toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US');
         }),
         datasets: [{
           label: lang === 'ar' ? "السعر" : "Price",
-           data.data.map(x => Number(x.price)),
+          data: data.data.map(x => Number(x.price)),
           borderColor: "#22c55e",
           backgroundColor: "rgba(34, 197, 94, 0.1)",
           borderWidth: 3,
@@ -610,7 +607,7 @@ Promise.all([
   console.error("Error initializing page:", err);
 });
 
-// ✅ التحقق من تحديثات قاعدة البيانات كل 5 ثوانٍ
+// التحقق من تحديثات قاعدة البيانات كل 5 ثوانٍ
 setInterval(checkForPriceUpdate, 5000);
 </script>
 
