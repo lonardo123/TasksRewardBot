@@ -303,39 +303,45 @@ async function loadInvestment() {
     loading.style.display = "block";
     userData.style.display = "none";
 
-    const response = await fetch(`/api/investment-data?user_id=${telegram_id}`);
+    // 1. جلب بيانات الملف الشخصي (للحصول على الرصيد الحقيقي)
+    const profileRes = await fetch(`https://perceptive-victory-production.up.railway.app/api/user/profile?user_id=${telegram_id}`);
+    const profileData = await profileRes.json();
     
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (profileData.status !== "success" || !profileData.data) {
+      throw new Error(profileData.message || "فشل تحميل بيانات الملف الشخصي");
     }
 
-    const data = await response.json();
+    // 2. جلب بيانات الاستثمار (الأسهم، السعر، إلخ)
+    const investRes = await fetch(`/api/investment-data?user_id=${telegram_id}`);
+    const investData = await investRes.json();
     
-    if (data.status !== "success") {
-      showMsg(data.message || texts[lang].serverError, false);
-      return;
+    if (investData.status !== "success") {
+      throw new Error(investData.message || "فشل تحميل بيانات الاستثمار");
     }
 
-    stockPrice = Number(data.data.price);
-    adminFeeFixed = Number(data.data.admin_fee_fixed);
-    adminFeePercent = Number(data.data.admin_fee_percent);
+    // 3. تحديث الواجهة بالبيانات الصحيحة
+    stockPrice = Number(investData.data.price);
+    adminFeeFixed = Number(investData.data.admin_fee_fixed);
+    adminFeePercent = Number(investData.data.admin_fee_percent);
 
-    document.getElementById("userId").textContent = `👤 ${lang === 'ar' ? 'معرف المستخدم' : 'User ID'}: ${telegram_id}`;
+    // ✅ استخدام المعرف والرصيد من نقطة النهاية الصحيحة
+    document.getElementById("userId").textContent = `👤 ${lang === 'ar' ? 'معرف المستخدم' : 'User ID'}: ${profileData.data.user_id || telegram_id}`;
+    document.getElementById("balance").textContent = `💵 ${lang === 'ar' ? 'الرصيد' : 'Balance'}: ${Number(profileData.data.balance || 0).toFixed(6)}$`;
+    
+    // باقي البيانات من نقطة نهاية الاستثمار
     document.getElementById("price").textContent = `💰 ${lang === 'ar' ? 'سعر السهم' : 'Price'}: ${stockPrice.toFixed(6)}$`;
-    document.getElementById("balance").textContent = `💵 ${lang === 'ar' ? 'الرصيد' : 'Balance'}: ${Number(data.data.balance).toFixed(6)}$`;
-    document.getElementById("stocks").textContent = `📦 ${lang === 'ar' ? 'أسهمي' : 'My Stocks'}: ${data.data.stocks}`;
+    document.getElementById("stocks").textContent = `📦 ${lang === 'ar' ? 'أسهمي' : 'My Stocks'}: ${investData.data.stocks || 0}`;
     document.getElementById("fee").textContent = `🧾 ${lang === 'ar' ? 'رسوم الإدارة' : 'Admin Fee'}: ${adminFeeFixed}$ + ${adminFeePercent}%`;
 
     loading.style.display = "none";
     userData.style.display = "block";
   } catch (err) {
-    console.error("Error loading investment data:", err);
-    showMsg(texts[lang].serverError, false);
-    document.getElementById("loadingUser").style.display = "none";
-    document.getElementById("userData").style.display = "block";
+    console.error("❌ خطأ في تحميل البيانات:", err);
+    showMsg(`فشل التحميل: ${err.message || "يرجى المحاولة لاحقاً"}`, false);
+    loading.style.display = "none";
+    userData.style.display = "block";
   }
 }
-
 /* ===================== تأكيد العملية ===================== */
 function prepareAction(type) {
   const qty = Number(document.getElementById("amount").value);
@@ -454,6 +460,8 @@ async function loadTransactions() {
 }
 
 /* ===================== الرسم البياني ===================== */
+let chartInstance = null;
+
 async function loadChart() {
   try {
     document.getElementById("chartLoading").style.display = "block";
@@ -472,7 +480,7 @@ async function loadChart() {
       return;
     }
 
-    // Destroy existing chart if exists
+    // تدمير المخطط القديم إذا كان موجوداً
     if (chartInstance) {
       chartInstance.destroy();
     }
@@ -554,14 +562,62 @@ async function loadChart() {
 
     document.getElementById("chartLoading").style.display = "none";
     document.getElementById("priceChart").style.display = "block";
+    
+    // ✅ تخزين آخر تاريخ تحديث للرسم البياني
+    window.lastChartUpdate = new Date().toISOString();
+    console.log("📊 تم تحميل الرسم البياني بنجاح");
+
   } catch (err) {
-    console.error("Error loading chart:", err);
+    console.error("❌ خطأ في تحميل الرسم البياني:", err);
     document.getElementById("chartLoading").textContent = texts[lang].serverError;
   }
 }
 
+/* ===================== تحديث الرسم البياني عند تغيير السعر من الادمن ===================== */
+async function checkForPriceUpdate() {
+  try {
+    const response = await fetch('/api/stock-chart');
+    const data = await response.json();
+    
+    if (data.status !== "success" || !data.data || data.data.length === 0) {
+      return;
+    }
+
+    // الحصول على آخر سعر مسجل
+    const latestPrice = data.data[data.data.length - 1];
+    const latestDate = new Date(latestPrice.date).toISOString();
+
+    // مقارنة مع آخر تحديث
+    if (!window.lastChartUpdate || latestDate > window.lastChartUpdate) {
+      console.log("📈 تم اكتشاف تحديث جديد للسعر من الادمن!");
+      await loadChart(); // تحديث الرسم البياني
+    }
+  } catch (err) {
+    console.error("خطأ في التحقق من تحديث السعر:", err);
+  }
+}
+
+/* ===================== الاستماع للرسائل من الادمن ===================== */
+async function listenForAdminUpdates() {
+  try {
+    const response = await fetch('/api/worker/message');
+    const message = await response.json();
+
+    if (message.action === "PRICE_UPDATED" || message.action === "CHART_UPDATED") {
+      console.log("🔔 استلام رسالة من الادمن:", message);
+      // تحديث الرسم البياني فوراً
+      await loadChart();
+      
+      // تحديث بيانات الاستثمار أيضاً
+      await loadInvestment();
+    }
+  } catch (err) {
+    console.error("خطأ في الاستماع للتحديثات:", err);
+  }
+}
+
 /* ===================== تشغيل ===================== */
-// تحميل البيانات بشكل متوازي
+// تحميل البيانات الأولية
 Promise.all([
   loadInvestment(),
   loadTransactions(),
@@ -570,11 +626,17 @@ Promise.all([
   console.error("Error initializing page:", err);
 });
 
-// تحديث البيانات كل 30 ثانية
+// ✅ تحديث الصفقات والبيانات كل 30 ثانية (بدون الرسم البياني)
 setInterval(() => {
   loadInvestment();
   loadTransactions();
 }, 30000);
+
+// ✅ التحقق من تحديثات السعر من الادمن كل 5 ثوانٍ
+setInterval(checkForPriceUpdate, 5000);
+
+// ✅ الاستماع للرسائل المباشرة من الادمن
+setInterval(listenForAdminUpdates, 3000);
 </script>
 
 </body>
