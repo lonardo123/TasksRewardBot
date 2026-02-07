@@ -57,11 +57,6 @@ app.get('/api/investment-data', async (req, res) => {
       return res.status(400).json({ status: "error", message: "user_id is required" });
     }
 
-    // التحقق من صحة user_id
-    if (typeof user_id !== 'string' && typeof user_id !== 'number') {
-      return res.status(400).json({ status: "error", message: "Invalid user_id format" });
-    }
-
     // إنشاء المستخدم إذا لم يكن موجود
     await pool.query(`
       INSERT INTO users (telegram_id, balance) 
@@ -69,11 +64,12 @@ app.get('/api/investment-data', async (req, res) => {
       ON CONFLICT (telegram_id) DO NOTHING
     `, [user_id]);
 
-    // جلب سعر السهم وعمولة الإدارة
+    // ✅ جلب السعر الحالي من قاعدة البيانات مباشرة
     const priceQ = await pool.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent 
+      SELECT price, admin_fee_fixed, admin_fee_percent, updated_at
       FROM stock_settings
-      ORDER BY updated_at DESC LIMIT 1
+      ORDER BY updated_at DESC 
+      LIMIT 1
     `);
     
     if (priceQ.rows.length === 0) {
@@ -84,37 +80,35 @@ app.get('/api/investment-data', async (req, res) => {
       `);
     }
 
-    const userQ = await pool.query(`
-      SELECT balance 
-      FROM users 
-      WHERE telegram_id = $1
-    `, [user_id]);
+    // ✅ جلب الرصيد من ملف المستخدم الشخصي
+    const profileRes = await fetch(`https://perceptive-victory-production.up.railway.app/api/user/profile?user_id=${user_id}`);
+    const profileData = await profileRes.json();
     
+    let balance = 0;
+    if (profileData.status === "success" && profileData.data) {
+      balance = Number(profileData.data.balance || 0);
+    }
+
+    // جلب الأسهم
     const stocksQ = await pool.query(`
       SELECT stocks 
       FROM user_stocks 
       WHERE user_id = $1
     `, [user_id]);
-    
-    const limitQ = await pool.query(`
-      SELECT max_buy 
-      FROM stock_limits 
-      LIMIT 1
-    `);
 
     res.json({
       status: "success",
-      data: {
+       {
         price: Number(priceQ.rows[0]?.price || 1.00),
-        balance: Number(userQ.rows[0]?.balance || 0),
+        balance: balance,
         stocks: Number(stocksQ.rows[0]?.stocks || 0),
-        max_buy: Number(limitQ.rows[0]?.max_buy || 1000),
         admin_fee_fixed: Number(priceQ.rows[0]?.admin_fee_fixed || 0.05),
-        admin_fee_percent: Number(priceQ.rows[0]?.admin_fee_percent || 2)
+        admin_fee_percent: Number(priceQ.rows[0]?.admin_fee_percent || 2),
+        updated_at: priceQ.rows[0]?.updated_at
       }
     });
   } catch (err) {
-    console.error('Error in /api/investment-data:', err);
+    console.error('Error in /api/investment-', err);
     res.status(500).json({ status: "error", message: "Server error loading investment data" });
   }
 });
@@ -345,42 +339,12 @@ app.get('/api/transactions', async (req, res) => {
   }
 });
 
-// ======================= API: الرسم البياني =======================
-app.get('/api/stock-chart', async (req, res) => {
-  try {
-    const q = await pool.query(`
-      SELECT price, updated_at
-      FROM stock_settings
-      ORDER BY updated_at ASC
-      LIMIT 30
-    `);
-
-    res.json({ 
-      status: "success", 
-      data: q.rows.map(r => ({
-        price: Number(r.price),
-        date: r.updated_at
-      }))
-    });
-  } catch (err) { 
-    console.error('Error in /api/stock-chart:', err);
-    res.status(500).json({ status: "error", message: "Server error loading chart data" });
-  }
-});
-
-// ======================= تحديث سعر السهم من الادمن =======================
+// ======================= تحديث سعر السهم من لوحة التحكم (بدون مصادقة) =======================
 app.post('/api/admin/update-price', async (req, res) => {
   const client = await pool.connect();
   
   try {
-    const { admin_key, new_price, admin_fee_fixed, admin_fee_percent } = req.body;
-    
-    // ✅ التحقق من مفتاح الادمن (يجب وضعه في .env)
-    const VALID_ADMIN_KEY = process.env.ADMIN_SECRET_KEY || 'your-secret-key-here';
-    
-    if (admin_key !== VALID_ADMIN_KEY) {
-      return res.status(403).json({ status: "error", message: "Unauthorized" });
-    }
+    const { new_price, admin_fee_fixed, admin_fee_percent } = req.body;
     
     if (!new_price || new_price <= 0) {
       return res.status(400).json({ status: "error", message: "Invalid price" });
@@ -388,7 +352,7 @@ app.post('/api/admin/update-price', async (req, res) => {
 
     await client.query('BEGIN');
 
-    // تحديث سعر السهم والإعدادات
+    // تحديث سعر السهم والإعدادات في قاعدة البيانات
     await client.query(`
       INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent, updated_at)
       VALUES ($1, $2, $3, NOW())
@@ -396,17 +360,7 @@ app.post('/api/admin/update-price', async (req, res) => {
 
     await client.query('COMMIT');
 
-    // ✅ إرسال رسالة للتحديث الفوري لجميع المستخدمين
-    currentMessage = {
-      action: "PRICE_UPDATED",
-      data: {
-        new_price: new_price,
-        timestamp: new Date().toISOString()
-      },
-      time: new Date().toISOString()
-    };
-
-    console.log("✅ تم تحديث سعر السهم من الادمن:", new_price);
+    console.log(`✅ تم تحديث سعر السهم: ${new_price}$`);
     
     res.json({ 
       status: "success", 
@@ -423,36 +377,32 @@ app.post('/api/admin/update-price', async (req, res) => {
   }
 });
 
-// ======================= إرسال تحديث للرسم البياني من الادمن =======================
-app.post('/api/admin/update-chart', async (req, res) => {
+// ======================= جلب آخر سعر من قاعدة البيانات =======================
+app.get('/api/current-price', async (req, res) => {
   try {
-    const { admin_key } = req.body;
-    
-    const VALID_ADMIN_KEY = process.env.ADMIN_SECRET_KEY || 'your-secret-key-here';
-    
-    if (admin_key !== VALID_ADMIN_KEY) {
-      return res.status(403).json({ status: "error", message: "Unauthorized" });
+    const q = await pool.query(`
+      SELECT price, admin_fee_fixed, admin_fee_percent, updated_at
+      FROM stock_settings
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `);
+
+    if (q.rows.length === 0) {
+      return res.status(404).json({ status: "error", message: "No price data found" });
     }
 
-    // ✅ إرسال رسالة لتحديث الرسم البياني لجميع المستخدمين
-    currentMessage = {
-      action: "CHART_UPDATED",
+    res.json({
+      status: "success",
        {
-        timestamp: new Date().toISOString()
-      },
-      time: new Date().toISOString()
-    };
-
-    console.log("✅ تم إرسال أمر تحديث الرسم البياني");
-    
-    res.json({ 
-      status: "success", 
-      message: "تم إرسال أمر تحديث الرسم البياني"
+        price: Number(q.rows[0].price),
+        admin_fee_fixed: Number(q.rows[0].admin_fee_fixed),
+        admin_fee_percent: Number(q.rows[0].admin_fee_percent),
+        updated_at: q.rows[0].updated_at
+      }
     });
-
   } catch (err) {
-    console.error('خطأ في تحديث الرسم البياني:', err);
-    res.status(500).json({ status: "error", message: "فشل تحديث الرسم البياني" });
+    console.error('خطأ في جلب السعر:', err);
+    res.status(500).json({ status: "error", message: "Server error" });
   }
 });
 // ===========================================
