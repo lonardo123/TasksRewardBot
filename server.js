@@ -368,6 +368,93 @@ app.get('/api/stock-chart', async (req, res) => {
   }
 });
 
+// ======================= تحديث سعر السهم من الادمن =======================
+app.post('/api/admin/update-price', async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { admin_key, new_price, admin_fee_fixed, admin_fee_percent } = req.body;
+    
+    // ✅ التحقق من مفتاح الادمن (يجب وضعه في .env)
+    const VALID_ADMIN_KEY = process.env.ADMIN_SECRET_KEY || 'your-secret-key-here';
+    
+    if (admin_key !== VALID_ADMIN_KEY) {
+      return res.status(403).json({ status: "error", message: "Unauthorized" });
+    }
+    
+    if (!new_price || new_price <= 0) {
+      return res.status(400).json({ status: "error", message: "Invalid price" });
+    }
+
+    await client.query('BEGIN');
+
+    // تحديث سعر السهم والإعدادات
+    await client.query(`
+      INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent, updated_at)
+      VALUES ($1, $2, $3, NOW())
+    `, [new_price, admin_fee_fixed || 0.05, admin_fee_percent || 2]);
+
+    await client.query('COMMIT');
+
+    // ✅ إرسال رسالة للتحديث الفوري لجميع المستخدمين
+    currentMessage = {
+      action: "PRICE_UPDATED",
+      data: {
+        new_price: new_price,
+        timestamp: new Date().toISOString()
+      },
+      time: new Date().toISOString()
+    };
+
+    console.log("✅ تم تحديث سعر السهم من الادمن:", new_price);
+    
+    res.json({ 
+      status: "success", 
+      message: "تم تحديث السعر بنجاح",
+       { price: new_price }
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('خطأ في تحديث السعر:', err);
+    res.status(500).json({ status: "error", message: "فشل تحديث السعر" });
+  } finally {
+    client.release();
+  }
+});
+
+// ======================= إرسال تحديث للرسم البياني من الادمن =======================
+app.post('/api/admin/update-chart', async (req, res) => {
+  try {
+    const { admin_key } = req.body;
+    
+    const VALID_ADMIN_KEY = process.env.ADMIN_SECRET_KEY || 'your-secret-key-here';
+    
+    if (admin_key !== VALID_ADMIN_KEY) {
+      return res.status(403).json({ status: "error", message: "Unauthorized" });
+    }
+
+    // ✅ إرسال رسالة لتحديث الرسم البياني لجميع المستخدمين
+    currentMessage = {
+      action: "CHART_UPDATED",
+       {
+        timestamp: new Date().toISOString()
+      },
+      time: new Date().toISOString()
+    };
+
+    console.log("✅ تم إرسال أمر تحديث الرسم البياني");
+    
+    res.json({ 
+      status: "success", 
+      message: "تم إرسال أمر تحديث الرسم البياني"
+    });
+
+  } catch (err) {
+    console.error('خطأ في تحديث الرسم البياني:', err);
+    res.status(500).json({ status: "error", message: "فشل تحديث الرسم البياني" });
+  }
+});
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
