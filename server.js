@@ -48,6 +48,30 @@ app.get("/api/worker/message", (req, res) => {
   }
 });
 
+require('dotenv').config();
+const express = require('express');
+const path = require('path');
+const { pool } = require('./db');
+
+// التقاط أي أخطاء لاحقة في الـ pool
+pool.on('error', (err) => {
+  console.error('⚠️ PG pool error:', err);
+});
+
+// === السيرفر (Express)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
+
+// Middleware للتحقق من الأخطاء
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ status: "error", message: "Internal server error" });
+});
+
 // ======================= API: جلب بيانات الاستثمار =======================
 app.get('/api/investment-data', async (req, res) => {
   try {
@@ -64,7 +88,7 @@ app.get('/api/investment-data', async (req, res) => {
       ON CONFLICT (telegram_id) DO NOTHING
     `, [user_id]);
 
-    // ✅ جلب السعر الحالي من قاعدة البيانات مباشرة
+    // جلب السعر الحالي من قاعدة البيانات مباشرة
     const priceQ = await pool.query(`
       SELECT price, admin_fee_fixed, admin_fee_percent, updated_at
       FROM stock_settings
@@ -80,7 +104,7 @@ app.get('/api/investment-data', async (req, res) => {
       `);
     }
 
-    // ✅ جلب الرصيد من ملف المستخدم الشخصي
+    // جلب الرصيد من ملف المستخدم الشخصي
     const profileRes = await fetch(`https://perceptive-victory-production.up.railway.app/api/user/profile?user_id=${user_id}`);
     const profileData = await profileRes.json();
     
@@ -98,7 +122,7 @@ app.get('/api/investment-data', async (req, res) => {
 
     res.json({
       status: "success",
-       {
+      data: {
         price: Number(priceQ.rows[0]?.price || 1.00),
         balance: balance,
         stocks: Number(stocksQ.rows[0]?.stocks || 0),
@@ -108,7 +132,7 @@ app.get('/api/investment-data', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Error in /api/investment-', err);
+    console.error('Error in /api/investment-data:', err);
     res.status(500).json({ status: "error", message: "Server error loading investment data" });
   }
 });
@@ -339,6 +363,29 @@ app.get('/api/transactions', async (req, res) => {
   }
 });
 
+// ======================= API: الرسم البياني =======================
+app.get('/api/stock-chart', async (req, res) => {
+  try {
+    const q = await pool.query(`
+      SELECT price, updated_at
+      FROM stock_settings
+      ORDER BY updated_at ASC
+      LIMIT 30
+    `);
+
+    res.json({ 
+      status: "success", 
+      data: q.rows.map(r => ({
+        price: Number(r.price),
+        date: r.updated_at
+      }))
+    });
+  } catch (err) { 
+    console.error('Error in /api/stock-chart:', err);
+    res.status(500).json({ status: "error", message: "Server error loading chart data" });
+  }
+});
+
 // ======================= تحديث سعر السهم من لوحة التحكم (بدون مصادقة) =======================
 app.post('/api/admin/update-price', async (req, res) => {
   const client = await pool.connect();
@@ -365,7 +412,7 @@ app.post('/api/admin/update-price', async (req, res) => {
     res.json({ 
       status: "success", 
       message: "تم تحديث السعر بنجاح",
-       { price: new_price }
+      data: { price: new_price }
     });
 
   } catch (err) {
@@ -393,7 +440,7 @@ app.get('/api/current-price', async (req, res) => {
 
     res.json({
       status: "success",
-       {
+      data: {
         price: Number(q.rows[0].price),
         admin_fee_fixed: Number(q.rows[0].admin_fee_fixed),
         admin_fee_percent: Number(q.rows[0].admin_fee_percent),
@@ -405,6 +452,8 @@ app.get('/api/current-price', async (req, res) => {
     res.status(500).json({ status: "error", message: "Server error" });
   }
 });
+
+
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
