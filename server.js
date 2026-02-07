@@ -453,7 +453,6 @@ app.get('/api/current-price', async (req, res) => {
   }
 });
 
-
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
@@ -1394,7 +1393,15 @@ app.get('/worker/', (req, res) => {
 
 
 // === بدء التشغيل ===
-const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 السيرفر يعمل على المنفذ ${PORT}`);
+});
+
+// معالجة الأخطاء الغير متوقعة
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Rejection:', err);
 });
