@@ -454,35 +454,165 @@ async function loadTransactions() {
   }
 }
 
-// ====================== رسم بياني حي ======================
-async function loadChart(){
-  try{
-    const res = await fetch('/api/stock-chart');
-    const d = await res.json();
-    if(d.status !== "success") throw new Error(d.message);
+/* ===================== الرسم البياني ===================== */
+let chartInstance = null;
 
-    new Chart(document.getElementById("priceChart"),{
-      type:"line",
-      data:{
-        labels:d.data.map(x=>x.date),
-        datasets:[{
-          label:"Price",
-          data:d.data.map(x=>x.price),
-          borderColor:"#22c55e",
-          backgroundColor:"rgba(34,197,94,0.2)",
-          borderWidth:2,
-          tension:0.4
+async function loadChart() {
+  try {
+    document.getElementById("chartLoading").style.display = "block";
+    document.getElementById("priceChart").style.display = "none";
+
+    const response = await fetch('/api/stock-chart');
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.status !== "success" || !data.data || data.data.length === 0) {
+      document.getElementById("chartLoading").textContent = "لا توجد بيانات للمخطط";
+      return;
+    }
+
+    // تدمير المخطط القديم إذا كان موجوداً
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    const ctx = document.getElementById("priceChart").getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: "line",
+       {
+        labels: data.data.map(x => {
+          const date = new Date(x.date);
+          return date.toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US');
+        }),
+        datasets: [{
+          label: lang === 'ar' ? "السعر" : "Price",
+           data.data.map(x => Number(x.price)),
+          borderColor: "#22c55e",
+          backgroundColor: "rgba(34, 197, 94, 0.1)",
+          borderWidth: 3,
+          tension: 0.4,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 6
         }]
       },
-      options:{
-        plugins:{legend:{display:false}},
-        scales:{y:{ticks:{callback:v=>v.toFixed(6)}}}
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            labels: {
+              color: '#fff',
+              font: {
+                size: 14
+              }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: 'rgba(30, 41, 59, 0.9)',
+            titleColor: '#fff',
+            bodyColor: '#fff',
+            borderColor: '#334155',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#94a3b8',
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: {
+              color: 'rgba(51, 65, 85, 0.3)'
+            }
+          },
+          y: {
+            ticks: {
+              color: '#94a3b8',
+              callback: function(value) {
+                return value.toFixed(6) + '$';
+              }
+            },
+            grid: {
+              color: 'rgba(51, 65, 85, 0.3)'
+            }
+          }
+        },
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        }
       }
     });
-  }catch(err){console.error(err);}
+
+    document.getElementById("chartLoading").style.display = "none";
+    document.getElementById("priceChart").style.display = "block";
+    
+    // ✅ تخزين آخر تاريخ تحديث للرسم البياني
+    window.lastChartUpdate = new Date().toISOString();
+    console.log("📊 تم تحميل الرسم البياني بنجاح");
+
+  } catch (err) {
+    console.error("❌ خطأ في تحميل الرسم البياني:", err);
+    document.getElementById("chartLoading").textContent = texts[lang].serverError;
+  }
 }
+
+/* ===================== تحديث الرسم البياني عند تغيير السعر من الادمن ===================== */
+async function checkForPriceUpdate() {
+  try {
+    const response = await fetch('/api/stock-chart');
+    const data = await response.json();
+    
+    if (data.status !== "success" || !data.data || data.data.length === 0) {
+      return;
+    }
+
+    // الحصول على آخر سعر مسجل
+    const latestPrice = data.data[data.data.length - 1];
+    const latestDate = new Date(latestPrice.date).toISOString();
+
+    // مقارنة مع آخر تحديث
+    if (!window.lastChartUpdate || latestDate > window.lastChartUpdate) {
+      console.log("📈 تم اكتشاف تحديث جديد للسعر من الادمن!");
+      await loadChart(); // تحديث الرسم البياني
+    }
+  } catch (err) {
+    console.error("خطأ في التحقق من تحديث السعر:", err);
+  }
+}
+
+/* ===================== الاستماع للرسائل من الادمن ===================== */
+async function listenForAdminUpdates() {
+  try {
+    const response = await fetch('/api/worker/message');
+    const message = await response.json();
+
+    if (message.action === "PRICE_UPDATED" || message.action === "CHART_UPDATED") {
+      console.log("🔔 استلام رسالة من الادمن:", message);
+      // تحديث الرسم البياني فوراً
+      await loadChart();
+      
+      // تحديث بيانات الاستثمار أيضاً
+      await loadInvestment();
+    }
+  } catch (err) {
+    console.error("خطأ في الاستماع للتحديثات:", err);
+  }
+}
+
 /* ===================== تشغيل ===================== */
-// تحميل البيانات بشكل متوازي
+// تحميل البيانات الأولية
 Promise.all([
   loadInvestment(),
   loadTransactions(),
@@ -491,11 +621,17 @@ Promise.all([
   console.error("Error initializing page:", err);
 });
 
-// تحديث البيانات كل 30 ثانية
+// ✅ تحديث الصفقات والبيانات كل 30 ثانية (بدون الرسم البياني)
 setInterval(() => {
   loadInvestment();
   loadTransactions();
 }, 30000);
+
+// ✅ التحقق من تحديثات السعر من الادمن كل 5 ثوانٍ
+setInterval(checkForPriceUpdate, 5000);
+
+// ✅ الاستماع للرسائل المباشرة من الادمن
+setInterval(listenForAdminUpdates, 3000);
 </script>
 
 </body>
