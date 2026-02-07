@@ -120,7 +120,7 @@ th{ background:#334155; }
 
 <script>
 const params = new URLSearchParams(location.search);
-const telegram_id = params.get('telegram_id');
+const telegram_id = params.get('user_id'); // مهم: API يستخدم user_id
 const lang = params.get('lang') || 'en';
 
 let stockPrice = 0;
@@ -160,14 +160,13 @@ const texts = {
 document.getElementById("title").innerText = texts[lang].title;
 document.getElementById("investmentInfo").innerHTML = texts[lang].info;
 
-/* ======== أدوات مساعدة ======== */
 function showMsg(text, ok=true){
   const m = document.getElementById("msg");
   m.textContent = text;
   m.className = "message " + (ok ? "success" : "error");
 }
 
-/* ======== تحميل البيانات ======== */
+// ====================== تحميل بيانات المستخدم لايف ======================
 async function loadInvestment(){
   try {
     const res = await fetch(`/api/investment-data?user_id=${telegram_id}`);
@@ -185,23 +184,23 @@ async function loadInvestment(){
     document.getElementById("fee").textContent = `🧾 Admin Fee: ${adminFeeFixed}$ + ${adminFeePercent}%`;
   } catch(err){
     console.error(err);
-    showMsg(err.message, false);
+    showMsg(err.message,false);
   }
 }
 
-/* ======== تأكيد العملية ======== */
+// ====================== تأكيد العملية ======================
 function prepareAction(type){
   const qty = Number(amount.value);
-  if(!qty || qty <= 0) return showMsg(texts[lang].invalidQty,false);
+  if(!qty || qty <=0) return showMsg(texts[lang].invalidQty,false);
 
   const subtotal = qty * stockPrice;
   const fee = adminFeeFixed + (subtotal * adminFeePercent / 100);
-  const total = type === "buy" ? subtotal + fee : subtotal - fee;
+  const total = type==="buy"? subtotal + fee : subtotal - fee;
 
   currentAction = type;
   confirmBox.style.display = "block";
   confirmText.innerHTML = `
-    ${type === "buy" ? texts[lang].buy : texts[lang].sell} ${qty} stocks<br>
+    ${type==="buy"? texts[lang].buy : texts[lang].sell} ${qty} stocks<br>
     Price: ${stockPrice}$<br>
     Subtotal: ${subtotal.toFixed(6)}$<br>
     Admin Fee: ${fee.toFixed(6)}$<br>
@@ -210,47 +209,46 @@ function prepareAction(type){
 }
 
 function cancelAction(){
-  confirmBox.style.display = "none";
-  currentAction = null;
+  confirmBox.style.display="none";
+  currentAction=null;
 }
 
-/* ======== تنفيذ العملية ======== */
+// ====================== تنفيذ العملية ======================
 async function confirmAction(){
   const qty = Number(amount.value);
-  const url = currentAction === "buy" ? "/api/buy-stock" : "/api/sell-stock";
-
-  try {
+  const url = currentAction==="buy"? "/api/buy-stock": "/api/sell-stock";
+  try{
     const res = await fetch(url,{
       method:"POST",
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ user_id: telegram_id, quantity: qty })
+      body:JSON.stringify({user_id:telegram_id, quantity:qty})
     });
     const d = await res.json();
-    if(d.status === "success"){
+    if(d.status==="success"){
       showMsg(texts[lang].operationSuccess,true);
       await loadInvestment();
       await loadTransactions();
-      loadChart();
+      await loadChart();
     } else {
       showMsg(d.message || texts[lang].operationFail,false);
     }
-  } catch(err){
+  }catch(err){
     console.error(err);
     showMsg(texts[lang].operationFail,false);
   }
   cancelAction();
 }
 
-/* ======== سجل الصفقات ======== */
+// ====================== سجل الصفقات ======================
 async function loadTransactions(){
   try{
     const res = await fetch(`/api/transactions?user_id=${telegram_id}`);
     const d = await res.json();
     if(d.status !== "success") throw new Error(d.message);
 
-    txTable.innerHTML = "";
+    txTable.innerHTML="";
     d.data.forEach(t=>{
-      txTable.innerHTML += `
+      txTable.innerHTML+=`
         <tr>
           <td>${t.type}</td>
           <td>${t.quantity}</td>
@@ -260,12 +258,10 @@ async function loadTransactions(){
         </tr>
       `;
     });
-  } catch(err){
-    console.error(err);
-  }
+  }catch(err){ console.error(err);}
 }
 
-/* ======== الرسم البياني ======== */
+// ====================== رسم بياني حي ======================
 async function loadChart(){
   try{
     const res = await fetch('/api/stock-chart');
@@ -286,21 +282,24 @@ async function loadChart(){
         }]
       },
       options:{
-        plugins:{ legend:{display:false} },
-        scales:{
-          y:{ ticks:{ callback:v=>v.toFixed(6) } }
-        }
+        plugins:{legend:{display:false}},
+        scales:{y:{ticks:{callback:v=>v.toFixed(6)}}}
       }
     });
-  } catch(err){
-    console.error(err);
-  }
+  }catch(err){console.error(err);}
 }
 
-/* ======== تشغيل ======== */
+// ====================== تشغيل كل شيء لايف ======================
 loadInvestment();
 loadTransactions();
 loadChart();
+
+// ====================== تحديث تلقائي كل 5 ثواني ======================
+setInterval(async ()=>{
+  await loadInvestment();
+  await loadTransactions();
+  await loadChart();
+},5000);
 </script>
 </body>
 </html>
