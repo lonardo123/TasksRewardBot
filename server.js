@@ -187,16 +187,19 @@ app.post('/api/sell-stock', async (req, res) => {
 
     await client.query('BEGIN');
 
+    const { userDbId, balance } = await getOrCreateUser(client, user_id);
+
     const priceQ = await client.query(`
       SELECT price, admin_fee_fixed, admin_fee_percent
       FROM stock_settings
-      ORDER BY updated_at DESC LIMIT 1
+      ORDER BY updated_at DESC
+      LIMIT 1
     `);
 
     const stockQ = await client.query(`
       SELECT stocks FROM user_stocks
-      WHERE telegram_id = $1 FOR UPDATE
-    `, [user_id]);
+      WHERE user_id = $1 FOR UPDATE
+    `, [userDbId]);
 
     if (!stockQ.rows.length || stockQ.rows[0].stocks < quantity) {
       await client.query('ROLLBACK');
@@ -212,20 +215,20 @@ app.post('/api/sell-stock', async (req, res) => {
     const total = gross - fee;
 
     await client.query(
-      `UPDATE users SET balance = balance + $1 WHERE telegram_id = $2`,
-      [total, user_id]
+      `UPDATE users SET balance = balance + $1 WHERE id = $2`,
+      [total, userDbId]
     );
 
     await client.query(
-      `UPDATE user_stocks SET stocks = stocks - $1 WHERE telegram_id = $2`,
-      [quantity, user_id]
+      `UPDATE user_stocks SET stocks = stocks - $1 WHERE user_id = $2`,
+      [quantity, userDbId]
     );
 
     await client.query(`
       INSERT INTO stock_transactions
-      (telegram_id, type, quantity, price, fee, total)
+      (user_id, type, quantity, price, fee, total)
       VALUES ($1, 'SELL', $2, $3, $4, $5)
-    `, [user_id, quantity, price, fee, total]);
+    `, [userDbId, quantity, price, fee, total]);
 
     await client.query('COMMIT');
 
@@ -244,50 +247,90 @@ app.post('/api/sell-stock', async (req, res) => {
   }
 });
 
-
 // ======================= سجل الصفقات =======================
 app.get('/api/transactions', async (req, res) => {
   try {
     const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ status: "error", message: "user_id مطلوب" });
+
+    const client = await pool.connect();
+    try {
+      const { userDbId } = await getOrCreateUser(client, user_id);
+
+      const q = await client.query(`
+        SELECT type, quantity, price, fee, total, created_at
+        FROM stock_transactions
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT 50
+      `, [userDbId]);
+
+      res.json({
+        status: "success",
+        data: q.rows.map(r => ({
+          type: r.type,
+          quantity: Number(r.quantity),
+          price: Number(r.price),
+          fee: Number(r.fee),
+          total: Number(r.total),
+          date: r.created_at
+        }))
+      });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: "فشل تحميل السجل" });
+  }
+});
+
+// ======================= الرسم البياني =======================
+app.get('/api/stock-chart', async (req, res) => {
+  try {
     const q = await pool.query(`
-      SELECT type, quantity, price, fee, total, created_at
-      FROM stock_transactions
-      WHERE telegram_id = $1
-      ORDER BY created_at DESC
-      LIMIT 50
-    `, [user_id]);
+      SELECT price, updated_at
+      FROM stock_settings
+      ORDER BY updated_at ASC
+      LIMIT 30
+    `);
 
     res.json({
       status: "success",
       data: q.rows.map(r => ({
-        type: r.type,
-        quantity: Number(r.quantity),
         price: Number(r.price),
-        fee: Number(r.fee),
-        total: Number(r.total),
-        date: r.created_at
+        date: r.updated_at
       }))
     });
   } catch (err) {
-    res.status(500).json({ status: "error", message: "فشل تحميل السجل" });
+    console.error('❌ خطأ في /api/stock-chart:', err.message);
+    res.status(500).json({ status: "error", message: "فشل تحميل المخطط" });
   }
 });
 
 
 // ======================= تحديث السعر من الادمن =======================
 app.post('/api/admin/update-price', async (req, res) => {
-  const { new_price, admin_fee_fixed = 0.05, admin_fee_percent = 2 } = req.body;
+  try {
+    const { new_price, admin_fee_fixed = 0.05, admin_fee_percent = 2 } = req.body;
+    if (!new_price || new_price <= 0) {
+      return res.status(400).json({ status: "error", message: "سعر غير صالح" });
+    }
 
-  await pool.query(`
-    INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent, updated_at)
-    VALUES ($1, $2, $3, NOW())
-  `, [new_price, admin_fee_fixed, admin_fee_percent]);
+    await pool.query(`
+      INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent, updated_at)
+      VALUES ($1, $2, $3, NOW())
+    `, [new_price, admin_fee_fixed, admin_fee_percent]);
 
-  res.json({
-    status: "success",
-    message: "تم تحديث السعر",
-    data: { price: new_price }
-  });
+    res.json({
+      status: "success",
+      message: "تم تحديث السعر",
+      data: { price: new_price }
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ status: "error", message: "فشل التحديث" });
+  }
 });
 
 app.get('/investment', (req, res) => {
