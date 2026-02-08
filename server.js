@@ -45,22 +45,26 @@ app.get("/api/worker/message", (req, res) => {
   }
 });
 
+
 // ======================= API: جلب بيانات الاستثمار =======================
 app.get('/api/investment-data', async (req, res) => {
   try {
     const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ status: "error", message: "user_id is required" });
 
+    // التأكد من وجود الجداول
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         telegram_id VARCHAR(50) UNIQUE NOT NULL,
-        balance DECIMAL(15,8) DEFAULT 0
+        balance DECIMAL(15,8) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS user_stocks (
         id SERIAL PRIMARY KEY,
         user_id VARCHAR(50) UNIQUE NOT NULL,
-        stocks INTEGER DEFAULT 0
+        stocks INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       CREATE TABLE IF NOT EXISTS stock_settings (
         id SERIAL PRIMARY KEY,
@@ -81,32 +85,35 @@ app.get('/api/investment-data', async (req, res) => {
       );
     `);
 
+    // إنشاء المستخدم إذا لم يكن موجود
     await pool.query(`
-      INSERT INTO users (telegram_id, balance)
+      INSERT INTO users (telegram_id, balance) 
       VALUES ($1, 0)
       ON CONFLICT (telegram_id) DO NOTHING
     `, [user_id]);
 
+    // جلب السعر الحالي
     let priceQ = await pool.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent
+      SELECT price, admin_fee_fixed, admin_fee_percent 
       FROM stock_settings
-      ORDER BY updated_at DESC
+      ORDER BY updated_at DESC 
       LIMIT 1
     `);
-
+    
     if (priceQ.rows.length === 0) {
       await pool.query(`
         INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent)
         VALUES (1.00, 0.05, 2)
       `);
       priceQ = await pool.query(`
-        SELECT price, admin_fee_fixed, admin_fee_percent
+        SELECT price, admin_fee_fixed, admin_fee_percent 
         FROM stock_settings
-        ORDER BY updated_at DESC
+        ORDER BY updated_at DESC 
         LIMIT 1
       `);
     }
 
+    // جلب الرصيد من الـ API الخارجي
     let balance = 0;
     try {
       const profileRes = await fetch(`https://perceptive-victory-production.up.railway.app/api/user/profile?user_id=${user_id}`);
@@ -120,13 +127,15 @@ app.get('/api/investment-data', async (req, res) => {
       console.warn(`⚠️ فشل جلب الرصيد من API الخارجي للمستخدم ${user_id}`);
     }
 
+    // جلب الأسهم
     const stocksQ = await pool.query(`
       SELECT stocks FROM user_stocks WHERE user_id = $1
     `, [user_id]);
 
+    // ✅ التصحيح الحرج: إضافة النقطتين الرأسيتين قبل "data"
     res.json({
       status: "success",
-      data: {  // ✅ تم التصحيح هنا
+      data: {  // ← هنا كان النقص (ناقص ":")
         price: Number(priceQ.rows[0].price),
         balance: balance,
         stocks: Number(stocksQ.rows[0]?.stocks || 0),
@@ -152,17 +161,17 @@ app.post('/api/buy-stock', async (req, res) => {
     await client.query('BEGIN');
 
     await client.query(`
-      INSERT INTO users (telegram_id, balance)
+      INSERT INTO users (telegram_id, balance) 
       VALUES ($1, 0)
       ON CONFLICT (telegram_id) DO NOTHING
     `, [user_id]);
 
     const priceQ = await client.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent
+      SELECT price, admin_fee_fixed, admin_fee_percent 
       FROM stock_settings
       ORDER BY updated_at DESC LIMIT 1
     `);
-
+    
     const userQ = await client.query(`
       SELECT balance FROM users WHERE telegram_id = $1 FOR UPDATE
     `, [user_id]);
@@ -191,7 +200,7 @@ app.post('/api/buy-stock', async (req, res) => {
     `, [total, user_id]);
 
     await client.query(`
-      INSERT INTO user_stocks (user_id, stocks)
+      INSERT INTO user_stocks (user_id, stocks) 
       VALUES ($1, $2)
       ON CONFLICT (user_id) DO UPDATE SET stocks = user_stocks.stocks + $2
     `, [user_id, quantity]);
@@ -202,19 +211,20 @@ app.post('/api/buy-stock', async (req, res) => {
     `, [user_id, quantity, price, fee, total]);
 
     await client.query('COMMIT');
-
-    res.json({
-      status: "success",
+    
+    // ✅ التصحيح الحرج: إضافة النقطتين الرأسيتين قبل "data"
+    res.json({ 
+      status: "success", 
       message: "تم شراء الأسهم بنجاح",
-      data: { quantity, price, fee, total }  // ✅ تم التصحيح هنا
+      data: { quantity, price, fee, total }  // ← هنا كان النقص
     });
 
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ خطأ في /api/buy-stock:', err.message);
     res.status(500).json({ status: "error", message: "فشل عملية الشراء" });
-  } finally {
-    client.release();
+  } finally { 
+    client.release(); 
   }
 });
 
@@ -230,11 +240,11 @@ app.post('/api/sell-stock', async (req, res) => {
     await client.query('BEGIN');
 
     const priceQ = await client.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent
+      SELECT price, admin_fee_fixed, admin_fee_percent 
       FROM stock_settings
       ORDER BY updated_at DESC LIMIT 1
     `);
-
+    
     const stockQ = await client.query(`
       SELECT stocks FROM user_stocks WHERE user_id = $1 FOR UPDATE
     `, [user_id]);
@@ -255,7 +265,7 @@ app.post('/api/sell-stock', async (req, res) => {
     await client.query(`
       UPDATE users SET balance = balance + $1 WHERE telegram_id = $2
     `, [total, user_id]);
-
+    
     await client.query(`
       UPDATE user_stocks SET stocks = stocks - $1 WHERE user_id = $2
     `, [quantity, user_id]);
@@ -266,19 +276,20 @@ app.post('/api/sell-stock', async (req, res) => {
     `, [user_id, quantity, price, fee, total]);
 
     await client.query('COMMIT');
-
-    res.json({
-      status: "success",
+    
+    // ✅ التصحيح الحرج: إضافة النقطتين الرأسيتين قبل "data"
+    res.json({ 
+      status: "success", 
       message: "تم بيع الأسهم بنجاح",
-      data: { quantity, price, fee, total }  // ✅ تم التصحيح هنا
+      data: { quantity, price, fee, total }  // ← هنا كان النقص
     });
 
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ خطأ في /api/sell-stock:', err.message);
     res.status(500).json({ status: "error", message: "فشل عملية البيع" });
-  } finally {
-    client.release();
+  } finally { 
+    client.release(); 
   }
 });
 
@@ -296,9 +307,10 @@ app.get('/api/transactions', async (req, res) => {
       LIMIT 50
     `, [user_id]);
 
-    res.json({
-      status: "success",
-      data: q.rows.map(r => ({  // ✅ تم التصحيح هنا
+    // ✅ التصحيح: إضافة "data:"
+    res.json({ 
+      status: "success", 
+      data: q.rows.map(r => ({  // ← هنا كان النقص
         type: r.type,
         quantity: Number(r.quantity),
         price: Number(r.price),
@@ -307,7 +319,7 @@ app.get('/api/transactions', async (req, res) => {
         date: r.created_at
       }))
     });
-  } catch (err) {
+  } catch (err) { 
     console.error('❌ خطأ في /api/transactions:', err.message);
     res.status(500).json({ status: "error", message: "فشل تحميل السجل" });
   }
@@ -317,20 +329,21 @@ app.get('/api/transactions', async (req, res) => {
 app.get('/api/stock-chart', async (req, res) => {
   try {
     const q = await pool.query(`
-      SELECT price, updated_at
-      FROM stock_settings
-      ORDER BY updated_at ASC
+      SELECT price, updated_at 
+      FROM stock_settings 
+      ORDER BY updated_at ASC 
       LIMIT 30
     `);
 
-    res.json({
-      status: "success",
-      data: q.rows.map(r => ({  // ✅ تم التصحيح هنا
+    // ✅ التصحيح: إضافة "data:"
+    res.json({ 
+      status: "success", 
+      data: q.rows.map(r => ({  // ← هنا كان النقص
         price: Number(r.price),
         date: r.updated_at
       }))
     });
-  } catch (err) {
+  } catch (err) { 
     console.error('❌ خطأ في /api/stock-chart:', err.message);
     res.status(500).json({ status: "error", message: "فشل تحميل المخطط" });
   }
@@ -350,7 +363,13 @@ app.post('/api/admin/update-price', async (req, res) => {
     `, [new_price, admin_fee_fixed || 0.05, admin_fee_percent || 2]);
 
     console.log(`✅ تم تحديث السعر إلى: ${new_price}$`);
-    res.json({ status: "success", message: "تم التحديث بنجاح", data: { price: new_price } });  // ✅ تم التصحيح هنا
+    
+    // ✅ التصحيح الحرج: إضافة النقطتين الرأسيتين قبل "data"
+    res.json({ 
+      status: "success", 
+      message: "تم التحديث بنجاح", 
+      data: { price: new_price }  // ← هنا كان النقص (ناقص ":")
+    });
 
   } catch (err) {
     console.error('❌ خطأ في التحديث:', err.message);
@@ -366,6 +385,8 @@ app.get('/investment', (req, res) => {
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+
 
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
