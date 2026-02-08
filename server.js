@@ -48,30 +48,6 @@ app.get("/api/worker/message", (req, res) => {
   }
 });
 
-require('dotenv').config();
-const express = require('express');
-const path = require('path');
-const { pool } = require('./db');
-
-// التقاط أي أخطاء لاحقة في الـ pool
-pool.on('error', (err) => {
-  console.error('⚠️ PG pool error:', err);
-});
-
-// === السيرفر (Express)
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, "public")));
-
-// Middleware للتحقق من الأخطاء
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ status: "error", message: "Internal server error" });
-});
-
 // ======================= API: جلب بيانات الاستثمار =======================
 app.get('/api/investment-data', async (req, res) => {
   try {
