@@ -234,6 +234,16 @@ tr:hover {
   color: white;
 }
 
+.debug-box {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid var(--error-color);
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  display: none;
+}
+
 @media (max-width: 768px) {
   body {
     padding: 10px;
@@ -319,6 +329,8 @@ tr:hover {
       </div>
 
       <div id="msg" class="message-box" style="display: none;"></div>
+      
+      <div id="debugBox" class="debug-box"></div>
     </div>
   </div>
 
@@ -529,6 +541,13 @@ function showMsg(text, type = 'success') {
   }, 5000);
 }
 
+function showDebug(msg) {
+  const debug = document.getElementById("debugBox");
+  debug.style.display = "block";
+  debug.innerHTML = `<strong>🐞 Debug:</strong> ${msg}`;
+  console.log("🐞 Debug:", msg);
+}
+
 function validateInput() {
   const input = document.getElementById("amount");
   if (input.value && input.value <= 0) {
@@ -539,19 +558,35 @@ function validateInput() {
 /* ===================== تحميل بيانات المستخدم ===================== */
 async function loadInvestment() {
   try {
+    showDebug(`بدء تحميل البيانات للمستخدم: ${telegram_id}`);
+    
     document.getElementById("loadingUser").style.display = "block";
     document.getElementById("userData").style.display = "none";
 
+    // التحقق من الاتصال بالسيرفر أولاً
+    const pingResponse = await fetch('/api/investment-data?user_id=test', { method: 'HEAD' });
+    if (!pingResponse.ok) {
+      throw new Error('السيرفر غير متاح');
+    }
+    
+    showDebug('الاتصال بالسيرفر ناجح');
+
     const response = await fetch(`/api/investment-data?user_id=${telegram_id}`);
     
+    showDebug(`استجابة السيرفر: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
     }
 
     const data = await response.json();
     
+    showDebug(`البيانات المستلمة: ${JSON.stringify(data)}`);
+    
     if (data.status !== "success") {
       showMsg(data.message || texts[lang].serverError, 'error');
+      showDebug(`فشل تحميل البيانات: ${data.message}`);
       return;
     }
 
@@ -567,9 +602,15 @@ async function loadInvestment() {
 
     document.getElementById("loadingUser").style.display = "none";
     document.getElementById("userData").style.display = "block";
+    
+    showDebug('تم تحميل البيانات بنجاح');
+    
   } catch (err) {
-    console.error("Error loading investment data:", err);
-    showMsg(texts[lang].serverError, 'error');
+    console.error("❌ خطأ في تحميل بيانات الاستثمار:", err);
+    showDebug(`خطأ: ${err.message}`);
+    showMsg(`${texts[lang].serverError}<br><small>${err.message}</small>`, 'error');
+    
+    // إظهار البيانات بشكل مؤقت حتى لو فشل التحميل
     document.getElementById("loadingUser").style.display = "none";
     document.getElementById("userData").style.display = "block";
   }
@@ -737,7 +778,7 @@ async function loadChart() {
         }),
         datasets: [{
           label: lang === 'ar' ? "السعر" : "Price",
-          data: data.data.map(x => Number(x.price)),
+           data.data.map(x => Number(x.price)),
           borderColor: "#22c55e",
           backgroundColor: "rgba(34, 197, 94, 0.1)",
           borderWidth: 3,
@@ -867,14 +908,17 @@ async function checkForPriceUpdate() {
 // تهيئة اللغة
 initLanguage();
 
-// تحميل البيانات الأولية
-Promise.all([
-  loadInvestment(),
-  loadTransactions(),
-  loadChart()
-]).catch(err => {
-  console.error("Error initializing page:", err);
-});
+// تحميل البيانات الأولية مع تأخير بسيط لضمان تحميل DOM بالكامل
+setTimeout(async () => {
+  try {
+    await loadInvestment();
+    await loadTransactions();
+    await loadChart();
+  } catch (err) {
+    console.error("Error initializing page:", err);
+    showDebug(`خطأ في التهيئة: ${err.message}`);
+  }
+}, 100);
 
 // التحقق من تحديثات قاعدة البيانات كل 5 ثوانٍ
 setInterval(checkForPriceUpdate, 5000);
