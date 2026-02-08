@@ -89,7 +89,7 @@ app.get('/api/investment-data', async (req, res) => {
   try {
     const { user_id } = req.query;
     if (!user_id) {
-      return res.json({ status: "error", message: "user_id مطلوب" });
+      return res.json({ status: "error", message: "user_id is required" });
     }
 
     const settingsQ = await pool.query(`
@@ -100,7 +100,7 @@ app.get('/api/investment-data', async (req, res) => {
     `);
 
     if (!settingsQ.rows.length) {
-      return res.json({ status: "error", message: "سعر السهم غير محدد" });
+      return res.json({ status: "error", message: "Stock price is not set" });
     }
 
     const userQ = await pool.query(
@@ -133,7 +133,7 @@ app.get('/api/investment-data', async (req, res) => {
 
   } catch (err) {
     console.error(err);
-    res.json({ status: "error", message: "خطأ في تحميل بيانات الاستثمار" });
+    res.json({ status: "error", message: "Error loading investment data" });
   }
 });
 
@@ -143,7 +143,7 @@ app.post('/api/buy-stock', async (req, res) => {
   try {
     const { user_id, quantity } = req.body;
     if (!user_id || quantity <= 0) {
-      return res.json({ status: "error", message: "بيانات غير صالحة" });
+      return res.json({ status: "error", message: "Invalid data" });
     }
 
     await client.query('BEGIN');
@@ -171,7 +171,7 @@ app.post('/api/buy-stock', async (req, res) => {
 
     if (balance < total) {
       await client.query('ROLLBACK');
-      return res.json({ status: "error", message: "رصيد غير كافٍ" });
+      return res.json({ status: "error", message: "Insufficient balance" });
     }
 
     await client.query(
@@ -194,12 +194,12 @@ app.post('/api/buy-stock', async (req, res) => {
 
     await client.query('COMMIT');
 
-    res.json({ status: "success", message: "تم الشراء بنجاح" });
+    res.json({ status: "success", message: "Purchase completed successfully" });
 
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ status: "error", message: "فشل عملية الشراء" });
+    res.status(500).json({ status: "error", message: "Purchase failed" });
   } finally {
     client.release();
   }
@@ -212,7 +212,7 @@ app.post('/api/sell-stock', async (req, res) => {
   try {
     const { user_id, quantity } = req.body;
     if (!user_id || quantity <= 0) {
-      return res.json({ status: "error", message: "بيانات غير صالحة" });
+      return res.json({ status: "error", message: "Invalid data" });
     }
 
     await client.query('BEGIN');
@@ -224,7 +224,7 @@ app.post('/api/sell-stock', async (req, res) => {
 
     if (!userQ.rows.length) {
       await client.query('ROLLBACK');
-      return res.json({ status: "error", message: "المستخدم غير موجود" });
+      return res.json({ status: "error", message: "User not found" });
     }
 
     const stockQ = await client.query(
@@ -234,7 +234,7 @@ app.post('/api/sell-stock', async (req, res) => {
 
     if (!stockQ.rows.length || stockQ.rows[0].stocks < quantity) {
       await client.query('ROLLBACK');
-      return res.json({ status: "error", message: "أسهم غير كافية" });
+      return res.json({ status: "error", message: "Insufficient stocks" });
     }
 
     const priceQ = await client.query(`
@@ -270,12 +270,12 @@ app.post('/api/sell-stock', async (req, res) => {
 
     await client.query('COMMIT');
 
-    res.json({ status: "success", message: "تم بيع الأسهم بنجاح" });
+    res.json({ status: "success", message: "Stocks sold successfully" });
 
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ status: "error", message: "فشل عملية البيع" });
+    res.status(500).json({ status: "error", message: "Sale failed" });
   } finally {
     client.release();
   }
@@ -286,7 +286,7 @@ app.get('/api/transactions', async (req, res) => {
   try {
     const { user_id } = req.query;
     if (!user_id) {
-      return res.json({ status: "error", message: "user_id مطلوب" });
+      return res.json({ status: "error", message: "user_id is required" });
     }
 
     const q = await pool.query(`
@@ -311,7 +311,7 @@ app.get('/api/transactions', async (req, res) => {
 
   } catch (err) {
     console.error(err);
-    res.status(500).json({ status: "error", message: "فشل تحميل السجل" });
+    res.status(500).json({ status: "error", message: "Failed to load investment data" });
   }
 });
 
@@ -334,7 +334,7 @@ app.get('/api/stock-chart', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ خطأ في /api/stock-chart:', err.message);
-    res.status(500).json({ status: "error", message: "فشل تحميل المخطط" });
+    res.status(500).json({ status: "error", message: "Failed to load chart data" });
   }
 });
 
