@@ -543,17 +543,18 @@ app.get('/admin/users-stocks', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        u.telegram_id AS user,        -- يظهر في الجدول
+        u.telegram_id AS user,
         u.balance,
         COALESCE(s.stocks, 0) AS total_stocks
       FROM users u
-      LEFT JOIN user_stocks s ON u.id = s.user_id   -- ✅ الربط الصحيح
-      ORDER BY u.id ASC
+      LEFT JOIN user_stocks s
+        ON u.telegram_id = s.telegram_id
+      ORDER BY u.telegram_id ASC
     `);
 
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
+    console.error('❌ users-stocks error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
