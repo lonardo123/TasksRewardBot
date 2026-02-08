@@ -136,60 +136,85 @@ app.get('/api/investment-data', async (req, res) => {
 
 
 // ======================= شراء الأسهم =======================
+// ======================= شراء الأسهم =======================
 app.post('/api/buy-stock', async (req, res) => {
   const client = await pool.connect();
   try {
     const { user_id, quantity } = req.body;
 
+    // التحقق من البيانات
     if (!user_id || !Number.isInteger(quantity) || quantity <= 0) {
       return res.status(400).json({ status: "error", message: "بيانات غير صالحة" });
     }
 
     await client.query('BEGIN');
 
-    // جلب المستخدم أو إنشاؤه
-    const { userDbId, balance } = await getOrCreateUser(client, user_id);
+    // جلب أو إنشاء المستخدم
+    let userQ = await client.query(
+      'SELECT id, balance FROM users WHERE telegram_id = $1 FOR UPDATE',
+      [user_id]
+    );
+    if (!userQ.rows.length) {
+      userQ = await client.query(
+        'INSERT INTO users (telegram_id, balance) VALUES ($1, 0) RETURNING id, balance',
+        [user_id]
+      );
+    }
+    const userDbId = userQ.rows[0].id;
+    const balance = Number(userQ.rows[0].balance);
 
-    // جلب سعر السهم
+    // جلب إعدادات الأسهم
     const priceQ = await client.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent
+      SELECT price, admin_fee_fixed, admin_fee_percent 
       FROM stock_settings
       ORDER BY updated_at DESC
       LIMIT 1
     `);
-
-    if (!priceQ.rows[0]) {
+    if (!priceQ.rows.length) {
       await client.query('ROLLBACK');
-      return res.status(500).json({ status: "error", message: "سعر السهم غير موجود" });
+      return res.json({ status: "error", message: "لم يتم إعداد سعر السهم بعد" });
     }
-
     const price = Number(priceQ.rows[0].price);
     const fixedFee = Number(priceQ.rows[0].admin_fee_fixed);
     const percentFee = Number(priceQ.rows[0].admin_fee_percent);
 
+    // جلب الحد الأقصى للشراء
+    const limitQ = await client.query(`
+      SELECT max_buy FROM stock_limits ORDER BY updated_at DESC LIMIT 1
+    `);
+    const maxBuy = limitQ.rows[0]?.max_buy || 1000;
+    if (quantity > maxBuy) {
+      await client.query('ROLLBACK');
+      return res.json({ status: "error", message: `الحد الأقصى للشراء هو ${maxBuy} سهم` });
+    }
+
+    // حساب الرسوم والإجمالي
     const subtotal = price * quantity;
     const fee = fixedFee + (subtotal * percentFee / 100);
     const total = subtotal + fee;
 
     if (balance < total) {
       await client.query('ROLLBACK');
-      return res.json({ status: "error", message: "رصيد غير كافٍ" });
+      return res.json({ 
+        status: "error", 
+        message: `رصيدك غير كافٍ، إجمالي الشراء مع الرسوم = ${total.toFixed(6)}$`
+      });
     }
 
-    // خصم المبلغ من المستخدم
+    // تحديث رصيد المستخدم
     await client.query(
-      `UPDATE users SET balance = balance - $1 WHERE id = $2`,
+      'UPDATE users SET balance = balance - $1 WHERE id = $2',
       [total, userDbId]
     );
 
-    // إضافة أو تحديث الأسهم
+    // إضافة الأسهم للمستخدم
     await client.query(`
       INSERT INTO user_stocks (user_id, stocks)
       VALUES ($1, $2)
       ON CONFLICT (user_id) DO UPDATE SET stocks = user_stocks.stocks + $2
     `, [userDbId, quantity]);
 
-    // تسجيل الصفقة
+    // تسجيل العملية
     await client.query(`
       INSERT INTO stock_transactions (user_id, type, quantity, price, fee, total)
       VALUES ($1, 'BUY', $2, $3, $4, $5)
@@ -205,12 +230,13 @@ app.post('/api/buy-stock', async (req, res) => {
 
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('❌ /api/buy-stock:', err);
+    console.error('❌ خطأ في /api/buy-stock:', err.message);
     res.status(500).json({ status: "error", message: "فشل عملية الشراء" });
   } finally {
     client.release();
   }
 });
+
 
 // ======================= بيع الأسهم =======================
 app.post('/api/sell-stock', async (req, res) => {
