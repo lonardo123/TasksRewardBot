@@ -543,20 +543,21 @@ app.get('/admin/users-stocks', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-      u.telegram_id AS user,   -- ← هذا سيُرسل إلى الجدول
-      u.balance,
-      COALESCE(SUM(s.stocks),0) AS total_stocks
+        u.telegram_id AS user,        -- يظهر في الجدول
+        u.balance,
+        COALESCE(s.stocks, 0) AS total_stocks
       FROM users u
-      LEFT JOIN user_stocks s ON u.telegram_id = s.user_id
-      GROUP BY u.id, u.telegram_id, u.balance
+      LEFT JOIN user_stocks s ON u.id = s.user_id   -- ✅ الربط الصحيح
       ORDER BY u.id ASC
     `);
+
     res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
 
 app.post('/api/delete-video', async (req, res) => {
   const { user_id, video_id } = req.body;
