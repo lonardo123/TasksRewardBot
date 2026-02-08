@@ -126,6 +126,11 @@ Admin fees apply on every transaction.
 const params = new URLSearchParams(location.search);
 const user_id = params.get('user_id');
 
+if(!user_id){
+  alert("User ID is missing");
+  throw new Error("User ID missing");
+}
+
 let stockPrice = 0;
 let feeFixed = 0;
 let feePercent = 0;
@@ -146,21 +151,25 @@ function showMsg(text, ok=true){
 
 /* ================== تحميل البيانات ================== */
 async function loadInvestment(){
-  const r = await fetch(`/api/investment-data?user_id=${user_id}`);
-  const j = await r.json();
-  if(j.status !== "success") return showMsg(j.message,false);
+  try{
+    const r = await fetch(`/api/investment-data?user_id=${user_id}`);
+    const j = await r.json();
+    if(j.status !== "success") return showMsg(j.message,false);
 
-  const d = j.data;
+    const d = j.data;
 
-  stockPrice = Number(d.price);
-  feeFixed   = Number(d.admin_fee_fixed);
-  feePercent = Number(d.admin_fee_percent);
+    stockPrice = Number(d.price);
+    feeFixed   = Number(d.admin_fee_fixed);
+    feePercent = Number(d.admin_fee_percent);
 
-  userIdEl.textContent  = `👤 User ID: ${user_id}`;
-  priceEl.textContent   = `💰 Price: ${stockPrice.toFixed(6)}$`;
-  balanceEl.textContent = `💵 Balance: ${Number(d.balance).toFixed(6)}$`;
-  stocksEl.textContent  = `📦 My Stocks: ${d.stocks}`;
-  feeEl.textContent     = `🧾 Admin Fee: ${feeFixed}$ + ${feePercent}%`;
+    userIdEl.textContent  = `👤 User ID: ${user_id}`;
+    priceEl.textContent   = `💰 Price: ${stockPrice.toFixed(6)}$`;
+    balanceEl.textContent = `💵 Balance: ${Number(d.balance).toFixed(6)}$`;
+    stocksEl.textContent  = `📦 My Stocks: ${d.stocks}`;
+    feeEl.textContent     = `🧾 Admin Fee: ${feeFixed}$ + ${feePercent}%`;
+  }catch{
+    showMsg("Failed to load investment data",false);
+  }
 }
 
 /* ================== تحضير العملية ================== */
@@ -222,9 +231,9 @@ async function loadTransactions(){
       <tr>
         <td>${t.type}</td>
         <td>${t.quantity}</td>
-        <td>${t.price.toFixed(6)}</td>
-        <td>${t.fee.toFixed(6)}</td>
-        <td>${t.total.toFixed(6)}</td>
+        <td>${Number(t.price).toFixed(6)}</td>
+        <td>${Number(t.fee).toFixed(6)}</td>
+        <td>${Number(t.total).toFixed(6)}</td>
         <td>${new Date(t.date).toLocaleString()}</td>
       </tr>
     `;
