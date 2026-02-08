@@ -1137,17 +1137,26 @@ bot.hears(
   async (ctx) => {
     const userId = ctx.from.id;
     const lang = getLang(ctx);
-    const url = `${MAIN_URL}/investment.html?user_id=${userId}&lang=${lang}`;
+
+    // ✅ المسار الصحيح
+    const url = `${MAIN_URL}/investment?user_id=${userId}&lang=${lang}`;
+
     await ctx.reply(
       lang === 'ar'
-        ? '🎬 اضغط على الزر لعرض وإدارة استثماراتك:'
-        : '🎬 Click the button below to view and manage your investments:',
+        ? '📈 اضغط على الزر لعرض وإدارة استثماراتك:'
+        : '📈 Click the button below to view and manage your investments:',
       Markup.inlineKeyboard([
-        [Markup.button.webApp(lang === 'ar' ? '📈 استثماري' : '📈 My Investment', url)]
+        [
+          Markup.button.webApp(
+            lang === 'ar' ? '📈 استثماري' : '📈 My Investment',
+            url
+          )
+        ]
       ])
     );
   }
 );
+
 
 // 📈 إدارة الاستثمار (للأدمن) - تصحيح كامل ليعمل كـ WebApp داخلي
 bot.hears('📈 إدارة الاستثمار', async (ctx) => {
