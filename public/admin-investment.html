@@ -100,6 +100,7 @@ th {
   </table>
 </div>
 
+
 <script>
 // =====================
 // تحديث سعر السهم
@@ -162,28 +163,28 @@ async function setMax(){
 // =====================
 // جلب المستخدمين والأسهم
 // =====================
-async function loadUsersStocks(){
+async function loadUsersStocks() {
   try {
     const res = await fetch('/admin/users-stocks');
     const users = await res.json();
 
-    const tbody = document.querySelector("#usersTable tbody");
-    tbody.innerHTML = "";
+    const tbody = document.querySelector('#usersTable tbody');
+    tbody.innerHTML = '';
 
-    users.forEach(u=>{
-      const tr = document.createElement("tr");
+    users.forEach(u => {
+      const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${u.user}</td>
-        <td>${parseFloat(u.balance).toFixed(6)}</td>
+        <td>${Number(u.balance).toFixed(6)}</td>
         <td>${u.total_stocks}</td>
       `;
       tbody.appendChild(tr);
     });
-  } catch(err){
-    console.error("Error loading users stocks", err);
+
+  } catch (err) {
+    console.error('❌ Error loading users stocks:', err);
   }
 }
-
 // تحميل البيانات عند فتح الصفحة
 loadUsersStocks();
 </script>
