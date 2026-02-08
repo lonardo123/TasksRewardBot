@@ -63,6 +63,27 @@ async function getOrCreateUser(client, telegramId) {
   };
 }
 
+async function getOrCreateUser(client, telegram_id) {
+  // جلب المستخدم
+  let userQ = await client.query(
+    'SELECT id, balance FROM users WHERE telegram_id = $1',
+    [telegram_id]
+  );
+
+  // إذا لم يوجد، إنشاء المستخدم
+  if (!userQ.rows.length) {
+    userQ = await client.query(
+      'INSERT INTO users (telegram_id, balance) VALUES ($1, 0) RETURNING id, balance',
+      [telegram_id]
+    );
+  }
+
+  return {
+    userDbId: userQ.rows[0].id,
+    balance: Number(userQ.rows[0].balance)
+  };
+}
+
 // ======================= API: جلب بيانات الاستثمار =======================
 app.get('/api/investment-data', async (req, res) => {
   try {
@@ -119,25 +140,27 @@ app.post('/api/buy-stock', async (req, res) => {
   const client = await pool.connect();
   try {
     const { user_id, quantity } = req.body;
+
     if (!user_id || !Number.isInteger(quantity) || quantity <= 0) {
       return res.status(400).json({ status: "error", message: "بيانات غير صالحة" });
     }
 
     await client.query('BEGIN');
 
-    // تحويل telegram_id إلى user.id وإنشاء المستخدم إذا لم يوجد
+    // جلب المستخدم أو إنشاؤه
     const { userDbId, balance } = await getOrCreateUser(client, user_id);
 
     // جلب سعر السهم
     const priceQ = await client.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent 
+      SELECT price, admin_fee_fixed, admin_fee_percent
       FROM stock_settings
-      ORDER BY updated_at DESC 
+      ORDER BY updated_at DESC
       LIMIT 1
     `);
+
     if (!priceQ.rows[0]) {
       await client.query('ROLLBACK');
-      return res.json({ status: "error", message: "سعر السهم غير موجود" });
+      return res.status(500).json({ status: "error", message: "سعر السهم غير موجود" });
     }
 
     const price = Number(priceQ.rows[0].price);
@@ -154,11 +177,12 @@ app.post('/api/buy-stock', async (req, res) => {
     }
 
     // خصم المبلغ من المستخدم
-    await client.query(`
-      UPDATE users SET balance = balance - $1 WHERE id = $2
-    `, [total, userDbId]);
+    await client.query(
+      `UPDATE users SET balance = balance - $1 WHERE id = $2`,
+      [total, userDbId]
+    );
 
-    // إضافة الأسهم أو تحديثها
+    // إضافة أو تحديث الأسهم
     await client.query(`
       INSERT INTO user_stocks (user_id, stocks)
       VALUES ($1, $2)
