@@ -452,6 +452,10 @@ app.get('/api/current-price', async (req, res) => {
     res.status(500).json({ status: "error", message: "Server error" });
   }
 });
+// ======================= صفحة رئيسية =======================
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'investment.html'));
+});
 
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
