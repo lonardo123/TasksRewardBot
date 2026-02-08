@@ -119,44 +119,53 @@ app.post('/api/buy-stock', async (req, res) => {
   const client = await pool.connect();
   try {
     const { user_id, quantity } = req.body;
-    if (!user_id || quantity <= 0) {
-      return res.json({ status: "error", message: "بيانات غير صالحة" });
+    if (!user_id || !Number.isInteger(quantity) || quantity <= 0) {
+      return res.status(400).json({ status: "error", message: "بيانات غير صالحة" });
     }
 
     await client.query('BEGIN');
 
+    // تحويل telegram_id إلى user.id وإنشاء المستخدم إذا لم يوجد
     const { userDbId, balance } = await getOrCreateUser(client, user_id);
 
+    // جلب سعر السهم
     const priceQ = await client.query(`
-      SELECT price, admin_fee_fixed, admin_fee_percent
+      SELECT price, admin_fee_fixed, admin_fee_percent 
       FROM stock_settings
-      ORDER BY updated_at DESC
+      ORDER BY updated_at DESC 
       LIMIT 1
     `);
+    if (!priceQ.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.json({ status: "error", message: "سعر السهم غير موجود" });
+    }
 
     const price = Number(priceQ.rows[0].price);
-    const fee = Number(priceQ.rows[0].admin_fee_fixed)
-      + (price * quantity * Number(priceQ.rows[0].admin_fee_percent) / 100);
+    const fixedFee = Number(priceQ.rows[0].admin_fee_fixed);
+    const percentFee = Number(priceQ.rows[0].admin_fee_percent);
 
-    const total = price * quantity + fee;
+    const subtotal = price * quantity;
+    const fee = fixedFee + (subtotal * percentFee / 100);
+    const total = subtotal + fee;
 
     if (balance < total) {
       await client.query('ROLLBACK');
       return res.json({ status: "error", message: "رصيد غير كافٍ" });
     }
 
-    await client.query(
-      'UPDATE users SET balance = balance - $1 WHERE id = $2',
-      [total, userDbId]
-    );
+    // خصم المبلغ من المستخدم
+    await client.query(`
+      UPDATE users SET balance = balance - $1 WHERE id = $2
+    `, [total, userDbId]);
 
+    // إضافة الأسهم أو تحديثها
     await client.query(`
       INSERT INTO user_stocks (user_id, stocks)
       VALUES ($1, $2)
-      ON CONFLICT (user_id) DO UPDATE
-      SET stocks = user_stocks.stocks + $2
+      ON CONFLICT (user_id) DO UPDATE SET stocks = user_stocks.stocks + $2
     `, [userDbId, quantity]);
 
+    // تسجيل الصفقة
     await client.query(`
       INSERT INTO stock_transactions (user_id, type, quantity, price, fee, total)
       VALUES ($1, 'BUY', $2, $3, $4, $5)
@@ -164,17 +173,20 @@ app.post('/api/buy-stock', async (req, res) => {
 
     await client.query('COMMIT');
 
-    res.json({ status: "success", message: "تم الشراء بنجاح" });
+    res.json({
+      status: "success",
+      message: "تم شراء الأسهم بنجاح",
+      data: { quantity, price, fee, total }
+    });
 
-  } catch (e) {
+  } catch (err) {
     await client.query('ROLLBACK');
-    console.error(e);
-    res.json({ status: "error", message: "فشل الشراء" });
+    console.error('❌ /api/buy-stock:', err);
+    res.status(500).json({ status: "error", message: "فشل عملية الشراء" });
   } finally {
     client.release();
   }
 });
-
 
 // ======================= بيع الأسهم =======================
 app.post('/api/sell-stock', async (req, res) => {
