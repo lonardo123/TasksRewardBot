@@ -1,333 +1,298 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<title>Investment</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>نظام الاستثمار</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
-:root{--bg-primary:#020617;--bg-secondary:#1e293b;--border-color:#334155;--text-color:#fff;--success-color:#22c55e;--error-color:#ef4444;--warning-color:#475569}
-body{background:var(--bg-primary);color:var(--text-color);font-family:'Segoe UI',sans-serif;padding:15px}
-.container{max-width:1200px;margin:0 auto}
-.card{background:var(--bg-secondary);padding:20px;border-radius:12px;margin-bottom:20px;border:1px solid var(--border-color)}
-.info-box{background:var(--bg-primary);border:1px solid var(--border-color);padding:15px;border-radius:10px;line-height:1.6;margin-bottom:15px;color:#cbd5e1}
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
-.stat-item{background:rgba(51,65,85,0.3);padding:12px;border-radius:8px;text-align:center;border:1px solid var(--border-color)}
-.stat-label{font-size:12px;color:#94a3b8;margin-bottom:5px}
-.stat-value{font-size:18px;font-weight:600}
-input,button{width:100%;padding:12px;margin-top:12px;border-radius:8px;border:none;font-size:15px}
-input{background:var(--bg-primary);color:var(--text-color);border:1px solid var(--border-color)}
-button{cursor:pointer;font-weight:600}
-.buy-btn{background:#22c55e;color:white}
-.sell-btn{background:#ef4444;color:white}
-.cancel-btn{background:#475569;color:white}
-.message-box{margin-top:15px;padding:12px;border-radius:6px;font-weight:bold;text-align:center;display:none}
-.success{color:#22c55e;background:rgba(34,197,94,0.1);border:1px solid #22c55e}
-.error{color:#ef4444;background:rgba(239,68,68,0.1);border:1px solid #ef4444}
-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
-th,td{border:1px solid var(--border-color);padding:10px;text-align:center}
-th{background:var(--border-color);color:white;font-weight:600}
-.loading{text-align:center;padding:25px;color:#94a3b8;font-size:14px}
-.chart-container{height:220px;width:100%}
-.lang-switcher{display:flex;justify-content:flex-end;margin-bottom:15px;gap:10px}
-.lang-btn{background:var(--bg-primary);color:var(--text-color);border:1px solid var(--border-color);padding:8px 16px;border-radius:6px;cursor:pointer;font-size:13px}
-.lang-btn.active{background:#22c55e;border-color:#22c55e;color:white}
+body{
+  background:#020617;
+  color:#fff;
+  font-family:Arial;
+  padding:20px;
+}
+.card{
+  background:#1e293b;
+  padding:15px;
+  border-radius:10px;
+  margin-bottom:15px;
+}
+.info{
+  background:#020617;
+  border:1px solid #334155;
+  padding:12px;
+  border-radius:10px;
+  line-height:1.6;
+  font-size:14px;
+}
+input,button{
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  border-radius:6px;
+  border:none;
+}
+input{
+  background:#020617;
+  color:#fff;
+  border:1px solid #334155;
+}
+button{
+  font-size:16px;
+  cursor:pointer;
+}
+.buy{ background:#22c55e; }
+.sell{ background:#ef4444; }
+.cancel{ background:#475569; }
+
+.message{
+  margin-top:10px;
+  font-weight:bold;
+}
+.success{ color:#22c55e; }
+.error{ color:#ef4444; }
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:14px;
+}
+th,td{
+  border:1px solid #334155;
+  padding:6px;
+}
+th{ background:#334155; }
 </style>
 </head>
+
 <body>
-<div class="container">
-  <div class="lang-switcher">
-    <button class="lang-btn active" onclick="switchLang('ar')">العربية</button>
-    <button class="lang-btn" onclick="switchLang('en')">English</button>
-  </div>
 
-  <h1 id="title">📈 نظام الاستثمار</h1>
-  
-  <div class="card">
-    <div class="info-box" id="info">
-      يمكنك شراء الأسهم والاحتفاظ بها. السعر يرتفع وينخفض حسب السوق.<br>
-      رسوم الإدارة: 0.05$ + 2% على كل عملية.
-    </div>
-  </div>
+<h2 id="title">📈 Investment</h2>
 
-  <div class="card">
-    <div id="loading">⏳ جاري تحميل البيانات...</div>
-    <div id="content" style="display:none">
-      <div class="stats-grid">
-        <div class="stat-item">
-          <div class="stat-label">👤 المعرف</div>
-          <div class="stat-value" id="userId">--</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">💰 السعر</div>
-          <div class="stat-value" id="price">--</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">💵 الرصيد</div>
-          <div class="stat-value" id="balance">--</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-label">📦 الأسهم</div>
-          <div class="stat-value" id="stocks">--</div>
-        </div>
-      </div>
-      
-      <input id="amount" type="number" min="1" placeholder="أدخل الكمية">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
-        <button class="buy-btn" onclick="buy()">🛒 شراء</button>
-        <button class="sell-btn" onclick="sell()">💸 بيع</button>
-      </div>
-      <div id="msg" class="message-box"></div>
-    </div>
-  </div>
+<!-- شرح الاستثمار -->
+<div class="info" id="investmentInfo"></div>
 
-  <div class="card">
-    <h2>📊 المخطط</h2>
-    <div class="loading" id="chartLoad">⏳ جاري التحميل...</div>
-    <div class="chart-container" id="chartBox" style="display:none">
-      <canvas id="chart"></canvas>
-    </div>
-  </div>
+<!-- بيانات المستخدم -->
+<div class="card">
+  <p id="userId">👤 User ID: --</p>
+  <p id="price">💰 Price: --</p>
+  <p id="balance">💵 Balance: --</p>
+  <p id="stocks">📦 My Stocks: --</p>
+  <p id="fee">🧾 Admin Fee: 0.05$ + 2%</p>
 
-  <div class="card">
-    <h2>📑 السجل</h2>
-    <div class="loading" id="txLoad">⏳ جاري التحميل...</div>
-    <div id="txContent" style="display:none">
-      <table>
-        <thead>
-          <tr>
-            <th>النوع</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th><th>الوقت</th>
-          </tr>
-        </thead>
-        <tbody id="txTable"></tbody>
-      </table>
-    </div>
-  </div>
+  <input id="amount" type="number" min="1" placeholder="Enter stocks amount">
+
+  <button class="buy" onclick="prepareAction('buy')">🛒 Buy</button>
+  <button class="sell" onclick="prepareAction('sell')">💸 Sell</button>
+
+  <div id="msg" class="message"></div>
+</div>
+
+<!-- تأكيد العملية -->
+<div class="card" id="confirmBox" style="display:none;">
+  <div id="confirmText"></div>
+  <button class="buy" onclick="confirmAction()">✅ Confirm</button>
+  <button class="cancel" onclick="cancelAction()">❌ Cancel</button>
+</div>
+
+<!-- الرسم البياني -->
+<div class="card">
+  <h3>📊 Stock Price Chart</h3>
+  <canvas id="priceChart" height="120"></canvas>
+</div>
+
+<!-- سجل الصفقات -->
+<div class="card">
+  <h3>📑 Transactions</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Qty</th>
+        <th>Price</th>
+        <th>Total</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody id="txTable"></tbody>
+  </table>
 </div>
 
 <script>
-// الإعدادات
-const urlParams = new URLSearchParams(window.location.search);
-const userId = urlParams.get('user_id') || '123456';
-let lang = urlParams.get('lang') || 'ar';
-let price = 1.00;
-let chart = null;
+/* ===================== الإعدادات ===================== */
+const params = new URLSearchParams(location.search);
+const telegram_id = params.get('telegram_id');
+const lang = params.get('lang') || 'en';
 
-// النصوص
-const txt = {
-  ar: {
-    title: "📈 نظام الاستثمار",
-    info: "يمكنك شراء الأسهم والاحتفاظ بها. السعر يرتفع وينخفض حسب السوق.<br>رسوم الإدارة: 0.05$ + 2% على كل عملية.",
-    buy: "شراء", sell: "بيع", buyBtn: "🛒 شراء", sellBtn: "💸 بيع",
-    placeholder: "أدخل الكمية", loading: "⏳ جاري التحميل...",
-    success: "✅ تمت العملية بنجاح", error: "❌ فشل العملية"
+let stockPrice = 0;
+let currentAction = null;
+let adminFeeFixed = 0.05;
+let adminFeePercent = 2;
+
+/* ===================== النصوص ===================== */
+const texts = {
+  ar:{
+    title:"📈 استثماري",
+    info:`يمكنك شراء الأسهم والاحتفاظ بها، حيث يرتفع وينخفض سعر السهم حسب السوق.<br>
+    نحن نعمل في استثمارات طويلة المدى، ويمكنك بيع أسهمك في أي وقت.<br>
+    عند الشراء أو البيع يتم خصم عمولة الإدارة.`,
+    buy:"شراء",
+    sell:"بيع"
   },
-  en: {
-    title: "📈 Investment System",
-    info: "Buy and hold stocks. Price fluctuates based on market.<br>Admin fee: 0.05$ + 2% per transaction.",
-    buy: "Buy", sell: "Sell", buyBtn: "🛒 Buy", sellBtn: "💸 Sell",
-    placeholder: "Enter quantity", loading: "⏳ Loading...",
-    success: "✅ Operation successful", error: "❌ Operation failed"
+  en:{
+    title:"📈 My Investment",
+    info:`You can buy stocks and hold them while prices rise and fall based on the market.<br>
+    We operate long-term investment strategies, and you can sell your stocks at any time.<br>
+    An administration fee applies on every buy or sell operation.`,
+    buy:"Buy",
+    sell:"Sell"
   }
 };
 
-// تهيئة اللغة
-function switchLang(newLang) {
-  lang = newLang;
-  document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
-  
-  // تحديث الأزرار
-  document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
-  if(lang === 'ar') document.querySelector('.lang-btn:nth-child(1)').classList.add('active');
-  else document.querySelector('.lang-btn:nth-child(2)').classList.add('active');
-  
-  // تحديث النصوص
-  document.getElementById('title').textContent = txt[lang].title;
-  document.getElementById('info').innerHTML = txt[lang].info;
-  document.querySelector('.buy-btn').innerHTML = txt[lang].buyBtn;
-  document.querySelector('.sell-btn').innerHTML = txt[lang].sellBtn;
-  document.getElementById('amount').placeholder = txt[lang].placeholder;
-}
+document.getElementById("title").innerText = texts[lang].title;
+document.getElementById("investmentInfo").innerHTML = texts[lang].info;
 
-// عرض رسالة
-function msg(text, ok=true) {
-  const m = document.getElementById('msg');
+/* ===================== أدوات مساعدة ===================== */
+function showMsg(text, ok=true){
+  const m = document.getElementById("msg");
   m.textContent = text;
-  m.className = `message-box ${ok ? 'success' : 'error'}`;
-  m.style.display = 'block';
-  setTimeout(() => m.style.display = 'none', 4000);
+  m.className = "message " + (ok ? "success" : "error");
 }
 
-// تحميل البيانات
-async function load() {
-  try {
-    // جلب البيانات من السيرفر الحالي (نفس النطاق)
-    const res = await fetch(`/api/investment-data?user_id=${userId}`);
-    const data = await res.json();
-    
-    if(data.status === 'success') {
-      document.getElementById('userId').textContent = userId;
-      document.getElementById('price').textContent = `${Number(data.data.price).toFixed(6)}$`;
-      document.getElementById('balance').textContent = `${Number(data.data.balance).toFixed(6)}$`;
-      document.getElementById('stocks').textContent = data.data.stocks || 0;
-      price = Number(data.data.price);
-      
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('content').style.display = 'block';
-    }
-  } catch(e) {
-    console.error('فشل التحميل:', e);
-    document.getElementById('loading').innerHTML = '❌ فشل الاتصال بالسيرفر';
+/* ===================== تحميل بيانات المستخدم ===================== */
+async function loadInvestment(){
+  try{
+    const r = await fetch(`/api/investment-data?user_id=${telegram_id}`);
+    const d = await r.json();
+    if(d.status !== "success") return showMsg(d.message,false);
+
+    stockPrice = Number(d.data.price);
+    adminFeeFixed = Number(d.data.admin_fee_fixed);
+    adminFeePercent = Number(d.data.admin_fee_percent);
+
+    document.getElementById("userId").textContent = `👤 User ID: ${telegram_id}`;
+    document.getElementById("price").textContent = `💰 Price: ${stockPrice.toFixed(6)}$`;
+    document.getElementById("balance").textContent = `💵 Balance: ${Number(d.data.balance).toFixed(6)}$`;
+    document.getElementById("stocks").textContent = `📦 My Stocks: ${d.data.stocks}`;
+    document.getElementById("fee").textContent = `🧾 Admin Fee: ${adminFeeFixed}$ + ${adminFeePercent}%`;
+  } catch(err){
+    console.error(err);
+    showMsg("Error loading investment data", false);
   }
 }
 
-// شراء
-async function buy() {
-  const qty = parseInt(document.getElementById('amount').value);
-  if(!qty || qty <= 0) return msg('أدخل كمية صحيحة', false);
-  
-  try {
-    const res = await fetch('/api/buy-stock', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({user_id: userId, quantity: qty})
+/* ===================== تأكيد العملية ===================== */
+function prepareAction(type){
+  const qty = Number(amount.value);
+  if(qty <= 0) return showMsg("Invalid quantity", false);
+
+  const subtotal = qty * stockPrice;
+  const fee = adminFeeFixed + (subtotal * adminFeePercent / 100);
+  const total = type === "buy" ? subtotal + fee : subtotal - fee;
+
+  currentAction = type;
+  confirmBox.style.display = "block";
+  confirmText.innerHTML = `
+    ${type === "buy" ? texts[lang].buy : texts[lang].sell} ${qty} stocks<br>
+    Price: ${stockPrice.toFixed(6)}$<br>
+    Subtotal: ${subtotal.toFixed(6)}$<br>
+    Admin Fee: ${fee.toFixed(6)}$<br>
+    <b>Total: ${total.toFixed(6)}$</b>
+  `;
+}
+
+function cancelAction(){
+  confirmBox.style.display = "none";
+  currentAction = null;
+}
+
+/* ===================== تنفيذ العملية ===================== */
+async function confirmAction(){
+  const qty = Number(amount.value);
+  if(!currentAction) return;
+
+  const url = currentAction === "buy" ? "/api/buy-stock" : "/api/sell-stock";
+
+  try{
+    const r = await fetch(url,{
+      method:"POST",
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ user_id: telegram_id, quantity: qty })
     });
-    const data = await res.json();
-    
-    if(data.status === 'success') {
-      msg(txt[lang].success);
-      document.getElementById('amount').value = '';
-      load();
+    const d = await r.json();
+
+    if(d.status==="success"){
+      showMsg("Operation completed successfully");
+      loadInvestment();
       loadTransactions();
-    } else {
-      msg(data.message || txt[lang].error, false);
-    }
-  } catch(e) {
-    msg(txt[lang].error, false);
-    console.error('خطأ الشراء:', e);
+    } else showMsg(d.message || "Operation failed", false);
+
+  } catch(err){
+    console.error(err);
+    showMsg("Server error", false);
   }
+
+  cancelAction();
 }
 
-// بيع
-async function sell() {
-  const qty = parseInt(document.getElementById('amount').value);
-  if(!qty || qty <= 0) return msg('أدخل كمية صحيحة', false);
-  
-  try {
-    const res = await fetch('/api/sell-stock', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({user_id: userId, quantity: qty})
+/* ===================== سجل الصفقات ===================== */
+async function loadTransactions(){
+  try{
+    const r = await fetch(`/api/transactions?user_id=${telegram_id}`);
+    const d = await r.json();
+    if(d.status!=="success") return;
+
+    txTable.innerHTML = "";
+    d.data.forEach(t=>{
+      txTable.innerHTML += `<tr>
+        <td>${t.type}</td>
+        <td>${t.quantity}</td>
+        <td>${t.price.toFixed(6)}</td>
+        <td>${t.total.toFixed(6)}</td>
+        <td>${new Date(t.date).toLocaleString()}</td>
+      </tr>`;
     });
-    const data = await res.json();
-    
-    if(data.status === 'success') {
-      msg(txt[lang].success);
-      document.getElementById('amount').value = '';
-      load();
-      loadTransactions();
-    } else {
-      msg(data.message || txt[lang].error, false);
-    }
-  } catch(e) {
-    msg(txt[lang].error, false);
-    console.error('خطأ البيع:', e);
-  }
+  } catch(err){ console.error(err); }
 }
 
-// تحميل السجل
-async function loadTransactions() {
-  try {
-    const res = await fetch(`/api/transactions?user_id=${userId}`);
-    const data = await res.json();
-    
-    if(data.status === 'success') {
-      const table = document.getElementById('txTable');
-      table.innerHTML = '';
-      
-      if(data.data.length === 0) {
-        table.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#94a3b8">لا توجد صفقات</td></tr>`;
-      } else {
-        data.data.slice(0,10).forEach(tx => {
-          const type = tx.type === 'BUY' ? (lang === 'ar' ? 'شراء' : 'Buy') : (lang === 'ar' ? 'بيع' : 'Sell');
-          const color = tx.type === 'BUY' ? '#22c55e' : '#ef4444';
-          
-          table.innerHTML += `
-            <tr>
-              <td style="color:${color};font-weight:bold">${type}</td>
-              <td>${tx.quantity}</td>
-              <td>${Number(tx.price).toFixed(6)}$</td>
-              <td style="color:${color}">${Number(tx.total).toFixed(6)}$</td>
-              <td>${new Date(tx.date).toLocaleTimeString(lang === 'ar' ? 'ar-SA' : 'en-US')}</td>
-            </tr>
-          `;
-        });
-      }
-      
-      document.getElementById('txLoad').style.display = 'none';
-      document.getElementById('txContent').style.display = 'block';
-    }
-  } catch(e) {
-    console.error('فشل تحميل السجل:', e);
-  }
-}
+/* ===================== الرسم البياني ===================== */
+async function loadChart(){
+  try{
+    const r = await fetch('/api/stock-chart');
+    const d = await r.json();
+    if(d.status!=="success") return;
 
-// تحميل المخطط
-async function loadChart() {
-  try {
-    const res = await fetch('/api/stock-chart');
-    const data = await res.json();
-    
-    if(data.status === 'success' && data.data.length > 0) {
-      if(chart) chart.destroy();
-      
-      const ctx = document.getElementById('chart').getContext('2d');
-      chart = new Chart(ctx, {
-        type: 'line',
-        : {
-          labels: data.data.map(d => new Date(d.date).toLocaleTimeString(lang === 'ar' ? 'ar-SA' : 'en-US', {hour:'2-digit',minute:'2-digit'})),
-          datasets: [{
-            label: lang === 'ar' ? 'السعر' : 'Price',
-            data: data.data.map(d => Number(d.price)),
-            borderColor: '#22c55e',
-            backgroundColor: 'rgba(34,197,94,0.1)',
-            borderWidth: 2,
-            tension: 0.3,
-            fill: true
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {legend: {display: false}},
-          scales: {
-            y: {ticks: {color: '#94a3b8', callback: v => v.toFixed(6) + '$'}},
-            x: {ticks: {color: '#94a3b8'}}
-          }
+    new Chart(document.getElementById("priceChart"),{
+      type:"line",
+      data:{
+        labels:d.data.map(x=>x.date),
+        datasets:[{
+          label:"Price",
+          data:d.data.map(x=>x.price),
+          borderColor:"#22c55e",
+          backgroundColor:"rgba(34,197,94,0.2)",
+          borderWidth:2,
+          tension:0.4
+        }]
+      },
+      options:{
+        plugins:{ legend:{display:false} },
+        scales:{
+          y:{ ticks:{ callback:v=>v.toFixed(6) } }
         }
-      });
-      
-      document.getElementById('chartLoad').style.display = 'none';
-      document.getElementById('chartBox').style.display = 'block';
-    }
-  } catch(e) {
-    console.error('فشل تحميل المخطط:', e);
-  }
+      }
+    });
+  } catch(err){ console.error(err); }
 }
 
-// التشغيل
-document.addEventListener('DOMContentLoaded', () => {
-  switchLang(lang);
-  load();
-  loadTransactions();
-  loadChart();
-  
-  // تحديث تلقائي كل 10 ثوانٍ
-  setInterval(() => {
-    load();
-    loadTransactions();
-  }, 10000);
-});
+/* ===================== تشغيل ===================== */
+loadInvestment();
+loadTransactions();
+loadChart();
 </script>
+
 </body>
 </html>
