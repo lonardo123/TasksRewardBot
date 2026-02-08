@@ -300,6 +300,9 @@ app.post('/api/admin/update-price', async (req, res) => {
   });
 });
 
+app.get('/investment', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'investment.html'));
+});
 
 
 // ===========================================
