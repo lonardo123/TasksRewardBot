@@ -48,13 +48,13 @@ app.get("/api/worker/message", (req, res) => {
   }
 });
 
+
 // ======================= API: جلب بيانات الاستثمار =======================
 app.get('/api/investment-data', async (req, res) => {
   try {
     const { user_id } = req.query;
     if (!user_id) return res.status(400).json({ status: "error", message: "user_id is required" });
 
-    // إنشاء الجداول إذا لم تكن موجودة
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -85,14 +85,12 @@ app.get('/api/investment-data', async (req, res) => {
       );
     `);
 
-    // إنشاء المستخدم إذا لم يكن موجود
     await pool.query(`
       INSERT INTO users (telegram_id, balance) 
       VALUES ($1, 0)
       ON CONFLICT (telegram_id) DO NOTHING
     `, [user_id]);
 
-    // جلب السعر الحالي
     let priceQ = await pool.query(`
       SELECT price, admin_fee_fixed, admin_fee_percent 
       FROM stock_settings
@@ -113,7 +111,6 @@ app.get('/api/investment-data', async (req, res) => {
       `);
     }
 
-    // جلب الرصيد من الـ API الخارجي
     let balance = 0;
     try {
       const profileRes = await fetch(`https://perceptive-victory-production.up.railway.app/api/user/profile?user_id=${user_id}`);
@@ -127,7 +124,6 @@ app.get('/api/investment-data', async (req, res) => {
       console.warn(`⚠️ فشل جلب الرصيد من API الخارجي للمستخدم ${user_id}`);
     }
 
-    // جلب الأسهم
     const stocksQ = await pool.query(`
       SELECT stocks FROM user_stocks WHERE user_id = $1
     `, [user_id]);
@@ -143,7 +139,7 @@ app.get('/api/investment-data', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('❌ خطأ في /api/investment-', err.message);
+    console.error('❌ خطأ في /api/investment-data:', err.message);
     res.status(500).json({ status: "error", message: "خطأ في تحميل بيانات الاستثمار" });
   }
 });
@@ -358,7 +354,7 @@ app.post('/api/admin/update-price', async (req, res) => {
     `, [new_price, admin_fee_fixed || 0.05, admin_fee_percent || 2]);
 
     console.log(`✅ تم تحديث السعر إلى: ${new_price}$`);
-    res.json({ status: "success", message: "تم التحديث بنجاح", data: { price: new_price } });
+    res.json({ status: "success", message: "تم التحديث بنجاح",  { price: new_price } });
 
   } catch (err) {
     console.error('❌ خطأ في التحديث:', err.message);
@@ -374,6 +370,8 @@ app.get('/investment', (req, res) => {
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+
 
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
