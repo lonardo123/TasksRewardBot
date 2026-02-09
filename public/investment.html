@@ -77,7 +77,15 @@ You can buy stocks and hold them while prices rise and fall.<br>
 You can sell your stocks at any time.<br>
 Admin fees apply on every transaction.
 </div>
-
+  
+<!-- 🔹 إجمالي الأسهم المجمعة -->
+<div class="card" id="totalStocksBox">
+  <h3>📊 Total Stocks Collected</h3>
+  <div id="totalStocksValue" style="font-size:22px;margin-top:8px;">
+    Loading...
+  </div>
+</div>
+  
 <div class="card">
   <p id="userId">👤 User ID: --</p>
   <p id="price">💰 Price: --</p>
@@ -261,11 +269,31 @@ async function loadChart(){
     }
   });
 }
+// =====================
+// تحميل إجمالي الأسهم
+// =====================
+async function loadTotalStocks() {
+  try {
+    const res = await fetch('/api/total-stocks');
+    const data = await res.json();
+
+    if (data.status === "success") {
+      document.getElementById("totalStocksValue").textContent =
+        data.total_stocks + " Stocks";
+    } else {
+      document.getElementById("totalStocksValue").textContent = "Error";
+    }
+  } catch (err) {
+    document.getElementById("totalStocksValue").textContent = "Server Error";
+  }
+}
+
 
 /* ================== تشغيل ================== */
 loadInvestment();
 loadTransactions();
 loadChart();
+loadTotalStocks();  
 </script>
 
 </body>
