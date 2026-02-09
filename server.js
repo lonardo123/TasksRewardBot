@@ -366,6 +366,26 @@ app.post('/api/admin/update-price', async (req, res) => {
 app.get('/investment', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'investment.html'));
 });
+// ======================= إجمالي الأسهم لجميع المستخدمين =======================
+app.get('/api/total-stocks', async (req, res) => {
+  try {
+    const q = await pool.query(`
+      SELECT COALESCE(SUM(stocks), 0) AS total_stocks
+      FROM user_stocks
+    `);
+
+    res.json({
+      status: "success",
+      total_stocks: Number(q.rows[0].total_stocks)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to load total stocks"
+    });
+  }
+});
 
 
 // ===========================================
