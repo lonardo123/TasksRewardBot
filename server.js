@@ -147,6 +147,56 @@ app.post('/api/buy-stock', async (req, res) => {
     }
 
     await client.query('BEGIN');
+    // =======================
+// 1️⃣ جلب الحد الأقصى للشراء
+// =======================
+const maxQ = await client.query(`
+  SELECT max_buy
+  FROM stock_limits
+  ORDER BY updated_at DESC
+  LIMIT 1
+`);
+const maxBuy = maxQ.rows[0]?.max_buy || 0;
+
+// =======================
+// 2️⃣ جلب أسهم المستخدم الحالية
+// =======================
+const userStocksQ = await client.query(`
+  SELECT stocks
+  FROM user_stocks
+  WHERE telegram_id = $1
+  FOR UPDATE
+`, [user_id]);
+
+const currentStocks = userStocksQ.rows[0]?.stocks || 0;
+
+if (currentStocks + quantity > maxBuy) {
+  await client.query('ROLLBACK');
+  return res.json({
+    status: "error",
+    message: "❌ Max buy limit exceeded"
+  });
+}
+
+// =======================
+// 3️⃣ جلب الأسهم المتاحة إجمالاً
+// =======================
+const globalQ = await client.query(`
+  SELECT total_stocks
+  FROM stock_global
+  WHERE id = 1
+  FOR UPDATE
+`);
+
+const availableStocks = globalQ.rows[0].total_stocks;
+
+if (quantity > availableStocks) {
+  await client.query('ROLLBACK');
+  return res.json({
+    status: "error",
+    message: "❌ Not enough stocks available"
+  });
+}
 
     const userQ = await client.query(
       `SELECT balance FROM users WHERE telegram_id = $1 FOR UPDATE`,
@@ -186,6 +236,13 @@ app.post('/api/buy-stock', async (req, res) => {
       DO UPDATE SET stocks = user_stocks.stocks + $2
     `, [user_id, quantity]);
 
+    // خصم الأسهم من المخزون العام
+await client.query(`
+  UPDATE stock_global
+  SET total_stocks = total_stocks - $1
+  WHERE id = 1
+`, [quantity]);
+
     await client.query(`
       INSERT INTO stock_transactions
       (telegram_id, type, quantity, price, fee, total)
@@ -216,6 +273,14 @@ app.post('/api/sell-stock', async (req, res) => {
     }
 
     await client.query('BEGIN');
+    // =======================
+// إعادة الأسهم للمخزون العام
+// =======================
+await client.query(`
+  UPDATE stock_global
+  SET total_stocks = total_stocks + $1
+  WHERE id = 1
+`, [quantity]);
 
     const userQ = await client.query(
       `SELECT balance FROM users WHERE telegram_id = $1 FOR UPDATE`,
@@ -555,6 +620,64 @@ app.post('/admin/set-max', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "فشل تحديث الحد الأقصى" });
+  }
+});
+// =======================
+// تحديث إجمالي الأسهم (ADMIN)
+// =======================
+app.post('/admin/set-total-stocks', async (req, res) => {
+  try {
+    const { total } = req.body;
+
+    if (total === undefined || total < 0) {
+      return res.json({
+        success: false,
+        message: "Invalid total stocks"
+      });
+    }
+
+    await pool.query(`
+      UPDATE stock_global
+      SET total_stocks = $1,
+          updated_at = NOW()
+      WHERE id = 1
+    `, [total]);
+
+    res.json({
+      success: true,
+      message: "Total stocks updated"
+    });
+
+  } catch (err) {
+    console.error('❌ set-total-stocks:', err);
+    res.status(500).json({
+      success: false,
+      message: "Server error"
+    });
+  }
+});
+// =======================
+// الأسهم المتاحة للشراء (GLOBAL)
+// =======================
+app.get('/api/available-stocks', async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT total_stocks
+      FROM stock_global
+      WHERE id = 1
+    `);
+
+    res.json({
+      status: "success",
+      available: Number(r.rows[0].total_stocks)
+    });
+
+  } catch (err) {
+    console.error('❌ available-stocks:', err);
+    res.status(500).json({
+      status: "error",
+      message: "Failed to load available stocks"
+    });
   }
 });
 
