@@ -84,6 +84,12 @@ th {
   <button onclick="setMax()">Update Limit</button>
   <div id="maxMsg" class="message"></div>
 </div>
+<div class="card">
+  <h3>📦 Total Available Stocks</h3>
+  <input id="totalStocks" type="number" min="0" placeholder="Total stocks">
+  <button onclick="setTotalStocks()">Update Total</button>
+  <div id="totalMsg" class="message"></div>
+</div>
 
 <!-- 🔹 عرض المستخدمين وعدد الأسهم -->
 <div class="card">
@@ -155,6 +161,33 @@ async function setMax(){
       msg.classList.add("error");
     }
   } catch(err){
+    msg.textContent = "❌ Server error";
+    msg.classList.add("error");
+  }
+}
+// =====================
+// إجمالي الأسهم المتاحة
+// =====================  
+async function setTotalStocks(){
+  const total = document.getElementById("totalStocks").value;
+  const msg = document.getElementById("totalMsg");
+  msg.textContent = "Updating...";
+
+  try{
+    const res = await fetch('/admin/set-total-stocks',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ total })
+    });
+    const data = await res.json();
+
+    if(data.success){
+      msg.textContent = "✅ Total stocks updated";
+    }else{
+      msg.textContent = data.message || "❌ Error";
+      msg.classList.add("error");
+    }
+  }catch{
     msg.textContent = "❌ Server error";
     msg.classList.add("error");
   }
