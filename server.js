@@ -249,6 +249,15 @@ await client.query(`
       VALUES ($1, 'BUY', $2, $3, $4, $5)
     `, [user_id, quantity, price, fee, total]);
 
+    // =======================
+// تسجيل دفعة شراء مقفولة 15 يوم
+// =======================
+await client.query(`
+  INSERT INTO stock_holdings
+  (telegram_id, quantity, bought_at, unlock_at)
+  VALUES ($1, $2, NOW(), NOW() + INTERVAL '15 days')
+`, [user_id, quantity]);
+
     await client.query('COMMIT');
 
     res.json({ status: "success", message: "Purchase completed successfully" });
@@ -273,6 +282,56 @@ app.post('/api/sell-stock', async (req, res) => {
     }
 
     await client.query('BEGIN');
+    // =======================
+// حساب الأسهم المتاحة للبيع فقط
+// =======================
+const unlockedQ = await client.query(`
+  SELECT COALESCE(SUM(quantity - sold), 0) AS available
+  FROM stock_holdings
+  WHERE telegram_id = $1
+    AND unlock_at <= NOW()
+`, [user_id]);
+
+const sellableStocks = Number(unlockedQ.rows[0].available);
+
+if (sellableStocks < quantity) {
+  await client.query('ROLLBACK');
+  return res.json({
+    status: "error",
+    message: "❌ You can sell stocks only after 15 days from purchase"
+  });
+}
+// =======================
+// خصم الأسهم من دفعات الشراء (FIFO)
+// =======================
+let remainingToSell = quantity;
+
+// جلب الدفعات القابلة للبيع
+const batchesQ = await client.query(`
+  SELECT id, quantity, sold
+  FROM stock_holdings
+  WHERE telegram_id = $1
+    AND unlock_at <= NOW()
+    AND quantity > sold
+  ORDER BY bought_at ASC
+  FOR UPDATE
+`, [user_id]);
+
+for (const batch of batchesQ.rows) {
+  if (remainingToSell <= 0) break;
+
+  const canSell = batch.quantity - batch.sold;
+  const sellNow = Math.min(canSell, remainingToSell);
+
+  await client.query(`
+    UPDATE stock_holdings
+    SET sold = sold + $1
+    WHERE id = $2
+  `, [sellNow, batch.id]);
+
+  remainingToSell -= sellNow;
+}
+
     // =======================
 // إعادة الأسهم للمخزون العام
 // =======================
@@ -378,6 +437,29 @@ app.get('/api/transactions', async (req, res) => {
     console.error(err);
     res.status(500).json({ status: "error", message: "Failed to load investment data" });
   }
+});
+// ================= الأسهم المقفولة والمتاحة للمستخدم ======================
+app.get('/api/my-stock-locks', async (req, res) => {
+  const { user_id } = req.query;
+
+  if (!user_id) {
+    return res.status(400).json({ message: "user_id is required" });
+  }
+
+  const q = await pool.query(`
+    SELECT
+      quantity,
+      sold,
+      bought_at,
+      unlock_at,
+      (quantity - sold) AS remaining,
+      unlock_at > NOW() AS locked
+    FROM stock_holdings
+    WHERE telegram_id = $1
+    ORDER BY bought_at DESC
+  `, [user_id]);
+
+  res.json(q.rows);
 });
 
 // ======================= الرسم البياني =======================
