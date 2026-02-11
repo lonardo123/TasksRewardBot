@@ -74,9 +74,17 @@ th{ background:#334155; }
 
 <div class="info">
 You can buy stocks and hold them while prices rise and fall.<br>
-You can sell your stocks at any time.<br>
+You are free to sell your stocks whenever you decide.<br><br>
+
+<b>How our system works (Halal method):</b><br>
+We operate using halal methods only.<br>
+When you buy a stock, we purchase real gold for you at the current market price, equal to the value of your stock.<br>
+When you decide to sell your stock, the gold is sold at the current market price.<br>
+You are fully in control of when to buy or sell.<br><br>
+
 Admin fees apply on every transaction.
 </div>
+
 <!-- 🔹 الأسهم المتاحة -->
  <div class="card">
   <h3>📦 Available Stocks</h3>
@@ -112,6 +120,23 @@ Admin fees apply on every transaction.
   <button class="cancel" onclick="cancelAction()">❌ Cancel</button>
 </div>
 
+<div class="card">
+  <h3>⏳ Stock Lock Details</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Quantity</th>
+        <th>Remaining</th>
+        <th>Status</th>
+        <th>Unlock Date</th>
+      </tr>
+    </thead>
+    <tbody id="locksTable">
+      <tr><td colspan="4">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+  
 <div class="card">
   <h3>📊 Stock Price Chart</h3>
   <canvas id="priceChart" height="120"></canvas>
@@ -304,7 +329,41 @@ async function loadAvailableStocks(){
       j.available + " stocks available";
   }
 }
+// =====================
+// لأسهم المقفولة
+// =====================
+async function loadStockLocks() {
+  try {
+    const r = await fetch(`/api/my-stock-locks?user_id=${user_id}`);
+    const data = await r.json();
 
+    const tbody = document.getElementById("locksTable");
+    tbody.innerHTML = "";
+
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="4">No stock holdings</td></tr>`;
+      return;
+    }
+
+    data.forEach(row => {
+      const status = row.locked ? "🔒 Locked" : "🔓 Available";
+      const unlockDate = new Date(row.unlock_at).toLocaleString();
+
+      tbody.innerHTML += `
+        <tr>
+          <td>${row.quantity}</td>
+          <td>${row.remaining}</td>
+          <td>${status}</td>
+          <td>${unlockDate}</td>
+        </tr>
+      `;
+    });
+
+  } catch (err) {
+    document.getElementById("locksTable").innerHTML =
+      `<tr><td colspan="4">Error loading data</td></tr>`;
+  }
+}
 
 /* ================== تشغيل ================== */
 loadInvestment();
@@ -312,6 +371,7 @@ loadTransactions();
 loadChart();
 loadTotalStocks(); 
 loadAvailableStocks();  
+loadStockLocks();  
 </script>
 
 </body>
