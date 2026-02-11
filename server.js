@@ -489,7 +489,7 @@ app.get('/api/stock-chart', async (req, res) => {
 // ======================= تحديث السعر من الادمن =======================
 app.post('/api/admin/update-price', async (req, res) => {
   try {
-    const { new_price, admin_fee_fixed = 0.05, admin_fee_percent = 2 } = req.body;
+    const { new_price, admin_fee_fixed = 0.10, admin_fee_percent = 3 } = req.body;
     if (!new_price || new_price <= 0) {
       return res.status(400).json({ status: "error", message: "سعر غير صالح" });
     }
