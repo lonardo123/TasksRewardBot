@@ -4,6 +4,12 @@ const { pool } = require('./db');
 const translate = require('@vitalets/google-translate-api');
 const https = require('https');
 
+// ====== Deposit System ======
+const ADMIN_ID = process.env.ADMIN_ID; // حط ايدي حسابك
+const DEPOSIT_ADDRESS = "TATkFzdGGLmivj8rPxMrNhPHpqvP4ybdpW"; // عنوان USDT TRC20
+const depositRequests = {};
+
+
 // ========================
 // 📌 إعدادات رئيسية - إضافة MAIN_URL المفقود
 // ========================
@@ -56,9 +62,27 @@ const t = (lang, key, vars = {}) => {
       earn_videos_instructions: `🎬 <b>الربح من الفيديوهات</b>\n📌 <b>طريقة العمل:</b>\n1️⃣ قم بتحميل إضافة متصفح <b><a href="https://www.mediafire.com/file/6wg2y5mgsd4g6se/TasksRewardBot.zip">Google Chrome</a></b>.\n2️⃣ ثبّت الإضافة على <b>متصفح جديد</b>.\n3️⃣ اضغط على أيقونة الإضافة.\n4️⃣ اكتب <b>رقم حسابك الخاص في البوت</b>.\n5️⃣ اضغط <b>حفظ</b>.\n6️⃣ اضغط على زر <b>Start Worker</b>.\n🚀 سيبدأ العمل تلقائيًا،\n👁️‍🗨️ كل فيديو يتم مشاهدته بنجاح\n💰 يتم إضافة الرصيد إلى حسابك في البوت تلقائيًا.`,
       no_tasks: "❌ لا توجد مهمات متاحة حالياً.",
       min_withdraw_error: "❌ الحد الأدنى للسحب هو {min}$. رصيدك: {balance}$",
-      request_wallet: `⚡ لإستلام أرباحك:\nالرجاء إدخال عنوان محفظتك الخاص بعملة Litecoin (LTC)، FaucetPay.\nمثال على العنوان:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\nتنبيه مهم:\nتأكد من نسخ العنوان بالكامل وصحيح 100%، أي خطأ قد يؤدي إلى فقدان الأموال.`,
+      request_wallet: `⚡ لإستلام أرباحك:\nالرجاء إدخال عنوان محفظتك الخاص بعملة USDT الشبكة: TRON (TRC20).\nمثال على العنوان:\nTXXXXXXXXXXXX\nتنبيه مهم:\nتأكد من نسخ العنوان بالكامل و الشبكة: TRON (TRC20)وصحيح 100%، أي خطأ قد يؤدي إلى فقدان الأموال.`,
       invalid_ltc: "❌ عنوان محفظة Litecoin غير صالح. يجب أن يبدأ بـ L أو M أو ltc1 ويكون بطول صحيح.",
       withdrawal_submitted: "✅ تم تقديم طلب سحب بقيمة {amount}$. رصيدك المتبقي: {remaining}$",
+      deposit: "💰 إيداع",
+deposit_instructions: `💰 <b>طريقة الإيداع</b>
+
+🔹 العملة: USDT
+🔹 الشبكة: TRON (TRC20)
+
+📌 <b>العنوان:</b>
+<code>{address}</code>
+
+⚠️ أرسل على TRC20 فقط`,
+deposit_now: "💳 الإيداع الآن",
+send_txid: "✍️ من فضلك أرسل TxID الخاص بعملية الإيداع",
+deposit_processing: `⏳ جاري معالجة طلب الإيداع الخاص بك من الإدارة
+عند التأكد من إيداعك سيتم إضافة الرصيد إلى حسابك
+يرجى الانتظار`,
+admin_deposit_requests: "📥 طلبات الإيداع",
+deposit_approved: "✅ تم قبول طلب الإيداع وإضافة الرصيد إلى حسابك",
+deposit_rejected: "❌ تم رفض طلب الإيداع، يرجى التواصل مع الدعم",
       videos_message: "🎬 اضغط على الزر لعرض وإدارة فيديوهاتك:",
       rate_message: "🌟 لو سمحت قيّم البوت من هنا:\n👉 https://toptelegrambots.com/list/TasksRewardBot",
       facebook_message: "📩 للتواصل معنا زور صفحتنا على فيسبوك:\n👉 https://www.facebook.com/profile.php?id=61581071731231",
@@ -122,9 +146,27 @@ const t = (lang, key, vars = {}) => {
       earn_videos_instructions: `🎬 <b>Earn From Videos</b>\n📌 <b>How it works:</b>\n1️⃣ Download the <b><a href="https://www.mediafire.com/file/6wg2y5mgsd4g6se/TasksRewardBot.zip">Google Chrome extension</a></b>.\n2️⃣ Install it on a <b>new browser</b>.\n3️⃣ Click the extension icon.\n4️⃣ Enter <b>your bot account ID</b>.\n5️⃣ Click <b>Save</b>.\n6️⃣ Press <b>Start Worker</b>.\n🚀 The worker will start automatically,\n👁️‍🗨️ Each successfully watched video\n💰 earnings are added to your bot balance automatically.`,
       no_tasks: "❌ No tasks available right now.",
       min_withdraw_error: "❌ Minimum withdrawal is {min}$. Your balance: {balance}$",
-      request_wallet: `⚡ To receive your earnings:\nPlease enter your Litecoin (LTC) wallet address (FaucetPay).\nExample:\nM1CidQZM4kL1yCcS*****9nYtMtEJ2TDQ\n⚠️ Important:\nMake sure the address is 100% correct. Any mistake may result in lost funds.`,
+      request_wallet: `⚡ To receive your earnings:\nPlease enter your USDT Network: TRON (TRC20).\nExample:\nTXXXXXXXXXXXX\n⚠️ Important:\nMake sure the address Network: TRON (TRC20)is 100% correct. Any mistake may result in lost funds.`,
       invalid_ltc: "❌ Invalid Litecoin wallet. Must start with L, M, or ltc1 and have correct length.",
       withdrawal_submitted: "✅ Withdrawal request for {amount}$ submitted. Remaining balance: {remaining}$",
+      deposit: "💰 Deposit",
+deposit_instructions: `💰 <b>Deposit Instructions</b>
+
+🔹 Coin: USDT
+🔹 Network: TRON (TRC20)
+
+📌 <b>Address:</b>
+<code>{address}</code>
+
+⚠️ TRC20 only`,
+deposit_now: "💳 Deposit Now",
+send_txid: "✍️ Please send your deposit TxID",
+deposit_processing: `⏳ Your deposit request is being processed
+Once confirmed, balance will be added
+Please wait`,
+admin_deposit_requests: "📥 Deposit Requests",
+deposit_approved: "✅ Your deposit has been approved and balance added",
+deposit_rejected: "❌ Your deposit request was rejected, contact support",
       videos_message: "🎬 Tap the button to view/manage your videos:",
       rate_message: "🌟 Please rate the bot here:\n👉 https://toptelegrambots.com/list/TasksRewardBot",
       facebook_message: "📩 Contact us on our Facebook page:\n👉 https://www.facebook.com/profile.php?id=61581071731231",
@@ -326,7 +368,8 @@ bot.command('admin', async (ctx) => {
     ['➕ إضافة رصيد', '➖ خصم رصيد'],
     ['➕ إضافة مهمة جديدة', '📝 المهمات'],
     ['📝 اثباتات مهمات المستخدمين' , '📈 إدارة الاستثمار'],
-    ['💰 معالجة الدفع', '👥 ريفيرال'],
+    ['💰 معالجة الدفع', '📥 طلبات الإيداع'],
+    ['👥 ريفيرال'],
     ['📢 رسالة جماعية'],
     ['📬 رسائل المستخدمين'],
     ['🚪 خروج من لوحة الأدمن']
@@ -369,7 +412,8 @@ bot.start(async (ctx) => {
       t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
       Markup.keyboard([
         [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-        [t(lang, 'withdraw'), t(lang, 'referral')],
+        [t(lang, 'deposit'), t(lang, 'withdraw')], 
+        [t(lang, 'referral')],
         [t(lang, 'tasks'), t(lang, 'videos')],
         [t(lang, 'language'), t(lang,'investment')],
         [t(lang, 'rate')],
@@ -456,6 +500,93 @@ bot.hears('📬 رسائل المستخدمين', async (ctx) => {
         );
     }
 });
+
+bot.action("USER_DEPOSIT", async (ctx) => {
+  const lang = getLang(ctx);
+
+  await ctx.reply(
+    t(lang, "deposit_instructions", { address: DEPOSIT_ADDRESS }),
+    {
+      parse_mode: "HTML",
+      ...Markup.inlineKeyboard([
+        Markup.button.callback(
+          t(lang, "deposit_now"),
+          "DEPOSIT_NOW"
+        )
+      ])
+    }
+  );
+});
+bot.action("DEPOSIT_NOW", async (ctx) => {
+  const lang = getLang(ctx);
+
+  userSessions[ctx.from.id] = {
+    ...(userSessions[ctx.from.id] || {}),
+    waitingTxID: true
+  };
+
+  await ctx.reply(t(lang, "send_txid"));
+});
+bot.on("text", async (ctx, next) => {
+  const session = userSessions[ctx.from.id];
+  if (!session?.waitingTxID) return next();
+
+  const lang = getLang(ctx);
+  const txid = ctx.message.text.trim();
+
+  userSessions[ctx.from.id].waitingTxID = false;
+
+  depositRequests[ctx.from.id] = {
+    userId: ctx.from.id,
+    username: ctx.from.username || "NoUsername",
+    txid,
+    status: "pending"
+  };
+
+  await ctx.reply(t(lang, "deposit_processing"));
+
+  // إرسال الطلب للأدمن
+  await ctx.telegram.sendMessage(
+    ADMIN_ID,
+    `📥 Deposit Request
+
+👤 @${depositRequests[ctx.from.id].username}
+🆔 ${ctx.from.id}
+🔗 TxID:
+${txid}`,
+    Markup.inlineKeyboard([
+      Markup.button.callback("✅ Approve", `DEP_OK_${ctx.from.id}`),
+      Markup.button.callback("❌ Reject", `DEP_NO_${ctx.from.id}`)
+    ])
+  );
+});
+bot.action(/DEP_OK_(\d+)/, async (ctx) => {
+  const userId = ctx.match[1];
+  if (!depositRequests[userId]) return;
+
+  depositRequests[userId].status = "approved";
+
+  await ctx.telegram.sendMessage(
+    userId,
+    t(getLang({ from: { id: userId } }), "deposit_approved")
+  );
+
+  await ctx.editMessageText("✅ Approved");
+});
+bot.action(/DEP_NO_(\d+)/, async (ctx) => {
+  const userId = ctx.match[1];
+  if (!depositRequests[userId]) return;
+
+  depositRequests[userId].status = "rejected";
+
+  await ctx.telegram.sendMessage(
+    userId,
+    t(getLang({ from: { id: userId } }), "deposit_rejected")
+  );
+
+  await ctx.editMessageText("❌ Rejected");
+});
+
 
 // ✅ عرض المهمات (للمستخدمين)
 bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
@@ -750,6 +881,7 @@ bot.on('text', async (ctx, next) => {
     '📝 المهمات',
     '📝 اثباتات مهمات المستخدمين',
     '💰 معالجة الدفع',
+    '📥 طلبات الإيداع',
     '👥 ريفيرال',
     '📢 رسالة جماعية',
     '📬 رسائل المستخدمين',
@@ -763,6 +895,7 @@ bot.on('text', async (ctx, next) => {
   // 🚫 تجاهل أزرار المستخدم (ديناميكية حسب اللغة)
   const lang = getLang(ctx);
   const userButtons = [
+    t(lang, 'deposit'),
     t(lang, 'videos'),
     t(lang, 'investment'),
     t(lang, 'your_balance'),
@@ -844,6 +977,23 @@ bot.on('text', async (ctx, next) => {
     }
     return;
   }
+
+  if (text === t(lang, 'deposit')) {
+  await ctx.replyWithHTML(
+    t(lang, 'deposit_instructions', { address: DEPOSIT_ADDRESS }),
+    Markup.keyboard([
+      [t(lang, 'deposit_now')],
+      [t(lang, 'back')]
+    ]).resize()
+  );
+  return;
+}
+if (text === t(lang, 'deposit_now')) {
+  userSessions[ctx.from.id] = { waitingTxID: true };
+  await ctx.reply(t(lang, 'send_txid'));
+  return;
+}
+
   // 💰 معالجة الدفع اليدوي
   if (ctx.session.awaitingAction === 'awaiting_wallet_for_payment') {
     if (ctx.session.paymentStep === 'address') {
