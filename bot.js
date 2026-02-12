@@ -1037,6 +1037,20 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'withdraw'), async (ctx) => {
   }
 });
 
+// 💰 زر الإيداع - يعمل مع جميع اللغات بعد التغيير
+bot.hears((text, ctx) => {
+  const lang = getLang(ctx);
+  return text === t(lang, 'deposit');
+}, async (ctx) => {
+  const lang = getLang(ctx);
+  await ctx.replyWithHTML(
+    t(lang, 'deposit_instructions', { address: DEPOSIT_ADDRESS }),
+    Markup.inlineKeyboard([
+      [Markup.button.callback(t(lang, 'deposit_now'), 'DEPOSIT_NOW')]
+    ])
+  );
+});
+
 // 💰 معالجة الدفع اليدوي عبر FaucetPay
 bot.hears('💰 معالجة الدفع', async (ctx) => {
   if (!isAdmin(ctx)) return;
@@ -1164,16 +1178,6 @@ bot.on('text', async (ctx, next) => {
     return;
   }
 
-  if (text === t(lang, 'deposit')) {
-  await ctx.replyWithHTML(
-    t(lang, 'deposit_instructions', { address: DEPOSIT_ADDRESS }),
-    Markup.keyboard([
-      [t(lang, 'deposit_now')],
-      [t(lang, 'back')]
-    ]).resize()
-  );
-  return;
-}
 if (text === t(lang, 'deposit_now')) {
   userSessions[ctx.from.id] = { waitingTxID: true };
   await ctx.reply(t(lang, 'send_txid'));
