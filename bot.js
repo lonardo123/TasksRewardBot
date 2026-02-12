@@ -62,7 +62,7 @@ const t = (lang, key, vars = {}) => {
       no_tasks: "❌ لا توجد مهمات متاحة حالياً.",
       min_withdraw_error: "❌ الحد الأدنى للسحب هو {min}$. رصيدك: {balance}$",
       request_wallet: `⚡ لإستلام أرباحك:\nالرجاء إدخال عنوان محفظتك الخاص بعملة USDT الشبكة: TRON (TRC20).\nمثال على العنوان:\nTXXXXXXXXXXXX\nتنبيه مهم:\nتأكد من نسخ العنوان بالكامل و الشبكة: TRON (TRC20)وصحيح 100%، أي خطأ قد يؤدي إلى فقدان الأموال.`,
-      invalid_ltc: "❌ عنوان محفظة Litecoin غير صالح. يجب أن يبدأ بـ L أو M أو ltc1 ويكون بطول صحيح.",
+      invalid_ltc: "❌ عنوان محفظة USDT الشبكة: TRON (TRC20) غير صالح. يجب أن يبدأ بـ T ويكون بطول صحيح.",
       withdrawal_submitted: "✅ تم تقديم طلب سحب بقيمة {amount}$. رصيدك المتبقي: {remaining}$",
       deposit: "💰 إيداع",
 deposit_instructions: `💰 <b>طريقة الإيداع</b>
@@ -146,7 +146,7 @@ deposit_rejected: "❌ تم رفض طلب الإيداع، يرجى التواص
       no_tasks: "❌ No tasks available right now.",
       min_withdraw_error: "❌ Minimum withdrawal is {min}$. Your balance: {balance}$",
       request_wallet: `⚡ To receive your earnings:\nPlease enter your USDT Network: TRON (TRC20).\nExample:\nTXXXXXXXXXXXX\n⚠️ Important:\nMake sure the address Network: TRON (TRC20)is 100% correct. Any mistake may result in lost funds.`,
-      invalid_ltc: "❌ Invalid Litecoin wallet. Must start with L, M, or ltc1 and have correct length.",
+      invalid_ltc: "❌ Invalid USDT Network: TRON (TRC20) wallet. Must start with T and have correct length.",
       withdrawal_submitted: "✅ Withdrawal request for {amount}$ submitted. Remaining balance: {remaining}$",
       deposit: "💰 Deposit",
 deposit_instructions: `💰 <b>Deposit Instructions</b>
@@ -209,8 +209,15 @@ deposit_rejected: "❌ Your deposit request was rejected, contact support",
   return text;
 };
 
-const userSessions = {};
 
+// ✅ دالة التحقق من عنوان TRON (TRC20)
+function isValidTRC20Address(address) {
+  // التحقق من: يبدأ بـ T + 34 حرفاً + أحرف Base58 صالحة
+  const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+  return tronRegex.test(address.trim());
+}
+
+const userSessions = {};
 // ====== Debug متغيرات البيئة ======
 console.log('🆔 ADMIN_ID:', process.env.ADMIN_ID || 'مفقود!');
 console.log('🤖 BOT_TOKEN:', process.env.BOT_TOKEN ? 'موجود' : 'مفقود!');
@@ -1213,30 +1220,37 @@ if (text === t(lang, 'deposit_now')) {
       return;
     }
   }
-  // —— طلب السحب ——
-  if (ctx.session.awaiting_withdraw) {
-    if (!/^([LM][a-km-zA-HJ-NP-Z1-9]{26,33}|ltc1[a-z0-9]{39,59})$/i.test(text)) {
-      return ctx.reply(t(getLang(ctx), 'invalid_ltc'));
-    }
-    const userId = ctx.from.id;
-    try {
-      const userRes = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-      let balance = parseFloat(userRes.rows[0]?.balance) || 0;
-      if (balance < MIN_WITHDRAW) {
-        return ctx.reply(t(getLang(ctx), 'min_withdraw_error', { min: MIN_WITHDRAW, balance: balance.toFixed(4) }));
-      }
-      const withdrawAmount = Math.floor(balance * 100) / 100;
-      const remaining = balance - withdrawAmount;
-      await pool.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
-      await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
-      await ctx.reply(t(getLang(ctx), 'withdrawal_submitted', { amount: withdrawAmount.toFixed(2), remaining: remaining.toFixed(4) }));
-      ctx.session.awaiting_withdraw = false;
-    } catch (err) {
-      console.error('❌ خطأ في معالجة السحب:', err);
-      await ctx.reply(t(getLang(ctx), 'internal_error'));
-    }
-    return;
+ // —— طلب السحب ——
+if (ctx.session.awaiting_withdraw) {
+  if (!isValidTRC20Address(text)) {
+    return ctx.replyWithHTML(
+      `❌ ${t(getLang(ctx), 'invalid_ltc')}\n\n` +
+      `يجب أن:\n` +
+      `• يبدأ بالحرف <b>T</b>\n` +
+      `• يكون طوله 34 حرفاً بالضبط (مثل: TXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX)\n` +
+      `• يحتوي على أحرف وأرقام صالحة (Base58)\n\n` +
+      `مثال صحيح:\n<code>TJYeasTPa6gpEEfYb36X9dU3uG7Qg5L5nL</code>`
+    );
   }
+  const userId = ctx.from.id;
+  try {
+    const userRes = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
+    let balance = parseFloat(userRes.rows[0]?.balance) || 0;
+    if (balance < MIN_WITHDRAW) {
+      return ctx.reply(t(getLang(ctx), 'min_withdraw_error', { min: MIN_WITHDRAW, balance: balance.toFixed(4) }));
+    }
+    const withdrawAmount = Math.floor(balance * 100) / 100;
+    const remaining = balance - withdrawAmount;
+    await pool.query('INSERT INTO withdrawals (user_id, amount, payeer_wallet) VALUES ($1, $2, $3)', [userId, withdrawAmount, text.toUpperCase()]);
+    await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [remaining, userId]);
+    await ctx.reply(t(getLang(ctx), 'withdrawal_submitted', { amount: withdrawAmount.toFixed(2), remaining: remaining.toFixed(4) }));
+    ctx.session.awaiting_withdraw = false;
+  } catch (err) {
+    console.error('❌ خطأ في معالجة السحب:', err);
+    await ctx.reply(t(getLang(ctx), 'internal_error'));
+  }
+  return;
+}
   // —— إضافة / خصم رصيد ——
   if (ctx.session.awaitingAction === 'add_balance' || ctx.session.awaitingAction === 'deduct_balance') {
     if (!ctx.session.targetUser) {
