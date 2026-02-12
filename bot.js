@@ -7,7 +7,6 @@ const https = require('https');
 // ====== Deposit System ======
 const ADMIN_ID = process.env.ADMIN_ID; // حط ايدي حسابك
 const DEPOSIT_ADDRESS = "TATkFzdGGLmivj8rPxMrNhPHpqvP4ybdpW"; // عنوان USDT TRC20
-const depositRequests = {};
 
 
 // ========================
@@ -501,92 +500,239 @@ bot.hears('📬 رسائل المستخدمين', async (ctx) => {
     }
 });
 
-bot.action("USER_DEPOSIT", async (ctx) => {
+// 💰 زر الإيداع في القائمة الرئيسية - يعمل بشكل صحيح الآن
+bot.hears((text, ctx) => {
   const lang = getLang(ctx);
-
-  await ctx.reply(
-    t(lang, "deposit_instructions", { address: DEPOSIT_ADDRESS }),
-    {
-      parse_mode: "HTML",
-      ...Markup.inlineKeyboard([
-        Markup.button.callback(
-          t(lang, "deposit_now"),
-          "DEPOSIT_NOW"
-        )
-      ])
-    }
+  return text === t(lang, 'deposit');
+}, async (ctx) => {
+  const lang = getLang(ctx);
+  await ctx.replyWithHTML(
+    t(lang, 'deposit_instructions', { address: DEPOSIT_ADDRESS }),
+    Markup.inlineKeyboard([
+      [Markup.button.callback(t(lang, 'deposit_now'), 'DEPOSIT_NOW')]
+    ])
   );
 });
-bot.action("DEPOSIT_NOW", async (ctx) => {
-  const lang = getLang(ctx);
 
+bot.action("DEPOSIT_NOW", async (ctx) => {
+  await ctx.answerCbQuery();
+  const lang = getLang(ctx);
   userSessions[ctx.from.id] = {
     ...(userSessions[ctx.from.id] || {}),
     waitingTxID: true
   };
-
   await ctx.reply(t(lang, "send_txid"));
 });
+
 bot.on("text", async (ctx, next) => {
   const session = userSessions[ctx.from.id];
   if (!session?.waitingTxID) return next();
-
+  
   const lang = getLang(ctx);
   const txid = ctx.message.text.trim();
+  const userId = ctx.from.id;
+  const username = ctx.from.username || ctx.from.first_name || "NoUsername";
+  
+  // مسح حالة الانتظار
+  if (userSessions[userId]) {
+    userSessions[userId].waitingTxID = false;
+  }
 
-  userSessions[ctx.from.id].waitingTxID = false;
-
-  depositRequests[ctx.from.id] = {
-    userId: ctx.from.id,
-    username: ctx.from.username || "NoUsername",
-    txid,
-    status: "pending"
-  };
-
-  await ctx.reply(t(lang, "deposit_processing"));
-
-  // إرسال الطلب للأدمن
-  await ctx.telegram.sendMessage(
-    ADMIN_ID,
-    `📥 Deposit Request
-
-👤 @${depositRequests[ctx.from.id].username}
-🆔 ${ctx.from.id}
+  try {
+    // حفظ الطلب في قاعدة البيانات
+    const res = await pool.query(
+      `INSERT INTO deposit_requests (user_id, username, txid, status, created_at)
+       VALUES ($1, $2, $3, 'pending', NOW())
+       RETURNING id`,
+      [userId, username, txid]
+    );
+    
+    const requestId = res.rows[0].id;
+    
+    await ctx.reply(t(lang, "deposit_processing"));
+    
+    // إرسال إشعار للأدمن مع أزرار الموافقة/الرفض
+    await ctx.telegram.sendMessage(
+      ADMIN_ID,
+      `📥 طلب إيداع جديد #${requestId}
+👤 @${username} (ID: ${userId})
 🔗 TxID:
-${txid}`,
-    Markup.inlineKeyboard([
-      Markup.button.callback("✅ Approve", `DEP_OK_${ctx.from.id}`),
-      Markup.button.callback("❌ Reject", `DEP_NO_${ctx.from.id}`)
-    ])
-  );
-});
-bot.action(/DEP_OK_(\d+)/, async (ctx) => {
-  const userId = ctx.match[1];
-  if (!depositRequests[userId]) return;
-
-  depositRequests[userId].status = "approved";
-
-  await ctx.telegram.sendMessage(
-    userId,
-    t(getLang({ from: { id: userId } }), "deposit_approved")
-  );
-
-  await ctx.editMessageText("✅ Approved");
-});
-bot.action(/DEP_NO_(\d+)/, async (ctx) => {
-  const userId = ctx.match[1];
-  if (!depositRequests[userId]) return;
-
-  depositRequests[userId].status = "rejected";
-
-  await ctx.telegram.sendMessage(
-    userId,
-    t(getLang({ from: { id: userId } }), "deposit_rejected")
-  );
-
-  await ctx.editMessageText("❌ Rejected");
+<code>${txid}</code>`,
+      {
+        parse_mode: "HTML",
+        ...Markup.inlineKeyboard([
+          Markup.button.callback("✅ موافقة", `DEP_OK_${requestId}_${userId}`),
+          Markup.button.callback("❌ رفض", `DEP_NO_${requestId}_${userId}`)
+        ])
+      }
+    );
+    
+  } catch (err) {
+    console.error('❌ خطأ في معالجة طلب الإيداع:', err);
+    await ctx.reply(t(lang, 'internal_error'));
+  }
 });
 
+// ✅ موافقة الأدمن
+bot.action(/DEP_OK_(\d+)_(\d+)/, async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
+  
+  const requestId = ctx.match[1];
+  const userId = ctx.match[2];
+  
+  try {
+    // التحقق من وجود الطلب المعلق
+    const reqRes = await pool.query(
+      'SELECT * FROM deposit_requests WHERE id = $1 AND status = $2',
+      [requestId, 'pending']
+    );
+    
+    if (reqRes.rows.length === 0) {
+      return ctx.answerCbQuery('⚠️ الطلب معالج مسبقاً أو غير موجود');
+    }
+    
+    // تحديث الحالة إلى موافق عليه
+    await pool.query(
+      `UPDATE deposit_requests 
+       SET status = 'approved', processed_at = NOW(), processed_by = $1 
+       WHERE id = $2`,
+      [ctx.from.id, requestId]
+    );
+    
+    // تعديل الرسالة لإعلام الأدمن بإدخال المبلغ
+    await ctx.editMessageText(
+      `✅ تم الموافقة على الطلب #${requestId}
+الآن أرسل المبلغ الذي سيتم إضافته:
+/setdeposit ${userId} <المبلغ>`
+    );
+    
+    // إرسال إشعار للمستخدم
+    const userLangCode = userLang[userId] || autoDetectLang({ from: { id: userId } });
+    await ctx.telegram.sendMessage(
+      userId,
+      t(userLangCode, "deposit_approved")
+    );
+    
+  } catch (err) {
+    console.error('❌ خطأ في الموافقة على الإيداع:', err);
+    await ctx.answerCbQuery('حدث خطأ');
+  }
+});
+
+// ❌ رفض الأدمن
+bot.action(/DEP_NO_(\d+)_(\d+)/, async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
+  
+  const requestId = ctx.match[1];
+  const userId = ctx.match[2];
+  
+  try {
+    await pool.query(
+      `UPDATE deposit_requests 
+       SET status = 'rejected', processed_at = NOW(), processed_by = $1 
+       WHERE id = $2 AND status = 'pending'`,
+      [ctx.from.id, requestId]
+    );
+    
+    await ctx.editMessageText(`❌ تم رفض الطلب #${requestId}`);
+    
+    // إرسال إشعار للمستخدم
+    const userLangCode = userLang[userId] || autoDetectLang({ from: { id: userId } });
+    await ctx.telegram.sendMessage(
+      userId,
+      t(userLangCode, "deposit_rejected")
+    );
+    
+  } catch (err) {
+    console.error('❌ خطأ في رفض الإيداع:', err);
+    await ctx.answerCbQuery('حدث خطأ');
+  }
+});
+
+bot.command('setdeposit', async (ctx) => {
+  if (!isAdmin(ctx)) return;
+  
+  const parts = ctx.message.text.split(' ');
+  const userId = parts[1];
+  const amount = parseFloat(parts[2]);
+  
+  if (!userId || isNaN(amount) || amount <= 0) {
+    return ctx.reply('استخدم: /setdeposit <user_id> <amount>');
+  }
+  
+  try {
+    // تحديث رصيد المستخدم
+    await pool.query(
+      'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2',
+      [amount, userId]
+    );
+    
+    // تسجيل الكسب
+    await pool.query(
+      'INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)',
+      [userId, amount, 'deposit', `إيداع يدوي`]
+    );
+    
+    // تطبيق مكافأة الإحالة (5%)
+    await applyReferralBonus(userId, amount);
+    
+    // إرسال إشعار للمستخدم
+    const userLangCode = userLang[userId] || autoDetectLang({ from: { id: userId } });
+    await ctx.telegram.sendMessage(
+      userId,
+      t(userLangCode, 'deposit_approved') + `\n💰 تم إضافة ${amount.toFixed(4)}$ لرصيدك`
+    );
+    
+    await ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${userId}`);
+    
+  } catch (err) {
+    console.error('❌ خطأ في setdeposit:', err);
+    await ctx.reply('فشل إضافة الرصيد');
+  }
+});
+
+bot.hears('📥 طلبات الإيداع', async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply('❌ الوصول مرفوض.');
+  
+  try {
+    const res = await pool.query(
+      `SELECT id, user_id, username, txid, created_at 
+       FROM deposit_requests 
+       WHERE status = 'pending' 
+       ORDER BY created_at DESC 
+       LIMIT 20`
+    );
+    
+    if (res.rows.length === 0) {
+      return ctx.reply('✅ لا توجد طلبات إيداع معلقة حالياً.');
+    }
+    
+    let message = `📥 <b>طلبات الإيداع المعلقة (${res.rows.length})</b>\n\n`;
+    
+    for (const req of res.rows) {
+      const createdAt = new Date(req.created_at).toLocaleString('ar-EG', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        day: '2-digit',
+        month: '2-digit'
+      });
+      
+      message += `🆔 #${req.id} | 👤 ${req.username || req.user_id}\n`;
+      message += `⏰ ${createdAt}\n`;
+      message += `🔗 TxID: <code>${req.txid.substring(0, 15)}...</code>\n`;
+      message += `━━━━━━━━━━━━━━━━━━\n`;
+    }
+    
+    message += `\nللموافقة أو الرفض: اضغط على الأزرار في رسائل الإشعارات`;
+    
+    await ctx.replyWithHTML(message);
+    
+  } catch (err) {
+    console.error('❌ خطأ في عرض طلبات الإيداع:', err);
+    await ctx.reply('حدث خطأ أثناء جلب الطلبات.');
+  }
+});
 
 // ✅ عرض المهمات (للمستخدمين)
 bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
@@ -672,6 +818,39 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
   }
 });
 
+// 💰 زر الإيداع في القائمة الرئيسية
+bot.hears((text, ctx) => text === t(getLang(ctx), 'deposit'), async (ctx) => {
+  const lang = getLang(ctx);
+  await ctx.replyWithHTML(
+    t(lang, 'deposit_instructions', { address: DEPOSIT_ADDRESS }),
+    Markup.keyboard([
+      [t(lang, 'deposit_now')],
+      [t(lang, 'back')]
+    ]).resize()
+  );
+});
+
+// 📥 عرض طلبات الإيداع للأدمن
+bot.hears('📥 طلبات الإيداع', async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.reply('❌ الوصول مرفوض.');
+  
+  // جلب الطلبات المعلقة من الذاكرة المؤقتة
+  const pendingRequests = Object.values(depositRequests).filter(req => req.status === 'pending');
+  
+  if (pendingRequests.length === 0) {
+    return ctx.reply('✅ لا توجد طلبات إيداع معلقة حالياً.');
+  }
+  
+  let message = `📥 <b>طلبات الإيداع المعلقة (${pendingRequests.length})</b>\n\n`;
+  
+  for (const req of pendingRequests) {
+    message += `👤 <b>${req.username}</b> (ID: ${req.userId})\n`;
+    message += `🔗 TxID: <code>${req.txid}</code>\n`;
+    message += `━━━━━━━━━━━━━━━━━━\n`;
+  }
+  
+  await ctx.replyWithHTML(message);
+});
 bot.action('earn_videos', async (ctx) => {
   const lang = getLang(ctx);
   await ctx.answerCbQuery();
