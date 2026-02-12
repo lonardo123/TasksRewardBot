@@ -1526,7 +1526,7 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
           `طلب سحب #${req.id}\n` +
           `👤 المستخدم: ${req.user_id}\n` +
           `💵 المبلغ: ${Number(req.amount).toFixed(2)}$\n` +
-          `💳 محفظة Litecoin: ${req.payeer_wallet}\n` +
+          `💳 محفظة USDT (TRC20): ${req.payeer_wallet}\n` +
           `لقبول: /pay ${req.id}\n` +
           `لرفض: /reject ${req.id}`
         );
