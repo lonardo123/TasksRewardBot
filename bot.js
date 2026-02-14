@@ -422,7 +422,7 @@ bot.start(async (ctx) => {
         [t(lang, 'referral')],
         [t(lang, 'tasks'), t(lang, 'videos')],
         [t(lang, 'language'), t(lang,'investment')],
-        [t(lang, 'rate')],
+        [t(lang, 'facebook')],
         [t(lang, 'contact_admin')]
       ]).resize()
     );
@@ -1103,7 +1103,6 @@ bot.on('text', async (ctx, next) => {
     t(lang, 'withdraw'),
     t(lang, 'referral'),
     t(lang, 'tasks'),
-    t(lang, 'rate'),
     t(lang, 'facebook')
   ];
   if (userButtons.includes(text)) {
