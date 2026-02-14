@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Investment</title>
+<title>Digital Units Platform</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -70,30 +70,39 @@ th{ background:#334155; }
 
 <body>
 
-<h2>📈 Investment</h2>
+<h2>📊 Digital Units Platform</h2>
 
 <div class="info">
-You can buy stocks and hold them while prices rise and fall.<br>
-You are free to sell your stocks whenever you decide.<br><br>
+You can acquire and hold digital units within this platform.<br>
+Unit values may change based on internal system indicators and market-related references.<br>
+You are free to release your units whenever you decide.<br><br>
 
-<b>How our system works (Halal method):</b><br>
-We operate using halal methods only.<br>
-When you buy a stock, we purchase real gold for you at the current market price, equal to the value of your stock.<br>
-When you decide to sell your stock, the gold is sold at the current market price.<br>
-You are fully in control of when to buy or sell.<br><br>
+<b>How the system works:</b><br>
+This platform provides a digital unit-based service.<br>
+All unit values are determined by internal system logic and reference indicators used for pricing purposes only.<br>
+No physical assets, commodities, or ownership rights are involved.<br>
+All actions are initiated by the user, and decisions are made independently.<br><br>
 
-Admin fees apply on every transaction.
+<b>Important Notice:</b><br>
+This platform does not provide financial, trading, or investment advice.<br>
+No guaranteed returns or profit promises are offered.<br>
+All balances and units are digital and used within the platform system only.<br>
+Deposits and withdrawals are processed as user-initiated platform transactions.<br>
+Users participate at their own responsibility.<br><br>
+
+Administrative service fees apply to platform operations.
 </div>
+
 
 <!-- 🔹 الأسهم المتاحة -->
  <div class="card">
-  <h3>📦 Available Stocks</h3>
+  <h3>📦 Available Units</h3>
   <p id="availableStocks">Loading...</p>
 </div>
  
 <!-- 🔹 إجمالي الأسهم المجمعة -->
 <div class="card" id="totalStocksBox">
-  <h3>📊 Total Stocks Collected</h3>
+  <h3>📊 Total Units Issued</h3>
   <div id="totalStocksValue" style="font-size:22px;margin-top:8px;">
     Loading...
   </div>
@@ -101,15 +110,15 @@ Admin fees apply on every transaction.
   
 <div class="card">
   <p id="userId">👤 User ID: --</p>
-  <p id="price">💰 Price: --</p>
+  <p id="price">💰 Unit Value: --</p>
   <p id="balance">💵 Balance: --</p>
-  <p id="stocks">📦 My Stocks: --</p>
-  <p id="fee">🧾 Admin Fee: --</p>
+  <p id="stocks">📦 My Units: --</p>
+  <p id="fee">🧾 Service Fee: --</p>
 
   <input id="amount" type="number" min="1" placeholder="Enter stock quantity">
 
-  <button class="buy" onclick="prepareAction('BUY')">🛒 Buy</button>
-  <button class="sell" onclick="prepareAction('SELL')">💸 Sell</button>
+  <button class="buy" onclick="prepareAction('ACQUIRE')">➕ Acquire Units</button>
+  <button class="sell" onclick="prepareAction('RELEASE')">➖ Release Units</button>
 
   <div id="msg" class="message"></div>
 </div>
@@ -121,14 +130,14 @@ Admin fees apply on every transaction.
 </div>
 
 <div class="card">
-  <h3>⏳ Stock Lock Details</h3>
+  <h3>⏳ Unit Availability</h3>
   <table>
     <thead>
       <tr>
         <th>Quantity</th>
         <th>Remaining</th>
         <th>Status</th>
-        <th>Unlock Date</th>
+        <th>Available Date</th>
       </tr>
     </thead>
     <tbody id="locksTable">
@@ -138,18 +147,18 @@ Admin fees apply on every transaction.
 </div>
   
 <div class="card">
-  <h3>📊 Stock Price Chart</h3>
+  <h3>📈 Unit Value Chart</h3>
   <canvas id="priceChart" height="120"></canvas>
 </div>
 
 <div class="card">
-  <h3>📑 Transactions</h3>
+  <h3>📑 Activity Log</h3>
   <table>
     <thead>
       <tr>
-        <th>Type</th>
+        <th>Action</th>
         <th>Qty</th>
-        <th>Price</th>
+        <th>Value</th>
         <th>Fee</th>
         <th>Total</th>
         <th>Date</th>
