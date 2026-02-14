@@ -1847,7 +1847,7 @@ bot.hears('🚪 خروج من لوحة الأدمن', async (ctx) => {
       [t(lang, 'withdraw'), t(lang, 'referral')],
       [t(lang, 'tasks'), t(lang, 'videos')],
       [t(lang, 'language'), t(lang, 'investment')],
-      [t(lang, 'rate')],
+      [t(lang, 'facebook')],
       [t(lang, 'contact_admin')]
     ]).resize()
   );
@@ -1913,7 +1913,7 @@ bot.hears((text, ctx) => {
   [t(lang, 'withdraw'), t(lang, 'deposit')], 
   [t(lang, 'tasks'), t(lang, 'videos')],
   [t(lang, 'referral'), t(lang, 'investment')],
-  [t(lang, 'language'), t(lang, 'rate')],
+  [t(lang, 'language'), t(lang, 'facebook')],
   [t(lang, 'contact_admin')]
 ]).resize()
     );
