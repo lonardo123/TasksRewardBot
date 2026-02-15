@@ -4,6 +4,46 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
+// =======================
+// معالج المبيعات المؤجلة (Pending Sales Processor)
+// =======================
+setInterval(async () => {
+  try {
+    const now = new Date();
+
+    const { rows } = await pool.query(
+      `SELECT id, user_id, amount
+       FROM pending_sales
+       WHERE status = 'pending'
+       AND release_date <= $1`,
+      [now]
+    );
+
+    for (const sale of rows) {
+
+      // 1️⃣ نحاول تغيير الحالة أولًا
+      const result = await pool.query(
+        `UPDATE pending_sales
+         SET status = 'done'
+         WHERE id = $1 AND status = 'pending'`,
+        [sale.id]
+      );
+
+      // 2️⃣ لو التغيير تم فعلاً → نضيف الرصيد
+      if (result.rowCount === 1) {
+        await pool.query(
+          `UPDATE users
+           SET balance = balance + $1
+           WHERE telegram_id = $2`,
+          [sale.amount, sale.user_id]
+        );
+      }
+    }
+
+  } catch (err) {
+    console.error("Pending sales processor error:", err);
+  }
+}, 60 * 1000); // كل دقيقة
 
 // التقاط أي أخطاء لاحقة في الـ pool
 pool.on('error', (err) => {
@@ -376,10 +416,19 @@ await client.query(`
     const fee = fixedFee + (gross * percentFee / 100);
     const total = gross - fee;
 
-    await client.query(
-      `UPDATE users SET balance = balance + $1 WHERE telegram_id = $2`,
-      [total, user_id]
-    );
+    // =======================
+// حجز مبلغ البيع لمدة 5 أيام
+// =======================
+const sellDate = new Date();
+const releaseDate = new Date(sellDate);
+releaseDate.setDate(releaseDate.getDate() + 5);
+
+await client.query(
+  `INSERT INTO pending_sales
+   (user_id, amount, sell_date, release_date)
+   VALUES ($1, $2, $3, $4)`,
+  [user_id, total, sellDate, releaseDate]
+);
 
     await client.query(
       `UPDATE user_stocks SET stocks = stocks - $1 WHERE telegram_id = $2`,
@@ -533,7 +582,6 @@ app.get('/api/total-stocks', async (req, res) => {
     });
   }
 });
-
 
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
@@ -761,6 +809,22 @@ app.get('/api/available-stocks', async (req, res) => {
       message: "Failed to load available stocks"
     });
   }
+});
+
+// ======================= لعرض الأسهم المحجوزة للبيع المستخدمين =======================
+
+app.get('/api/pending-sales', async (req, res) => {
+  const { user_id } = req.query;
+
+  const { rows } = await pool.query(
+    `SELECT amount, sell_date, release_date, status
+     FROM pending_sales
+     WHERE user_id = $1
+     ORDER BY sell_date DESC`,
+    [user_id]
+  );
+
+  res.json(rows);
 });
 
 // مثال endpoint في السيرفر
