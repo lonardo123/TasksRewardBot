@@ -378,7 +378,33 @@ async function loadStockLocks() {
       `<tr><td colspan="4">Error loading data</td></tr>`;
   }
 }
+async function loadPendingSales(){
+  try {
+    const r = await fetch(`/api/pending-sales?user_id=${user_id}`);
+    const data = await r.json();
 
+    const tbody = document.getElementById("locksTable");
+    tbody.innerHTML = "";
+
+    if(!data.length){
+      tbody.innerHTML = `<tr><td colspan="4">No pending sales</td></tr>`;
+      return;
+    }
+
+    data.forEach(s => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${Number(s.amount).toFixed(2)}</td>
+          <td>--</td>
+          <td>${s.status === 'pending' ? '⏳ Pending' : '✅ Completed'}</td>
+          <td>${new Date(s.release_date).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+  } catch (e) {
+    console.error("Failed to load pending sales", e);
+  }
+}
 /* ================== تشغيل ================== */
 loadInvestment();
 loadTransactions();
@@ -386,6 +412,7 @@ loadChart();
 loadTotalStocks(); 
 loadAvailableStocks();  
 loadStockLocks();  
+loadPendingSales();  
 </script>
 
 </body>
