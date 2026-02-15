@@ -128,21 +128,40 @@ Administrative service fees apply to platform operations.
   <button class="cancel" onclick="cancelAction()">❌ Cancel</button>
 </div>
 
-<div class="card">
-  <h3>⏳ Unit Availability</h3>
-  <table>
-    <thead>
+<div class="card" style="padding:20px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); background:#fff; max-width:800px; margin:auto;">
+  
+  <!-- جدول أسهم المقفولة -->
+  <h3 style="margin-bottom:10px;">⏳ Unit Availability</h3>
+  <table style="width:100%; border-collapse: collapse; margin-bottom:20px;">
+    <thead style="background:#f0f0f0;">
       <tr>
-        <th>Quantity</th>
-        <th>Remaining</th>
-        <th>Status</th>
-        <th>Available Date</th>
+        <th style="padding:8px; border:1px solid #ddd;">Quantity</th>
+        <th style="padding:8px; border:1px solid #ddd;">Remaining</th>
+        <th style="padding:8px; border:1px solid #ddd;">Status</th>
+        <th style="padding:8px; border:1px solid #ddd;">Available Date</th>
       </tr>
     </thead>
     <tbody id="locksTable">
-      <tr><td colspan="4">Loading...</td></tr>
+      <tr><td colspan="4" style="text-align:center; padding:8px;">Loading...</td></tr>
     </tbody>
   </table>
+
+  <!-- جدول Pending Sales -->
+  <h3 style="margin-bottom:10px;">💰 Pending Sales</h3>
+  <table style="width:100%; border-collapse: collapse;">
+    <thead style="background:#f0f0f0;">
+      <tr>
+        <th style="padding:8px; border:1px solid #ddd;">Amount</th>
+        <th style="padding:8px; border:1px solid #ddd;">--</th>
+        <th style="padding:8px; border:1px solid #ddd;">Status</th>
+        <th style="padding:8px; border:1px solid #ddd;">Release Date</th>
+      </tr>
+    </thead>
+    <tbody id="pendingSalesTable">
+      <tr><td colspan="4" style="text-align:center; padding:8px;">Loading...</td></tr>
+    </tbody>
+  </table>
+
 </div>
   
 <div class="card">
@@ -355,19 +374,22 @@ async function loadStockLocks() {
     tbody.innerHTML = "";
 
     if (!data.length) {
-      tbody.innerHTML = `<tr><td colspan="4">No Units holdings</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">No Units holdings</td></tr>`;
       return;
     }
 
     data.forEach(row => {
-      const status = row.locked ? "🔒 Locked" : "🔓 Available";
+      const statusText = row.locked ? "🔒 Locked" : "🔓 Available";
+      const statusColor = row.locked ? "red" : "green";
       const unlockDate = new Date(row.unlock_at).toLocaleString();
 
       tbody.innerHTML += `
-        <tr>
+        <tr style="transition: background 0.3s; cursor:pointer;" 
+            onmouseover="this.style.background='#f9f9f9'" 
+            onmouseout="this.style.background='transparent'">
           <td>${row.quantity}</td>
           <td>${row.remaining}</td>
-          <td>${status}</td>
+          <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${unlockDate}</td>
         </tr>
       `;
@@ -375,36 +397,49 @@ async function loadStockLocks() {
 
   } catch (err) {
     document.getElementById("locksTable").innerHTML =
-      `<tr><td colspan="4">Error loading data</td></tr>`;
+      `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
-async function loadPendingSales(){
+
+// =====================
+// Pending Sales
+// =====================
+async function loadPendingSales() { 
   try {
     const r = await fetch(`/api/pending-sales?user_id=${user_id}`);
     const data = await r.json();
 
-    const tbody = document.getElementById("locksTable");
+    const tbody = document.getElementById("pendingSalesTable");
     tbody.innerHTML = "";
 
-    if(!data.length){
-      tbody.innerHTML = `<tr><td colspan="4">No pending sales</td></tr>`;
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">No pending sales</td></tr>`;
       return;
     }
 
     data.forEach(s => {
+      const statusText = s.status === 'pending' ? '⏳ Pending' : '✅ Completed';
+      const statusColor = s.status === 'pending' ? 'orange' : 'green';
+
       tbody.innerHTML += `
-        <tr>
+        <tr style="transition: background 0.3s; cursor:pointer;" 
+            onmouseover="this.style.background='#f9f9f9'" 
+            onmouseout="this.style.background='transparent'">
           <td>${Number(s.amount).toFixed(2)}</td>
           <td>--</td>
-          <td>${s.status === 'pending' ? '⏳ Pending' : '✅ Completed'}</td>
+          <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${new Date(s.release_date).toLocaleString()}</td>
         </tr>
       `;
     });
   } catch (e) {
     console.error("Failed to load pending sales", e);
+    document.getElementById("pendingSalesTable").innerHTML =
+      `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
+
+
 /* ================== تشغيل ================== */
 loadInvestment();
 loadTransactions();
