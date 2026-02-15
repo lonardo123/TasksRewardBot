@@ -174,7 +174,7 @@ if (currentStocks + quantity > maxBuy) {
   await client.query('ROLLBACK');
   return res.json({
     status: "error",
-    message: "❌ Max buy limit exceeded"
+    message: "❌ Max limit exceeded"
   });
 }
 
@@ -194,7 +194,7 @@ if (quantity > availableStocks) {
   await client.query('ROLLBACK');
   return res.json({
     status: "error",
-    message: "❌ Not enough stocks available"
+    message: "❌ Not enough Units available"
   });
 }
 
@@ -260,12 +260,12 @@ await client.query(`
 
     await client.query('COMMIT');
 
-    res.json({ status: "success", message: "Purchase completed successfully" });
+    res.json({ status: "success", message: "completed" });
 
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ status: "error", message: "Purchase failed" });
+    res.status(500).json({ status: "error", message: "failed" });
   } finally {
     client.release();
   }
@@ -298,7 +298,7 @@ if (sellableStocks < quantity) {
   await client.query('ROLLBACK');
   return res.json({
     status: "error",
-    message: "❌ You can sell stocks only after 15 days from purchase"
+    message: "❌ You can Release Units only after 15 days"
   });
 }
 // =======================
@@ -358,7 +358,7 @@ await client.query(`
 
     if (!stockQ.rows.length || stockQ.rows[0].stocks < quantity) {
       await client.query('ROLLBACK');
-      return res.json({ status: "error", message: "Insufficient stocks" });
+      return res.json({ status: "error", message: "Insufficient Units" });
     }
 
     const priceQ = await client.query(`
@@ -394,12 +394,12 @@ await client.query(`
 
     await client.query('COMMIT');
 
-    res.json({ status: "success", message: "Stocks sold successfully" });
+    res.json({ status: "success", message: "units Release successfully" });
 
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ status: "error", message: "Sale failed" });
+    res.status(500).json({ status: "error", message: "failed" });
   } finally {
     client.release();
   }
