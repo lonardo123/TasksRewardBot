@@ -324,7 +324,7 @@ async function loadTotalStocks() {
 
     if (data.status === "success") {
       document.getElementById("totalStocksValue").textContent =
-        data.total_stocks + " Stocks";
+        data.total_stocks + " Units";
     } else {
       document.getElementById("totalStocksValue").textContent = "Error";
     }
@@ -341,7 +341,7 @@ async function loadAvailableStocks(){
 
   if(j.status === "success"){
     document.getElementById("availableStocks").textContent =
-      j.available + " stocks available";
+      j.available + " Units available";
   }
 }
 // =====================
