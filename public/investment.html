@@ -231,8 +231,8 @@ function prepareAction(type){
   currentAction = type;
   confirmBox.style.display = "block";
   confirmText.innerHTML = `
-    <b>${type}</b> ${qty} units<br>
-    Unit Value: ${stockPrice.toFixed(6)}$<br>
+    <b>${type}</b> ${qty} stocks<br>
+    Price: ${stockPrice.toFixed(6)}$<br>
     Subtotal: ${subtotal.toFixed(6)}$<br>
     Fee: ${fee.toFixed(6)}$<br>
     <b>Total: ${total.toFixed(6)}$</b>
@@ -247,7 +247,7 @@ function cancelAction(){
 /* ================== تنفيذ ================== */
 async function confirmAction(){
   const qty = Number(amount.value);
-  const endpoint = currentAction === "ACQUIRE" ? "/api/buy-stock" : "/api/sell-stock";
+  const endpoint = currentAction === "BUY" ? "/api/buy-stock" : "/api/sell-stock";
 
   const r = await fetch(endpoint,{
     method:"POST",
