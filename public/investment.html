@@ -422,7 +422,7 @@ async function loadPendingSales() {
         <tr style="transition: background 0.3s; cursor:pointer;" 
             onmouseover="this.style.background='#1e293b'" 
             onmouseout="this.style.background='transparent'">
-          <td>${Number(s.amount).toFixed(2)}</td>
+          <td>${Number(s.amount).toFixed(6)}</td>
           <td>--</td>
           <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${new Date(s.release_date).toLocaleString()}</td>
