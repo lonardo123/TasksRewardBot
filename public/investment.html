@@ -117,8 +117,8 @@ Administrative service fees apply to platform operations.
 
   <input id="amount" type="number" min="1" placeholder="Enter stock quantity">
 
-  <button class="ACQUIRE" onclick="prepareAction('ACQUIRE')">➕ Acquire Units</button>
-  <button class="RELEASE" onclick="prepareAction('RELEASE')">➖ Release Units</button>
+  <button class="buy" onclick="prepareAction('BUY')">➕ Acquire Units</button>
+  <button class="sell" onclick="prepareAction('SELL')">➖ Release Units</button>
 
   <div id="msg" class="message"></div>
 </div>
@@ -323,13 +323,13 @@ async function loadTotalStocks() {
     const data = await res.json();
 
     if (data.status === "success") {
-      document.getElementById("totalstocksValue").textContent =
+      document.getElementById("totalStocksValue").textContent =
         data.total_stocks + " Stocks";
     } else {
-      document.getElementById("totalstocksValue").textContent = "Error";
+      document.getElementById("totalStocksValue").textContent = "Error";
     }
   } catch (err) {
-    document.getElementById("totalstocksValue").textContent = "Server Error";
+    document.getElementById("totalStocksValue").textContent = "Server Error";
   }
 }
 // =====================
@@ -340,7 +340,7 @@ async function loadAvailableStocks(){
   const j = await r.json();
 
   if(j.status === "success"){
-    document.getElementById("availablestocks").textContent =
+    document.getElementById("availableStocks").textContent =
       j.available + " stocks available";
   }
 }
