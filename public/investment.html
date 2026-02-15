@@ -117,9 +117,8 @@ Administrative service fees apply to platform operations.
 
   <input id="amount" type="number" min="1" placeholder="Enter stock quantity">
 
-  <button class="buy" onclick="prepareAction('BUY')">➕ Acquire Units</button>
-  <button class="sell" onclick="prepareAction('SELL')">➖ Release Units</button>
-  <p id="actionType">Operation: --</p>
+  <button class="buy" onclick="prepareAction('Acquire')">➕ Acquire Units</button>
+  <button class="sell" onclick="prepareAction('Release')">➖ Release Units</button>
   <div id="msg" class="message"></div>
 </div>
 
@@ -226,11 +225,9 @@ function prepareAction(type){
 
   const subtotal = qty * stockPrice;
   const fee = feeFixed + (subtotal * feePercent / 100);
-  const total = type === "BUY" ? subtotal + fee : subtotal - fee;
+  const total = type === "Acquire" ? subtotal + fee : subtotal - fee;
 
   currentAction = type;
-  const actionText = type === "BUY" ? "Acquire" : type === "SELL" ? "Release" : type;
-  document.getElementById("actionType").textContent = `Operation: ${actionText}`;
   confirmBox.style.display = "block";
   confirmText.innerHTML = `
     <b>${type}</b> ${qty} Units<br>
