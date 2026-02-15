@@ -246,7 +246,7 @@ function cancelAction(){
 /* ================== تنفيذ ================== */
 async function confirmAction(){
   const qty = Number(amount.value);
-  const endpoint = currentAction === "BUY" ? "/api/buy-stock" : "/api/sell-stock";
+  const endpoint = currentAction === "Acquire" ? "/api/buy-stock" : "/api/sell-stock";
 
   const r = await fetch(endpoint,{
     method:"POST",
