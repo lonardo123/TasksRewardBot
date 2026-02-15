@@ -274,9 +274,14 @@ async function loadTransactions(){
 
   txTable.innerHTML = "";
   j.data.forEach(t=>{
+    const actionName =
+      t.type === "BUY"  ? "Acquire" :
+      t.type === "SELL" ? "Release" :
+      t.type;
+
     txTable.innerHTML += `
       <tr>
-        <td>${t.type}</td>
+        <td>${actionName}</td>
         <td>${t.quantity}</td>
         <td>${Number(t.price).toFixed(6)}</td>
         <td>${Number(t.fee).toFixed(6)}</td>
@@ -286,6 +291,7 @@ async function loadTransactions(){
     `;
   });
 }
+
 
 /* ================== الرسم البياني ================== */
 async function loadChart(){
