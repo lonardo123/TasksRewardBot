@@ -43,7 +43,7 @@ const t = (lang, key, vars = {}) => {
       write_message_to_admin: "✍️ اكتب رسالتك أو استفسارك وسيتم إرساله للإدارة.",
       your_balance: "💰 رصيدك",
       earn_sources: "🎁 مصادر الربح",
-      investment: "📈 استثماري",
+      Units: "📦 وحداتي",
       withdraw: "📤 طلب سحب",
       referral: "👥 ريفيرال",
       tasks: "📝 مهمات TasksRewardBot",
@@ -127,7 +127,7 @@ deposit_rejected: "❌ تم رفض طلب الإيداع، يرجى التواص
       write_message_to_admin: "✍️ Write your message or inquiry and it will be sent to the admin.",
       your_balance: "💰 Your Balance",
       earn_sources: "🎁 Earn Sources",
-      investment: "📈 My Investment",
+      Units: "📦 My Units",
       withdraw: "📤 Withdraw",
       referral: "👥 Referrals",
       tasks: "📝 Tasks",
@@ -421,7 +421,7 @@ bot.start(async (ctx) => {
         [t(lang, 'deposit'), t(lang, 'withdraw')], 
         [t(lang, 'referral')],
         [t(lang, 'tasks'), t(lang, 'videos')],
-        [t(lang, 'language'), t(lang,'investment')],
+        [t(lang, 'language'), t(lang,'Units')],
         [t(lang, 'facebook')],
         [t(lang, 'contact_admin')]
       ]).resize()
@@ -1086,7 +1086,7 @@ bot.on('text', async (ctx, next) => {
     '📢 رسالة جماعية',
     '📬 رسائل المستخدمين',
     '📈 إدارة الاستثمار',
-    '📈 استثماري',
+    '📈 وحداتي',
     '🚪 خروج من لوحة الأدمن'
   ];
   if (adminButtons.includes(text)) {
@@ -1097,7 +1097,7 @@ bot.on('text', async (ctx, next) => {
   const userButtons = [
     t(lang, 'deposit'),
     t(lang, 'videos'),
-    t(lang, 'investment'),
+    t(lang, 'Units'),
     t(lang, 'your_balance'),
     t(lang, 'earn_sources'),
     t(lang, 'withdraw'),
@@ -1479,7 +1479,7 @@ bot.hears(['🎬 فيديوهاتي', '🎬 My Videos'], async (ctx) => {
 
 // 📈 استثماري - تصحيح كامل ليعمل كـ WebApp داخلي (مثل الفيديوهات)
 bot.hears(
-  (text, ctx) => text === t(getLang(ctx), 'investment'),
+  (text, ctx) => text === t(getLang(ctx), 'Units'),
   async (ctx) => {
     const userId = ctx.from.id;
     const lang = getLang(ctx);
@@ -1489,12 +1489,12 @@ bot.hears(
 
     await ctx.reply(
       lang === 'ar'
-        ? '📈 اضغط على الزر لعرض وإدارة استثماراتك:'
-        : '📈 Click the button below to view and manage your investments:',
+        ? '📈 اضغط على الزر لعرض وإدارة وحداتك:'
+        : '📈 Click the button below to view and manage your Units:',
       Markup.inlineKeyboard([
         [
           Markup.button.webApp(
-            lang === 'ar' ? '📈 استثماري' : '📈 My Investment',
+            lang === 'ar' ? '📦 وحداتي' : '📦 My Units',
             url
           )
         ]
