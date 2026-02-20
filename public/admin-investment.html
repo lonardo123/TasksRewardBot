@@ -233,9 +233,7 @@ const PRICE_UPDATE_INTERVAL = 60000;
 
 async function syncPriceFromGold(){
   try{
-    const res = await fetch(
-      "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X"
-    );
+    const res = await fetch("/api/gold-price");
     const data = await res.json();
 
     const goldPrice =
