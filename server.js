@@ -582,21 +582,7 @@ app.get('/api/total-stocks', async (req, res) => {
     });
   }
 });
-// =======================تحديث سعر السهم تلقائى =======================
 
-app.get("/api/gold-price", async (req, res) => {
-  try {
-    const r = await fetch(
-      "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X"
-    );
-    const j = await r.json();
-
-    const price = j?.quoteResponse?.result?.[0]?.regularMarketPrice;
-    res.json({ success: true, price });
-  } catch (e) {
-    res.json({ success: false });
-  }
-});
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
