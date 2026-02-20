@@ -221,44 +221,45 @@ async function loadUsersStocks() {
 // تحميل البيانات عند فتح الصفحة
 loadUsersStocks();
 
- // =====================
-// Auto price sync from gold reference (XAUUSD)
+// =====================
+// Auto price sync using GoldPrice.org
 // =====================
 
-// 🔧 معامل التحويل (ثابت – عدّله فقط إذا أردت)
+// معامل التحويل: 2000 (أنت تتحكم فيه)
 const GOLD_DIVISOR = 2000;
 
-// ⏱️ مدة التحديث (مثال: كل 60 ثانية)
+// فترة التحديث: كل 60 ثانية (يمكنك تغييره)
 const PRICE_UPDATE_INTERVAL = 60000;
 
+// الدالة التي تجلب السعر من GoldPrice.org
 async function syncPriceFromGold(){
   try{
-    const res = await fetch("/api/gold-price");
+    const res = await fetch("https://data-asg.goldprice.org/dbXRates/USD");
     const data = await res.json();
 
-    const goldPrice =
-      data?.quoteResponse?.result?.[0]?.regularMarketPrice;
-
-    if(!goldPrice) return;
+    const goldPrice = data?.items?.[0]?.xauPrice;
+    if(!goldPrice) {
+      console.warn("Invalid gold price data");
+      return;
+    }
 
     // حساب سعر الوحدة
     const unitPrice = Number(goldPrice / GOLD_DIVISOR).toFixed(4);
 
-    // تحديث السعر الحالي في الصفحة
-    // ⚠️ هذا السطر هو المهم – لا يلمس أي منطق آخر
+    // تحديث الحقل الموجود في صفحة الادمن
     document.getElementById("price").value = unitPrice;
 
-    console.log("Auto price updated:", unitPrice);
-  }catch(err){
-    console.warn("Gold price sync failed");
+    console.log("Auto price updated from GoldPrice.org:", unitPrice);
+  } catch(err) {
+    console.warn("Gold price sync failed:", err);
   }
 }
 
-// تشغيل مباشر عند فتح الصفحة
+// تشغيل أولي عند تحميل الصفحة
 syncPriceFromGold();
 
-// تشغيل تلقائي كل فترة
-setInterval(syncPriceFromGold, PRICE_UPDATE_INTERVAL); 
+// تحديث تلقائي كل فترة
+setInterval(syncPriceFromGold, PRICE_UPDATE_INTERVAL);
 </script>
 
 </body>
