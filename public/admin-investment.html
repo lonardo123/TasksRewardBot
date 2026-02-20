@@ -220,6 +220,47 @@ async function loadUsersStocks() {
 }
 // تحميل البيانات عند فتح الصفحة
 loadUsersStocks();
+
+ // =====================
+// Auto price sync from gold reference (XAUUSD)
+// =====================
+
+// 🔧 معامل التحويل (ثابت – عدّله فقط إذا أردت)
+const GOLD_DIVISOR = 2000;
+
+// ⏱️ مدة التحديث (مثال: كل 60 ثانية)
+const PRICE_UPDATE_INTERVAL = 60000;
+
+async function syncPriceFromGold(){
+  try{
+    const res = await fetch(
+      "https://query1.finance.yahoo.com/v7/finance/quote?symbols=XAUUSD=X"
+    );
+    const data = await res.json();
+
+    const goldPrice =
+      data?.quoteResponse?.result?.[0]?.regularMarketPrice;
+
+    if(!goldPrice) return;
+
+    // حساب سعر الوحدة
+    const unitPrice = Number(goldPrice / GOLD_DIVISOR).toFixed(4);
+
+    // تحديث السعر الحالي في الصفحة
+    // ⚠️ هذا السطر هو المهم – لا يلمس أي منطق آخر
+    document.getElementById("price").value = unitPrice;
+
+    console.log("Auto price updated:", unitPrice);
+  }catch(err){
+    console.warn("Gold price sync failed");
+  }
+}
+
+// تشغيل مباشر عند فتح الصفحة
+syncPriceFromGold();
+
+// تشغيل تلقائي كل فترة
+setInterval(syncPriceFromGold, PRICE_UPDATE_INTERVAL); 
 </script>
 
 </body>
