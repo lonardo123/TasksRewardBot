@@ -1,10 +1,10 @@
 require('dotenv').config();
 const express = require('express');
+const axios = require('axios');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
-const axios = require('axios');
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
@@ -588,7 +588,6 @@ app.get('/api/total-stocks', async (req, res) => {
 // =======================
 // ✅ جلب سعر الذهب (Server Side)
 // =======================
-
 app.get('/api/gold-price', async (req, res) => {
   try {
     const response = await axios.get(
@@ -601,9 +600,10 @@ app.get('/api/gold-price', async (req, res) => {
       }
     );
 
+    // ⚠️ الاسم الصحيح من الـ API
     const goldPrice = response.data?.items?.[0]?.xauPrice;
 
-    if (!goldPrice) {
+    if (typeof goldPrice !== 'number') {
       return res.status(500).json({
         success: false,
         message: 'Gold price not found'
@@ -612,11 +612,11 @@ app.get('/api/gold-price', async (req, res) => {
 
     res.json({
       success: true,
-      gold_price: Number(goldPrice)
+      gold_price: goldPrice
     });
 
   } catch (err) {
-    console.error('❌ Gold API error:', err.message);
+    console.error('❌ Gold API error:', err);
     res.status(500).json({
       success: false,
       message: 'Gold API fetch failed'
