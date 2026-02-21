@@ -1,9 +1,78 @@
 require('dotenv').config();
 const express = require('express');
+const https = require('https');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
+
+// =======================
+// 🪙 Gold Price Auto-Sync Module
+// =======================
+
+let goldPriceCache = {
+  price: null,
+  lastUpdated: null,
+  error: null
+};
+
+const GOLD_API_URL = 'https://data-asg.goldprice.org/dbXRates/USD'; // ✅ تم إزالة المسافات
+const CACHE_INTERVAL = 5 * 60 * 1000; // 5 دقائق
+
+// دالة جلب السعر من المصدر الخارجي
+async function fetchGoldPriceFromAPI() {
+  return new Promise((resolve, reject) => {
+    https.get(GOLD_API_URL, {
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json' },
+      timeout: 10000
+    }, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          const price = json?.items?.[0]?.xauPrice;
+          if (typeof price === 'number') {
+            resolve({
+              price: Number(price),
+              currency: json?.items?.[0]?.curr || 'USD',
+              updated_at: json?.date || new Date().toISOString(),
+              timestamp: json?.ts || Date.now()
+            });
+          } else {
+            reject(new Error('Gold price not found'));
+          }
+        } catch (e) {
+          reject(new Error('JSON parse error: ' + e.message));
+        }
+      });
+    }).on('error', reject).on('timeout', () => reject(new Error('Timeout')));
+  });
+}
+
+// دالة تحديث الكاش
+async function updateGoldPriceCache() {
+  try {
+    console.log('🔄 Updating gold price cache...');
+    const data = await fetchGoldPriceFromAPI();
+    goldPriceCache = {
+      price: data.price,
+      currency: data.currency,
+      lastUpdated: new Date().toISOString(),
+      error: null
+    };
+    console.log(`✅ Gold cached: $${data.price}`);
+  } catch (err) {
+    console.error('❌ Gold update failed:', err.message);
+    goldPriceCache.error = err.message;
+  }
+}
+
+// 🚀 بدء التحديث التلقائي عند تشغيل السيرفر
+updateGoldPriceCache(); // تحديث فوري
+setInterval(updateGoldPriceCache, CACHE_INTERVAL); // ثم كل 5 دقائق
+console.log(`🪙 Gold Price Auto-Update: every ${CACHE_INTERVAL/1000} seconds`);
+
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
@@ -584,7 +653,23 @@ app.get('/api/total-stocks', async (req, res) => {
   }
 });
 
-
+// =======================
+// ✅ API: جلب سعر الذهب (متوافق مع صفحة الأدمن)
+// =======================
+app.get('/api/gold-price', (req, res) => {
+  if (goldPriceCache.error && !goldPriceCache.price) {
+    return res.status(503).json({
+      success: false,
+      message: 'Gold price not available yet'
+    });
+  }
+  res.json({
+    success: true,
+    goldPrice: goldPriceCache.price,      // ✅ مهم: camelCase ومباشر
+    currency: goldPriceCache.currency,
+    lastUpdated: goldPriceCache.lastUpdated
+  });
+});
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
