@@ -1,123 +1,10 @@
 require('dotenv').config();
 const express = require('express');
-const https = require('https');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
 
-// =======================
-// 🪙 Gold Price Auto-Sync Module (DEBUG VERSION)
-// =======================
-
-let goldPriceCache = {
-  price: null,
-  lastUpdated: null,
-  error: null,
-  rawResponse: null // للتصحيح
-};
-
-const GOLD_API_URL = 'https://data-asg.goldprice.org/dbXRates/USD';
-const CACHE_INTERVAL = 5 * 60 * 1000; // 5 دقائق
-
-async function fetchGoldPriceFromAPI() {
-  return new Promise((resolve, reject) => {
-    console.log(`🔄 Fetching gold from: ${GOLD_API_URL}`);
-    
-    https.get(GOLD_API_URL, {
-      headers: { 
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-        'Accept-Language': 'en-US,en;q=0.9'
-      },
-      timeout: 15000
-    }, (response) => {
-      console.log(`📡 Response status: ${response.statusCode}`);
-      
-      if (response.statusCode !== 200) {
-        return reject(new Error(`HTTP ${response.statusCode}`));
-      }
-      
-      let data = '';
-      response.on('data', chunk => {
-        data += chunk;
-      });
-      
-      response.on('end', async () => {
-        try {
-          console.log(`📦 Raw response length: ${data.length} chars`);
-          const json = JSON.parse(data);
-          goldPriceCache.rawResponse = json; // للحفظ والتصحيح
-          
-          console.log('🔍 Parsed JSON keys:', Object.keys(json));
-          console.log('🔍 items array:', json.items?.length);
-          
-          const item = json?.items?.[0];
-          const price = item?.xauPrice;
-          
-          console.log(`💰 Extracted price: ${price} (type: ${typeof price})`);
-          
-          if (typeof price === 'number' && price > 0) {
-            resolve({
-              price: Number(price),
-              currency: item?.curr || 'USD',
-              updated_at: json?.date || new Date().toISOString(),
-              timestamp: json?.ts || Date.now()
-            });
-          } else {
-            console.error('❌ Price validation failed:', { price, item });
-            reject(new Error('Invalid price value'));
-          }
-        } catch (e) {
-          console.error('❌ JSON parse error:', e.message);
-          console.error('📄 First 200 chars of response:', data.substring(0, 200));
-          reject(new Error('JSON parse: ' + e.message));
-        }
-      });
-    })
-    .on('error', (err) => {
-      console.error('❌ HTTPS request error:', {
-        message: err.message,
-        code: err.code,
-        syscall: err.syscall
-      });
-      reject(err);
-    })
-    .on('timeout', () => {
-      console.error('⏰ Request timeout');
-      reject(new Error('Request timeout'));
-    });
-  });
-}
-
-async function updateGoldPriceCache() {
-  try {
-    console.log('🔄 [GOLD] Starting cache update...');
-    const data = await fetchGoldPriceFromAPI();
-    
-    goldPriceCache = {
-      price: data.price,
-      currency: data.currency,
-      lastUpdated: new Date().toISOString(),
-      error: null,
-      rawResponse: goldPriceCache.rawResponse
-    };
-    
-    console.log(`✅ [GOLD] Cached: $${data.price} @ ${goldPriceCache.lastUpdated}`);
-  } catch (err) {
-    console.error('❌ [GOLD] Update failed:', err.message);
-    goldPriceCache.error = err.message;
-    // نحافظ على السعر القديم إذا وجد
-    if (!goldPriceCache.price) {
-      console.warn('⚠️ [GOLD] No valid price in cache');
-    }
-  }
-}
-
-// 🚀 بدء التحديث التلقائي
-console.log('🪙 Initializing Gold Price Module...');
-updateGoldPriceCache(); // تحديث فوري
-setInterval(updateGoldPriceCache, CACHE_INTERVAL);
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
@@ -698,32 +585,7 @@ app.get('/api/total-stocks', async (req, res) => {
   }
 });
 
-// =======================
-// ✅ API: جلب سعر الذهب (مع معلومات تصحيح)
-// =======================
-app.get('/api/gold-price', (req, res) => {
-  // ✅ إذا كان هناك سعر صالح ← نعيده فورًا
-  if (goldPriceCache.price && typeof goldPriceCache.price === 'number') {
-    return res.json({
-      success: true,
-      goldPrice: goldPriceCache.price,
-      currency: goldPriceCache.currency,
-      lastUpdated: goldPriceCache.lastUpdated
-    });
-  }
-  
-  // ❌ إذا لم يكن هناك سعر ← نعيد معلومات الخطأ للمساعدة في التصحيح
-  res.status(503).json({
-    success: false,
-    message: 'Gold price not available yet',
-    debug: {
-      error: goldPriceCache.error,
-      hasRawResponse: !!goldPriceCache.rawResponse,
-      lastAttempt: goldPriceCache.lastUpdated,
-      cache: goldPriceCache
-    }
-  });
-});
+
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
