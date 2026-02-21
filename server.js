@@ -583,36 +583,37 @@ app.get('/api/total-stocks', async (req, res) => {
   }
 });
 
-// =====================
-// Gold price proxy (SERVER SIDE)
-// =====================
+// =======================
+// ✅ جلب سعر الذهب (Server Side)
+// =======================
 app.get('/api/gold-price', async (req, res) => {
   try {
-    const response = await fetch(
-      'https://data-asg.goldprice.org/dbXRates/USD',
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0'
-        }
-      }
-    );
+    const fetch = (...args) =>
+      import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
+    const response = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
     const data = await response.json();
 
     const goldPrice = data?.items?.[0]?.xauPrice;
 
     if (!goldPrice) {
-      return res.status(500).json({ success: false });
+      return res.status(500).json({
+        success: false,
+        message: 'Gold price not available'
+      });
     }
 
     res.json({
       success: true,
-      goldPrice
+      gold_price: Number(goldPrice)
     });
 
   } catch (err) {
-    console.error('Gold fetch error:', err);
-    res.status(500).json({ success: false });
+    console.error('❌ Gold price error:', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch gold price'
+    });
   }
 });
 // ===========================================
