@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
+const axios = require('axios');
+
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
 // =======================
@@ -586,8 +588,6 @@ app.get('/api/total-stocks', async (req, res) => {
 // =======================
 // ✅ جلب سعر الذهب (Server Side)
 // =======================
-
-const axios = require('axios');
 
 app.get('/api/gold-price', async (req, res) => {
   try {
