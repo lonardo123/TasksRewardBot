@@ -1,6 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const https = require('https');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -585,58 +584,7 @@ app.get('/api/total-stocks', async (req, res) => {
   }
 });
 
-// =======================
-// ✅ جلب سعر الذهب (Server Side)
-// =======================
-app.get('/api/gold-price', (req, res) => {
-  const url = 'https://data-asg.goldprice.org/dbXRates/USD';
 
-  https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
-    let data = '';
-
-    response.on('data', chunk => data += chunk);
-
-    response.on('end', () => {
-      try {
-        const json = JSON.parse(data);
-
-        const item = json?.items?.[0];
-        const goldPrice =
-          item?.xauPrice ||
-          item?.price ||
-          item?.goldPrice ||
-          null;
-
-        if (!goldPrice) {
-          console.error('❌ Gold API raw response:', json);
-          return res.status(500).json({
-            success: false,
-            message: 'Gold price not found in API response'
-          });
-        }
-
-        res.json({
-          success: true,
-          gold_price: Number(goldPrice)
-        });
-
-      } catch (e) {
-        console.error('❌ JSON parse error:', e.message);
-        res.status(500).json({
-          success: false,
-          message: 'Invalid gold API response'
-        });
-      }
-    });
-
-  }).on('error', err => {
-    console.error('❌ HTTPS error:', err.message);
-    res.status(500).json({
-      success: false,
-      message: 'Gold API request failed'
-    });
-  });
-});
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
 // ===========================================
