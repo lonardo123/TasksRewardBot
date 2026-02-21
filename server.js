@@ -594,19 +594,24 @@ app.get('/api/gold-price', (req, res) => {
   https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
     let data = '';
 
-    response.on('data', chunk => {
-      data += chunk;
-    });
+    response.on('data', chunk => data += chunk);
 
     response.on('end', () => {
       try {
         const json = JSON.parse(data);
-        const goldPrice = json?.items?.[0]?.xauPrice;
+
+        const item = json?.items?.[0];
+        const goldPrice =
+          item?.xauPrice ||
+          item?.price ||
+          item?.goldPrice ||
+          null;
 
         if (!goldPrice) {
+          console.error('❌ Gold API raw response:', json);
           return res.status(500).json({
             success: false,
-            message: 'Gold price not found'
+            message: 'Gold price not found in API response'
           });
         }
 
@@ -616,7 +621,7 @@ app.get('/api/gold-price', (req, res) => {
         });
 
       } catch (e) {
-        console.error('❌ Parse error:', e.message);
+        console.error('❌ JSON parse error:', e.message);
         res.status(500).json({
           success: false,
           message: 'Invalid gold API response'
