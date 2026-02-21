@@ -466,11 +466,15 @@ bot.hears((text, ctx) => text === t(getLang(ctx), 'referral'), async (ctx) => {
 bot.hears((text, ctx) => text === t(getLang(ctx), 'earn_sources'), async (ctx) => {
   const userId = ctx.from.id;
   const lang = getLang(ctx);
+  
+  // تم تعديل الرابط لإزالة المسافات الزائدة بعد uid=
   const timewallUrl = `https://timewall.io/users/login?oid=b328534e6b994827&uid=${userId}`;
+  
   await ctx.reply(
     t(lang, 'earn_sources'),
     Markup.inlineKeyboard([
-      [Markup.button.url('🕒 TimeWall', timewallUrl)],
+      // ✅ تم التغيير من button.url إلى button.webApp ليعمل داخل البوت
+      [Markup.button.webApp('🕒 TimeWall', timewallUrl)],
       [Markup.button.callback(t(lang, 'earn_videos'), 'earn_videos')]
     ])
   );
