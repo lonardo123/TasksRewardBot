@@ -1,6 +1,6 @@
 require('dotenv').config();
 const express = require('express');
-const axios = require('axios');
+const https = require('https');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
@@ -588,40 +588,49 @@ app.get('/api/total-stocks', async (req, res) => {
 // =======================
 // ✅ جلب سعر الذهب (Server Side)
 // =======================
-app.get('/api/gold-price', async (req, res) => {
-  try {
-    const response = await axios.get(
-      'https://data-asg.goldprice.org/dbXRates/USD',
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0'
-        },
-        timeout: 10000
-      }
-    );
+app.get('/api/gold-price', (req, res) => {
+  const url = 'https://data-asg.goldprice.org/dbXRates/USD';
 
-    // ⚠️ الاسم الصحيح من الـ API
-    const goldPrice = response.data?.items?.[0]?.xauPrice;
+  https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (response) => {
+    let data = '';
 
-    if (typeof goldPrice !== 'number') {
-      return res.status(500).json({
-        success: false,
-        message: 'Gold price not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      gold_price: goldPrice
+    response.on('data', chunk => {
+      data += chunk;
     });
 
-  } catch (err) {
-    console.error('❌ Gold API error:', err);
+    response.on('end', () => {
+      try {
+        const json = JSON.parse(data);
+        const goldPrice = json?.items?.[0]?.xauPrice;
+
+        if (!goldPrice) {
+          return res.status(500).json({
+            success: false,
+            message: 'Gold price not found'
+          });
+        }
+
+        res.json({
+          success: true,
+          gold_price: Number(goldPrice)
+        });
+
+      } catch (e) {
+        console.error('❌ Parse error:', e.message);
+        res.status(500).json({
+          success: false,
+          message: 'Invalid gold API response'
+        });
+      }
+    });
+
+  }).on('error', err => {
+    console.error('❌ HTTPS error:', err.message);
     res.status(500).json({
       success: false,
-      message: 'Gold API fetch failed'
+      message: 'Gold API request failed'
     });
-  }
+  });
 });
 // ===========================================
 // ✅ مسار التحقق من العامل (Worker Verification)
