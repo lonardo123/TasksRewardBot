@@ -4,7 +4,6 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
-const bcrypt = require("bcrypt");
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
