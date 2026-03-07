@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('./db');
-
+const bcrypt = require("bcrypt");
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
@@ -1482,6 +1482,75 @@ app.get('/worker/', (req, res) => {
   });
 });
 
+/* =========================
+   REGISTER
+========================= */
+
+app.post("/register", async (req, res) => {
+
+  try {
+
+    const { name, username, password } = req.body;
+
+    const hash = await bcrypt.hash(password, 10);
+
+    await pool.query(
+      "INSERT INTO users(name,username,password,balance) VALUES($1,$2,$3,0)",
+      [name, username, hash]
+    );
+
+    res.json({ success: true });
+
+  } catch (err) {
+
+    console.error(err);
+    res.json({ success: false });
+
+  }
+
+});
+
+
+/* =========================
+   LOGIN
+========================= */
+
+app.post("/login", async (req, res) => {
+
+  try {
+
+    const { username, password } = req.body;
+
+    const result = await pool.query(
+      "SELECT * FROM users WHERE username=$1",
+      [username]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false });
+    }
+
+    const user = result.rows[0];
+
+    const ok = await bcrypt.compare(password, user.password);
+
+    if (!ok) {
+      return res.json({ success: false });
+    }
+
+    res.json({
+      success: true,
+      user: user
+    });
+
+  } catch (err) {
+
+    console.error(err);
+    res.json({ success: false });
+
+  }
+
+});
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
