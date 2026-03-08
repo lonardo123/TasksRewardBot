@@ -64,8 +64,6 @@ pool.on('error', (err) => {
 });
 
 // === السيرفر (Express)
-const app = express();
-app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // ✅ هذا هو المسار الصحيح لإضافة كروم
