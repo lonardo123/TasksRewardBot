@@ -1,9 +1,21 @@
 require('dotenv').config();
+
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+
 const { pool } = require('./db');
+
+const app = express();
+
+/* مهم جدا */
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
