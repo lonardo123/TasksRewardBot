@@ -1501,11 +1501,46 @@ app.post("/register", async (req, res) => {
 
     const { name, username, password } = req.body;
 
+    // التحقق من البيانات
+    if (!name || !username || !password) {
+      return res.json({ success: false, message: "Missing data" });
+    }
+
+    // التحقق من عدم وجود username مسبقًا
+    const checkUser = await pool.query(
+      "SELECT id FROM users WHERE username=$1",
+      [username]
+    );
+
+    if (checkUser.rows.length > 0) {
+      return res.json({ success: false, message: "Username already exists" });
+    }
+
+    // إنشاء telegram_id عشوائي كبير لتجنب التعارض مع Telegram
+    let telegram_id;
+    while (true) {
+
+      telegram_id = Math.floor(
+        900000000000 + Math.random() * 100000000000
+      );
+
+      const checkId = await pool.query(
+        "SELECT id FROM users WHERE telegram_id=$1",
+        [telegram_id]
+      );
+
+      if (checkId.rows.length === 0) break;
+    }
+
+    // تشفير كلمة المرور
     const hash = await bcrypt.hash(password, 10);
 
+    // إنشاء المستخدم
     await pool.query(
-      "INSERT INTO users(name,username,password,balance) VALUES($1,$2,$3,0)",
-      [name, username, hash]
+      `INSERT INTO users
+       (name, username, password, telegram_id, balance)
+       VALUES ($1,$2,$3,$4,0)`,
+      [name, username, hash, telegram_id]
     );
 
     res.json({ success: true });
@@ -1531,7 +1566,7 @@ app.post("/login", async (req, res) => {
     const { username, password } = req.body;
 
     const result = await pool.query(
-      "SELECT * FROM users WHERE username=$1",
+      "SELECT id, telegram_id, username, password, balance, name FROM users WHERE username=$1",
       [username]
     );
 
@@ -1547,9 +1582,13 @@ app.post("/login", async (req, res) => {
       return res.json({ success: false });
     }
 
+    // إرسال telegram_id لاستخدامه في التطبيق
     res.json({
       success: true,
-      user: user
+      telegram_id: user.telegram_id,
+      username: user.username,
+      name: user.name,
+      balance: user.balance
     });
 
   } catch (err) {
@@ -1560,6 +1599,38 @@ app.post("/login", async (req, res) => {
   }
 
 });
+
+/* =========================
+   GET USER DATA
+========================= */
+
+app.get("/user/:id", async (req, res) => {
+
+  try {
+
+    const result = await pool.query(
+      "SELECT id, telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+
+  } catch (err) {
+
+    console.error(err);
+    res.json({ success: false });
+
+  }
+
+});
+
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
