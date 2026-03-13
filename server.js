@@ -1630,32 +1630,39 @@ app.get("/user/:id", async (req, res) => {
   }
 
 });
-// GET /user/dashboard
+
 app.get("/user/dashboard", async (req, res) => {
-    const telegramId = parseInt(req.query.id);
-    if(isNaN(telegramId)) return res.json({success:false, message:"Invalid user id"});
+    const idParam = req.query.id;
+    const telegramId = Number(idParam);
+
+    if(!idParam || isNaN(telegramId)){
+        console.log("Invalid id received:", idParam);
+        return res.json({success:false, message:"Invalid user id"});
+    }
 
     try {
-        // جلب بيانات المستخدم
         const userQuery = await pool.query(
             "SELECT name, username, balance FROM users WHERE telegram_id=$1",
             [telegramId]
         );
+
         if(userQuery.rows.length === 0){
+            console.log("User not found:", telegramId);
             return res.json({success:false, message:"User not found"});
         }
+
         const user = userQuery.rows[0];
 
-        // حساب مجموع السحوبات المنفذة
         const withdrawQuery = await pool.query(
             "SELECT COALESCE(SUM(amount),0) AS total FROM withdrawals WHERE user_id=$1 AND processed_at IS NOT NULL",
             [telegramId]
         );
-        const totalWithdrawn = withdrawQuery.rows[0].total;
+
+        const totalWithdrawn = withdrawQuery.rows[0].total || 0;
 
         res.json({success:true, user, totalWithdrawn});
     } catch(err) {
-        console.error(err);
+        console.error("Server error /user/dashboard:", err);
         res.json({success:false, message:"Server error"});
     }
 });
