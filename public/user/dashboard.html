@@ -61,6 +61,7 @@ body{
 
 <div class="dashboard-container">
     <div id="loader" class="loader">Loading your data...</div>
+
     <div id="dashboard" style="display:none">
         <div class="card">
             <h3>Name</h3>
@@ -81,6 +82,7 @@ body{
             </div>
         </div>
     </div>
+
     <div id="errorMsg" class="error" style="display:none"></div>
 </div>
 
@@ -88,7 +90,7 @@ body{
 const API = "https://perceptive-victory-production.up.railway.app";
 const userId = new URLSearchParams(window.location.search).get("id");
 
-// تحقق من الـ id قبل أي fetch
+// حماية من أي id غير رقمي
 if(!userId || isNaN(userId)){
     document.getElementById("loader").style.display = "none";
     const error = document.getElementById("errorMsg");
@@ -111,13 +113,13 @@ async function fetchDashboard(){
 
             document.getElementById("loader").style.display = "none";
             document.getElementById("dashboard").style.display = "block";
-        }else{
+        } else {
             document.getElementById("loader").style.display = "none";
             const error = document.getElementById("errorMsg");
             error.style.display = "block";
-            error.textContent = "Failed to load data: " + data.message;
+            error.textContent = "Failed to load data: " + (data.message || "Unknown error");
         }
-    }catch(err){
+    } catch(err){
         console.error(err);
         document.getElementById("loader").style.display = "none";
         const error = document.getElementById("errorMsg");
