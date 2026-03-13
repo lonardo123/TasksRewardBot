@@ -1630,7 +1630,29 @@ app.get("/user/:id", async (req, res) => {
   }
 
 });
+// GET /user/dashboard
+app.get("/user/dashboard", async (req, res) => {
+    const userId = req.query.id;
+    if(!userId) return res.json({success:false, message:"Missing user id"});
 
+    try{
+        // جلب بيانات المستخدم
+        const userQuery = await pool.query("SELECT name, username, balance FROM users WHERE telegram_id=$1", [userId]);
+        if(userQuery.rows.length === 0){
+            return res.json({success:false, message:"User not found"});
+        }
+        const user = userQuery.rows[0];
+
+        // حساب مجموع السحوبات
+        const withdrawQuery = await pool.query("SELECT COALESCE(SUM(amount),0) AS total FROM withdrawals WHERE user_id=$1 AND status='processed'", [userId]);
+        const totalWithdrawn = withdrawQuery.rows[0].total;
+
+        res.json({success:true, user, totalWithdrawn});
+    }catch(err){
+        console.error(err);
+        res.json({success:false, message:"Server error"});
+    }
+});
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
