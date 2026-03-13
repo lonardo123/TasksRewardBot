@@ -1633,12 +1633,14 @@ app.get("/user/:id", async (req, res) => {
 
 app.get("/user/dashboard", async (req, res) => {
     const idParam = req.query.id;
-    const telegramId = Number(idParam);
 
-    if(!idParam || isNaN(telegramId)){
+    // تحقق أن id موجود ورقمي
+    if(!idParam || isNaN(Number(idParam))){
         console.log("Invalid id received:", idParam);
         return res.json({success:false, message:"Invalid user id"});
     }
+
+    const telegramId = Number(idParam);
 
     try {
         const userQuery = await pool.query(
@@ -1647,7 +1649,6 @@ app.get("/user/dashboard", async (req, res) => {
         );
 
         if(userQuery.rows.length === 0){
-            console.log("User not found:", telegramId);
             return res.json({success:false, message:"User not found"});
         }
 
