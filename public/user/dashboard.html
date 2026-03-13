@@ -13,6 +13,8 @@ body{
 }
 .dashboard-container{
     padding:20px;
+    max-width:900px;
+    margin:0 auto;
 }
 .card{
     background:#111827;
@@ -47,13 +49,18 @@ body{
     font-size:18px;
     color:#38bdf8;
 }
+.error{
+    text-align:center;
+    margin-top:50px;
+    font-size:18px;
+    color:#f87171;
+}
 </style>
 </head>
 <body>
 
 <div class="dashboard-container">
     <div id="loader" class="loader">Loading your data...</div>
-
     <div id="dashboard" style="display:none">
         <div class="card">
             <h3>Name</h3>
@@ -74,15 +81,26 @@ body{
             </div>
         </div>
     </div>
+    <div id="errorMsg" class="error" style="display:none"></div>
 </div>
 
 <script>
-const API="https://perceptive-victory-production.up.railway.app";
+const API = "https://perceptive-victory-production.up.railway.app";
 const userId = new URLSearchParams(window.location.search).get("id");
+
+// تحقق من الـ id قبل أي fetch
+if(!userId || isNaN(userId)){
+    document.getElementById("loader").style.display = "none";
+    const error = document.getElementById("errorMsg");
+    error.style.display = "block";
+    error.textContent = "Invalid or missing user id!";
+} else {
+    fetchDashboard();
+}
 
 async function fetchDashboard(){
     try{
-        const res = await fetch(API+"/user/dashboard?id="+userId);
+        const res = await fetch(`${API}/user/dashboard?id=${userId}`);
         const data = await res.json();
 
         if(data.success){
@@ -91,18 +109,22 @@ async function fetchDashboard(){
             document.getElementById("userBalance").textContent = "$" + parseFloat(data.user.balance).toFixed(2);
             document.getElementById("userWithdrawn").textContent = "$" + parseFloat(data.totalWithdrawn).toFixed(2);
 
-            document.getElementById("loader").style.display="none";
-            document.getElementById("dashboard").style.display="block";
+            document.getElementById("loader").style.display = "none";
+            document.getElementById("dashboard").style.display = "block";
         }else{
-            document.getElementById("loader").textContent="Failed to load data";
+            document.getElementById("loader").style.display = "none";
+            const error = document.getElementById("errorMsg");
+            error.style.display = "block";
+            error.textContent = "Failed to load data: " + data.message;
         }
     }catch(err){
         console.error(err);
-        document.getElementById("loader").textContent="Error fetching data";
+        document.getElementById("loader").style.display = "none";
+        const error = document.getElementById("errorMsg");
+        error.style.display = "block";
+        error.textContent = "Error fetching data. Please try again later.";
     }
 }
-
-fetchDashboard();
 </script>
 
 </body>
