@@ -1631,91 +1631,56 @@ app.get("/user/:id", async (req, res) => {
 
 });
 
-// =======================
-// ✅ Dashboard Endpoint - نسخة مصححة مع تصحيح الأخطاء
-// =======================
+// =========================
+// ✅ USER DASHBOARD - نسخة متوافقة مع login/register
+// =========================
 app.get("/user/dashboard", async (req, res) => {
-    const idParam = req.query.id;
-    
-    // 🔎 تحقق أولي من المعرف
-    if(!idParam || isNaN(Number(idParam))){
-        console.log("❌ Invalid id received:", idParam);
-        return res.status(400).json({success:false, message:"Invalid user id"});
-    }
-    
-    const telegramId = Number(idParam);
-    console.log("🔍 Dashboard request for telegram_id:", telegramId);
-    
     try {
-        // 1️⃣ تحقق من اتصال قاعدة البيانات
-        if(!pool){
-            console.error("❌ Database pool is not defined");
-            return res.status(500).json({success:false, message:"Database connection error"});
+        const idParam = req.query.id;
+        
+        // 🔎 تحقق صارم: يجب أن يكون رقم صحيح
+        if(!idParam || typeof idParam !== 'string' || !/^\d+$/.test(idParam.trim())){
+            console.log("❌ Invalid id received:", idParam, typeof idParam);
+            return res.json({success:false, message:"Invalid user id"});
         }
         
-        // 2️⃣ جلب بيانات المستخدم الأساسية
+        const telegramId = Number(idParam.trim());
+        
+        // ✅ نفس نمط الاستعلام المستخدم في login (يعمل 100%)
         const userQuery = await pool.query(
-            `SELECT telegram_id, name, username, balance, payeer_wallet, created_at 
-             FROM users WHERE telegram_id=$1`,
+            "SELECT telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
             [telegramId]
         );
         
-        console.log("📊 User query result rows:", userQuery.rows.length);
-        
         if(userQuery.rows.length === 0){
-            console.log("⚠️ User not found:", telegramId);
-            return res.status(404).json({success:false, message:"User not found"});
+            return res.json({success:false, message:"User not found"});
         }
         
         const user = userQuery.rows[0];
         
-        // 3️⃣ حساب إجمالي المسحوبات المكتملة فقط
-        // ⚠️ ملاحظة: استخدمنا user_id وليس telegram_id في جدول withdrawals
+        // ✅ حساب المسحوبات المكتملة فقط (نفس منطق withdrawals في بقية الكود)
         const withdrawQuery = await pool.query(
-            `SELECT COALESCE(SUM(amount), 0) AS total 
-             FROM withdrawals 
-             WHERE user_id=$1 AND status='completed'`,
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawals WHERE user_id=$1 AND status='completed'",
             [telegramId]
         );
         
-        const totalWithdrawn = parseFloat(withdrawQuery.rows[0]?.total) || 0;
+        const totalWithdrawn = parseFloat(withdrawQuery.rows[0].total) || 0;
         
-        // 4️⃣ تحضير الاستجابة النهائية
-        const responseData = {
+        // ✅ إرسال الاستجابة بنفس تنسيق login
+        res.json({
             success: true,
-            user: {
-                telegram_id: user.telegram_id,
-                name: user.name,
-                username: user.username,
-                balance: parseFloat(user.balance) || 0,
-                payeer_wallet: user.payeer_wallet,
-                member_since: user.created_at
-            },
+            telegram_id: user.telegram_id,  // ← مهم: أرسله كما في login
+            username: user.username,
+            name: user.name,
+            balance: parseFloat(user.balance) || 0,
+            payeer_wallet: user.payeer_wallet,
             totalWithdrawn: totalWithdrawn,
             timestamp: new Date().toISOString()
-        };
-        
-        console.log("✅ Dashboard data sent for:", telegramId);
-        return res.json(responseData);
+        });
         
     } catch(err) {
-        // 🔴 تسجيل مفصل للخطأ في السيرفر
-        console.error("❌ Dashboard ERROR details:", {
-            message: err.message,
-            code: err.code,
-            detail: err.detail,
-            stack: err.stack
-        });
-        
-        // 📤 إرسال الخطأ للواجهة مع تفاصيل في وضع التطوير
-        return res.status(500).json({
-            success: false, 
-            message: "Server error: " + (err.message || "Unknown error"),
-            debug: process.env.NODE_ENV === 'development' ? {
-                code: err.code,
-                detail: err.detail
-            } : undefined
-        });
+        console.error("❌ Server error /user/dashboard:", err);
+        res.json({success:false, message:"Server error"});
     }
 });
 // === بدء التشغيل ===
