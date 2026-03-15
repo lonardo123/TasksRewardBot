@@ -1632,65 +1632,55 @@ app.get("/user/:id", async (req, res) => {
 });
 
 // =======================
-// ✅ Dashboard Endpoint - محسّن
+// ✅ Dashboard Endpoint - مع تصحيح الأخطاء
 // =======================
 app.get("/user/dashboard", async (req, res) => {
     const idParam = req.query.id;
     
-    // تحقق من صحة المعرف
+    // 🔎 تحقق أولي من المعرف
     if(!idParam || isNaN(Number(idParam))){
         console.log("❌ Invalid id received:", idParam);
-        return res.json({success:false, message:"Invalid user id"});
+        return res.status(400).json({success:false, message:"Invalid user id"});
     }
     
     const telegramId = Number(idParam);
+    console.log("🔍 Dashboard request for telegram_id:", telegramId);
     
     try {
-        // 1️⃣ جلب بيانات المستخدم الأساسية
+        // 1️⃣ تحقق من اتصال قاعدة البيانات أولاً
+        if(!pool){
+            console.error("❌ Database pool is not defined");
+            return res.status(500).json({success:false, message:"Database connection error"});
+        }
+        
+        // 2️⃣ جلب بيانات المستخدم
         const userQuery = await pool.query(
             `SELECT telegram_id, name, username, balance, payeer_wallet, created_at 
              FROM users WHERE telegram_id=$1`,
             [telegramId]
         );
         
+        console.log("📊 User query result rows:", userQuery.rows.length);
+        
         if(userQuery.rows.length === 0){
-            return res.json({success:false, message:"User not found"});
+            console.log("⚠️ User not found:", telegramId);
+            return res.status(404).json({success:false, message:"User not found"});
         }
         
         const user = userQuery.rows[0];
         
-        // 2️⃣ إجمالي المسحوبات المكتملة
+        // 3️⃣ حساب إجمالي المسحوبات المكتملة فقط
         const withdrawQuery = await pool.query(
-            `SELECT COALESCE(SUM(amount),0) AS total 
+            `SELECT COALESCE(SUM(amount), 0) AS total 
              FROM withdrawals 
              WHERE user_id=$1 AND status='completed'`,
             [telegramId]
         );
-        const totalWithdrawn = parseFloat(withdrawQuery.rows[0].total) || 0;
         
-        // 3️⃣ إحصائيات إضافية (اختياري لكن مفيد)
-        const statsQuery = await pool.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM earnings WHERE user_id=$1) as earnings_count,
-                (SELECT COUNT(*) FROM watched_videos WHERE user_id=$1::varchar) as videos_watched,
-                (SELECT COUNT(*) FROM referrals WHERE referrer_id=$1) as referrals_count,
-                (SELECT COUNT(*) FROM pending_sales WHERE user_id=$1 AND status='pending') as pending_sales
-        `, [telegramId]);
+        const totalWithdrawn = parseFloat(withdrawQuery.rows[0]?.total) || 0;
         
-        const stats = statsQuery.rows[0];
-        
-        // 4️⃣ آخر 5 عمليات (للعرض السريع)
-        const recentQuery = await pool.query(`
-            SELECT 'earning' as type, amount, created_at as date 
-            FROM earnings WHERE user_id=$1 
-            UNION ALL
-            SELECT 'withdrawal' as type, amount, requested_at as date 
-            FROM withdrawals WHERE user_id=$1 
-            ORDER BY date DESC LIMIT 5
-        `, [telegramId]);
-        
-        // ✅ إرسال الاستجابة النهائية
-        res.json({
+        // 4️⃣ تحضير الاستجابة النهائية
+        const responseData = {
             success: true,
             user: {
                 telegram_id: user.telegram_id,
@@ -1701,23 +1691,29 @@ app.get("/user/dashboard", async (req, res) => {
                 member_since: user.created_at
             },
             totalWithdrawn: totalWithdrawn,
-            stats: {
-                earningsCount: parseInt(stats.earnings_count) || 0,
-                videosWatched: parseInt(stats.videos_watched) || 0,
-                referralsCount: parseInt(stats.referrals_count) || 0,
-                pendingSales: parseInt(stats.pending_sales) || 0
-            },
-            recent: recentQuery.rows.map(r => ({
-                type: r.type,
-                amount: parseFloat(r.amount),
-                date: r.date
-            })),
             timestamp: new Date().toISOString()
-        });
+        };
+        
+        console.log("✅ Dashboard data sent for:", telegramId);
+        return res.json(responseData);
         
     } catch(err) {
-        console.error("❌ Server error /user/dashboard:", err);
-        res.json({success:false, message:"Server error"});
+        // 🔴 تسجيل مفصل للخطأ
+        console.error("❌ Dashboard ERROR details:", {
+            message: err.message,
+            code: err.code,
+            detail: err.detail,
+            stack: err.stack
+        });
+        
+        return res.status(500).json({
+            success: false, 
+            message: "Server error: " + (err.message || "Unknown error"),
+            debug: process.env.NODE_ENV === 'development' ? {
+                code: err.code,
+                detail: err.detail
+            } : undefined
+        });
     }
 });
 // === بدء التشغيل ===
