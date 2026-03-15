@@ -1600,36 +1600,6 @@ app.post("/login", async (req, res) => {
 
 });
 
-/* =========================
-   GET USER DATA
-========================= */
-
-app.get("/user/:id", async (req, res) => {
-
-  try {
-
-    const result = await pool.query(
-      "SELECT id, telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.json({ success: false });
-    }
-
-    res.json({
-      success: true,
-      user: result.rows[0]
-    });
-
-  } catch (err) {
-
-    console.error(err);
-    res.json({ success: false });
-
-  }
-
-});
 
 // =========================
 // ✅ USER DASHBOARD - نسخة متوافقة مع login/register
@@ -1683,6 +1653,37 @@ app.get("/user/dashboard", async (req, res) => {
         res.json({success:false, message:"Server error"});
     }
 });
+/* =========================
+   GET USER DATA
+========================= */
+
+app.get("/user/:id", async (req, res) => {
+
+  try {
+
+    const result = await pool.query(
+      "SELECT id, telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ success: false });
+    }
+
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+
+  } catch (err) {
+
+    console.error(err);
+    res.json({ success: false });
+
+  }
+
+});
+
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
