@@ -1632,7 +1632,7 @@ app.get("/user/:id", async (req, res) => {
 });
 
 // =======================
-// ✅ Dashboard Endpoint - مع تصحيح الأخطاء
+// ✅ Dashboard Endpoint - نسخة مصححة مع تصحيح الأخطاء
 // =======================
 app.get("/user/dashboard", async (req, res) => {
     const idParam = req.query.id;
@@ -1647,13 +1647,13 @@ app.get("/user/dashboard", async (req, res) => {
     console.log("🔍 Dashboard request for telegram_id:", telegramId);
     
     try {
-        // 1️⃣ تحقق من اتصال قاعدة البيانات أولاً
+        // 1️⃣ تحقق من اتصال قاعدة البيانات
         if(!pool){
             console.error("❌ Database pool is not defined");
             return res.status(500).json({success:false, message:"Database connection error"});
         }
         
-        // 2️⃣ جلب بيانات المستخدم
+        // 2️⃣ جلب بيانات المستخدم الأساسية
         const userQuery = await pool.query(
             `SELECT telegram_id, name, username, balance, payeer_wallet, created_at 
              FROM users WHERE telegram_id=$1`,
@@ -1670,6 +1670,7 @@ app.get("/user/dashboard", async (req, res) => {
         const user = userQuery.rows[0];
         
         // 3️⃣ حساب إجمالي المسحوبات المكتملة فقط
+        // ⚠️ ملاحظة: استخدمنا user_id وليس telegram_id في جدول withdrawals
         const withdrawQuery = await pool.query(
             `SELECT COALESCE(SUM(amount), 0) AS total 
              FROM withdrawals 
@@ -1698,7 +1699,7 @@ app.get("/user/dashboard", async (req, res) => {
         return res.json(responseData);
         
     } catch(err) {
-        // 🔴 تسجيل مفصل للخطأ
+        // 🔴 تسجيل مفصل للخطأ في السيرفر
         console.error("❌ Dashboard ERROR details:", {
             message: err.message,
             code: err.code,
@@ -1706,6 +1707,7 @@ app.get("/user/dashboard", async (req, res) => {
             stack: err.stack
         });
         
+        // 📤 إرسال الخطأ للواجهة مع تفاصيل في وضع التطوير
         return res.status(500).json({
             success: false, 
             message: "Server error: " + (err.message || "Unknown error"),
