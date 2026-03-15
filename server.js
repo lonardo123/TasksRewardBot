@@ -1631,39 +1631,92 @@ app.get("/user/:id", async (req, res) => {
 
 });
 
+// =======================
+// ✅ Dashboard Endpoint - محسّن
+// =======================
 app.get("/user/dashboard", async (req, res) => {
     const idParam = req.query.id;
-
-    // تحقق أن id موجود ورقمي
+    
+    // تحقق من صحة المعرف
     if(!idParam || isNaN(Number(idParam))){
-        console.log("Invalid id received:", idParam);
+        console.log("❌ Invalid id received:", idParam);
         return res.json({success:false, message:"Invalid user id"});
     }
-
+    
     const telegramId = Number(idParam);
-
+    
     try {
+        // 1️⃣ جلب بيانات المستخدم الأساسية
         const userQuery = await pool.query(
-            "SELECT name, username, balance FROM users WHERE telegram_id=$1",
+            `SELECT telegram_id, name, username, balance, payeer_wallet, created_at 
+             FROM users WHERE telegram_id=$1`,
             [telegramId]
         );
-
+        
         if(userQuery.rows.length === 0){
             return res.json({success:false, message:"User not found"});
         }
-
+        
         const user = userQuery.rows[0];
-
+        
+        // 2️⃣ إجمالي المسحوبات المكتملة
         const withdrawQuery = await pool.query(
-            "SELECT COALESCE(SUM(amount),0) AS total FROM withdrawals WHERE user_id=$1 AND processed_at IS NOT NULL",
+            `SELECT COALESCE(SUM(amount),0) AS total 
+             FROM withdrawals 
+             WHERE user_id=$1 AND status='completed'`,
             [telegramId]
         );
-
-        const totalWithdrawn = withdrawQuery.rows[0].total || 0;
-
-        res.json({success:true, user, totalWithdrawn});
+        const totalWithdrawn = parseFloat(withdrawQuery.rows[0].total) || 0;
+        
+        // 3️⃣ إحصائيات إضافية (اختياري لكن مفيد)
+        const statsQuery = await pool.query(`
+            SELECT 
+                (SELECT COUNT(*) FROM earnings WHERE user_id=$1) as earnings_count,
+                (SELECT COUNT(*) FROM watched_videos WHERE user_id=$1::varchar) as videos_watched,
+                (SELECT COUNT(*) FROM referrals WHERE referrer_id=$1) as referrals_count,
+                (SELECT COUNT(*) FROM pending_sales WHERE user_id=$1 AND status='pending') as pending_sales
+        `, [telegramId]);
+        
+        const stats = statsQuery.rows[0];
+        
+        // 4️⃣ آخر 5 عمليات (للعرض السريع)
+        const recentQuery = await pool.query(`
+            SELECT 'earning' as type, amount, created_at as date 
+            FROM earnings WHERE user_id=$1 
+            UNION ALL
+            SELECT 'withdrawal' as type, amount, requested_at as date 
+            FROM withdrawals WHERE user_id=$1 
+            ORDER BY date DESC LIMIT 5
+        `, [telegramId]);
+        
+        // ✅ إرسال الاستجابة النهائية
+        res.json({
+            success: true,
+            user: {
+                telegram_id: user.telegram_id,
+                name: user.name,
+                username: user.username,
+                balance: parseFloat(user.balance) || 0,
+                payeer_wallet: user.payeer_wallet,
+                member_since: user.created_at
+            },
+            totalWithdrawn: totalWithdrawn,
+            stats: {
+                earningsCount: parseInt(stats.earnings_count) || 0,
+                videosWatched: parseInt(stats.videos_watched) || 0,
+                referralsCount: parseInt(stats.referrals_count) || 0,
+                pendingSales: parseInt(stats.pending_sales) || 0
+            },
+            recent: recentQuery.rows.map(r => ({
+                type: r.type,
+                amount: parseFloat(r.amount),
+                date: r.date
+            })),
+            timestamp: new Date().toISOString()
+        });
+        
     } catch(err) {
-        console.error("Server error /user/dashboard:", err);
+        console.error("❌ Server error /user/dashboard:", err);
         res.json({success:false, message:"Server error"});
     }
 });
