@@ -580,8 +580,10 @@ app.post('/api/admin/update-price', async (req, res) => {
     res.status(500).json({ status: "error", message: "فشل التحديث" });
   }
 });
+
 app.get('/investment', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'investment.html'));
+  
 // ======================= إجمالي الأسهم لجميع المستخدمين =======================
 app.get('/api/total-stocks', async (req, res) => {
   try {
