@@ -525,23 +525,30 @@ app.get('/api/my-stock-locks', async (req, res) => {
 // ======================= الرسم البياني =======================
 app.get('/api/stock-chart', async (req, res) => {
   try {
+    // 🔹 نجلب أحدث 15 سجل أولاً (من الأحدث للأقدم)
     const q = await pool.query(`
       SELECT price, updated_at
       FROM stock_settings
-      ORDER BY updated_at ASC
+      ORDER BY updated_at DESC
       LIMIT 15
     `);
 
+    // 🔹 نعكس الترتيب ليظهر في الشارت من الأقدم للأحدث (تسلسل زمني صحيح)
+    const reversedRows = q.rows.reverse();
+
     res.json({
       status: "success",
-      data: q.rows.map(r => ({
+       reversedRows.map(r => ({
         price: Number(r.price),
         date: r.updated_at
       }))
     });
   } catch (err) {
     console.error('❌ خطأ في /api/stock-chart:', err.message);
-    res.status(500).json({ status: "error", message: "Failed to load chart data" });
+    res.status(500).json({ 
+      status: "error", 
+      message: "Failed to load chart data" 
+    });
   }
 });
 
