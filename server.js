@@ -536,6 +536,7 @@ app.get('/api/stock-chart', async (req, res) => {
     // 🔹 نعكس الترتيب ليظهر في الشارت من الأقدم للأحدث (تسلسل زمني صحيح)
     const reversedRows = q.rows.reverse();
 
+    // ✅ تم الإصلاح: إضافة مفتاح data: قبل .map
     res.json({
       status: "success",
        reversedRows.map(r => ({
@@ -547,27 +548,30 @@ app.get('/api/stock-chart', async (req, res) => {
     console.error('❌ خطأ في /api/stock-chart:', err.message);
     res.status(500).json({ 
       status: "error", 
-      message: "Failed to load chart data" 
+      message: "Failed to load chart data"
     });
   }
 });
-
 
 // ======================= تحديث السعر من الادمن =======================
 app.post('/api/admin/update-price', async (req, res) => {
   try {
     const { new_price, admin_fee_fixed = 0.05, admin_fee_percent = 3 } = req.body;
+    
     if (!new_price || new_price <= 0) {
-      return res.status(400).json({ status: "error", message: "سعر غير صالح" });
+      return res.status(400).json({ 
+        status: "error", 
+        message: "سعر غير صالح" 
+      });
     }
 
-    // إضافة السجل الجديد
+    // ➕ إضافة السجل الجديد
     await pool.query(`
       INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent, updated_at)
       VALUES ($1, $2, $3, NOW())
     `, [new_price, admin_fee_fixed, admin_fee_percent]);
 
-    // 🔹 تنظيف: الاحتفاظ بآخر 15 سجل فقط
+    // 🗑️ حذف السجلات القديمة والاحتفاظ بآخر 15 فقط
     await pool.query(`
       DELETE FROM stock_settings 
       WHERE id NOT IN (
@@ -580,14 +584,17 @@ app.post('/api/admin/update-price', async (req, res) => {
     res.json({
       status: "success",
       message: "✅ تم تحديث السعر بنجاح",
-      data: { price: new_price }
+       { price: new_price }
     });
+
   } catch (err) {
     console.error('❌ خطأ في تحديث السعر:', err.message);
-    res.status(500).json({ status: "error", message: "فشل التحديث" });
+    res.status(500).json({ 
+      status: "error", 
+      message: "فشل التحديث" 
+    });
   }
 });
-
 // ======================= صفحة الاستثمار =======================
 app.get('/investment', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'investment.html'));
