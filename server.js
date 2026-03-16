@@ -529,7 +529,7 @@ app.get('/api/stock-chart', async (req, res) => {
       SELECT price, updated_at
       FROM stock_settings
       ORDER BY updated_at ASC
-      LIMIT 30
+      LIMIT 15
     `);
 
     res.json({
@@ -554,24 +554,31 @@ app.post('/api/admin/update-price', async (req, res) => {
       return res.status(400).json({ status: "error", message: "سعر غير صالح" });
     }
 
+    // إضافة السجل الجديد
     await pool.query(`
       INSERT INTO stock_settings (price, admin_fee_fixed, admin_fee_percent, updated_at)
       VALUES ($1, $2, $3, NOW())
     `, [new_price, admin_fee_fixed, admin_fee_percent]);
 
+    // 🔹 تنظيف: الاحتفاظ بآخر 15 سجل فقط
+    await pool.query(`
+      DELETE FROM stock_settings 
+      WHERE id NOT IN (
+        SELECT id FROM stock_settings 
+        ORDER BY updated_at DESC 
+        LIMIT 15
+      )
+    `);
+
     res.json({
       status: "success",
-      message: "تم تحديث السعر",
+      message: "✅ تم تحديث السعر بنجاح",
       data: { price: new_price }
     });
   } catch (err) {
-    console.error(err);
+    console.error('❌ خطأ في تحديث السعر:', err.message);
     res.status(500).json({ status: "error", message: "فشل التحديث" });
   }
-});
-
-app.get('/investment', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'investment.html'));
 });
 // ======================= إجمالي الأسهم لجميع المستخدمين =======================
 app.get('/api/total-stocks', async (req, res) => {
