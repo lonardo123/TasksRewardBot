@@ -337,33 +337,35 @@ async function loadTransactions(){
   });
 }
 
-
 /* ================== الرسم البياني ================== */
+
 async function loadChart(){
-  const r = await fetch("/api/stock-chart");
-  const j = await r.json();
-  if(j.status !== "success") return;
+  try {
+    const r = await fetch("/api/stock-chart");
+    const j = await r.json();
+    if(j.status !== "success") return;
 
-  // 🔹 أخذ آخر 15 نقطة فقط (حماية إضافية)
-  const chartData = (j.data || []).slice(-15);
-  if (chartData.length === 0) return;
+    const chartData = j.data || [];
+    if (chartData.length === 0) return;
+    
+    // 🔹 أخذ آخر 15 نقطة فقط
+    const recentData = chartData.slice(-15);
 
-  const labels = chartData.map(x => new Date(x.date).toLocaleDateString('en-US'));
-  const prices = chartData.map(x => Number(x.price));
+    const labels = recentData.map(x => new Date(x.date).toLocaleDateString('en-US'));
+    const prices = recentData.map(x => Number(x.price));
 
-  // 🔹 تحديث الشارت الموجود أو إنشاؤه جديد
-  if (chartInstance) {
-    chartInstance.data.labels = labels;
-    chartInstance.data.datasets[0].data = prices;
-    chartInstance.update('none'); // تحديث فوري بدون تراكم
-  } else {
-    // ✅ تم الإصلاح: إضافة مفاتيح  و data: الصحيحة
+    // 🔹 تدمير الشارت القديم إذا وجد (أسلوب آمن يمنع التراكم)
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    // 🔹 إنشاء شارت جديد
     chartInstance = new Chart(document.getElementById("priceChart"), {
       type: "line",
-       {
+      data: {
         labels: labels,
         datasets: [{
-           prices,
+          data: prices,
           borderWidth: 2,
           tension: 0.4,
           borderColor: '#22c55e',
@@ -375,13 +377,12 @@ async function loadChart(){
         responsive: true,
         maintainAspectRatio: false,
         plugins: { 
-          legend: { display: false },
-          tooltip: { mode: 'index', intersect: false }
+          legend: { display: false }
         },
         scales: {
           x: { 
             grid: { color: '#334155' },
-            ticks: { color: '#94a3b8', maxTicksLimit: 7, autoSkip: true }
+            ticks: { color: '#94a3b8' }
           },
           y: { 
             grid: { color: '#334155' },
@@ -390,6 +391,8 @@ async function loadChart(){
         }
       }
     });
+  } catch(err) {
+    console.error("loadChart error:", err);
   }
 }
 
