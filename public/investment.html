@@ -401,7 +401,7 @@ async function loadAvailableStocks(){
   }
 }
 // =====================
-// لأسهم المقفولة
+// لأسهم المقفولة - ⏳ Unit Availability
 // =====================
 async function loadStockLocks() {
   try {
@@ -418,8 +418,19 @@ async function loadStockLocks() {
 
     data.forEach(row => {
       const statusText = row.locked ? "🔒 Locked" : "🔓 Available";
-      const statusColor = row.locked ? "#ef4444" : "#22c55e"; // أحمر/أخضر داكن لتناسب الخلفية
-      const unlockDate = new Date(row.unlock_at).toLocaleString();
+      const statusColor = row.locked ? "#ef4444" : "#22c55e";
+      
+      // 🔹 تنسيق التاريخ والوقت بالإنجليزية فقط (بدون ص/م)
+      const dateObj = new Date(row.unlock_at);
+      const unlockDate = dateObj.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true  // لإظهار AM/PM بالإنجليزية
+      });
 
       tbody.innerHTML += `
         <tr style="transition: background 0.3s; cursor:pointer;" 
@@ -434,12 +445,13 @@ async function loadStockLocks() {
     });
 
   } catch (err) {
+    const tbody = document.getElementById("locksTable");
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
 
 // =====================
-// Pending Sales
+// Pending Sales - 💰 Pending Sales
 // =====================
 async function loadPendingSales() { 
   try {
@@ -456,7 +468,20 @@ async function loadPendingSales() {
 
     data.forEach(s => {
       const statusText = s.status === 'pending' ? '⏳ Pending' : '✅ Completed';
-      const statusColor = s.status === 'pending' ? "#facc15" : "#22c55e"; // برتقالي/أخضر داكن
+      const statusColor = s.status === 'pending' ? "#facc15" : "#22c55e";
+      
+      // 🔹 تنسيق التاريخ والوقت بالإنجليزية فقط (بدون ص/م)
+      const dateObj = new Date(s.release_date);
+      const releaseDate = dateObj.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true  // لإظهار AM/PM بالإنجليزية
+      });
+      
       tbody.innerHTML += `
         <tr style="transition: background 0.3s; cursor:pointer;" 
             onmouseover="this.style.background='#1e293b'" 
@@ -464,15 +489,15 @@ async function loadPendingSales() {
           <td>${Number(s.amount).toFixed(6)}</td>
           <td>--</td>
           <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
-          <td>${new Date(s.release_date).toLocaleString()}</td>
+          <td>${releaseDate}</td>
         </tr>
       `;
     });
   } catch (e) {
+    const tbody = document.getElementById("pendingSalesTable");
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
-
 
 /* ================== تشغيل ================== */
 loadInvestment();
