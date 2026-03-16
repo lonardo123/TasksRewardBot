@@ -327,49 +327,79 @@ async function loadTransactions(){
 }
 
 
+
 /* ================== الرسم البياني ================== */
 async function loadChart(){
-  const r = await fetch("/api/stock-chart");
-  const j = await r.json();
-  if(j.status !== "success") return;
+  try {
+    const r = await fetch("/api/stock-chart");
+    const j = await r.json();
+    if(j.status !== "success") return;
 
-  // 🔹 البيانات تأتي مرتبة من السيرفر (أقدم ← أحدث)
-  const chartData = j.data;
+    const chartData = j.data || [];
+    if (chartData.length === 0) return;
 
-  new Chart(document.getElementById("priceChart"),{
-    type:"line",
-     {
-      labels: chartData.map(x => new Date(x.date).toLocaleDateString('en-US')),
-      datasets:[{
-        data: chartData.map(x => x.price),
-        borderWidth: 2,
-        tension: 0.4,
-        borderColor: '#22c55e',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        fill: true
-      }]
-    },
-    options:{
-      plugins:{ 
-        legend: { display: false },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-        }
-      },
-      scales: {
-        x: { 
-          grid: { color: '#334155' },
-          ticks: { color: '#94a3b8', maxTicksLimit: 7 }
+    const labels = chartData.map(x => new Date(x.date).toLocaleDateString('en-US'));
+    const prices = chartData.map(x => Number(x.price));
+
+    // 🔹 تحديث الشارت الموجود أو إنشاؤه جديد
+    if (chartInstance) {
+      chartInstance.data.labels = labels;
+      chartInstance.data.datasets[0].data = prices;
+      chartInstance.update();
+    } else {
+      chartInstance = new Chart(document.getElementById("priceChart"), {
+        type: "line",
+         {  // ✅ تم الإصلاح: مفتاح  مضاف
+          labels: labels,
+          datasets: [{
+             prices,
+            borderWidth: 2,
+            tension: 0.4,
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: true,
+            pointRadius: 3,
+            pointHoverRadius: 6
+          }]
         },
-        y: { 
-          grid: { color: '#334155' },
-          ticks: { color: '#94a3b8' }
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              callbacks: {
+                label: function(context) {
+                  return `Value: ${context.parsed.y.toFixed(6)}$`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: { 
+              grid: { color: '#334155' },
+              ticks: { color: '#94a3b8', maxTicksLimit: 7 }
+            },
+            y: { 
+              grid: { color: '#334155' },
+              ticks: { 
+                color: '#94a3b8',
+                callback: function(value) {
+                  return value.toFixed(4);
+                }
+              }
+            }
+          }
         }
-      }
+      });
     }
-  });
+  } catch(err) {
+    console.error("loadChart error:", err);
+  }
 }
+
 // =====================
 // تحميل إجمالي الأسهم
 // =====================
