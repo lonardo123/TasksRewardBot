@@ -5,6 +5,7 @@
 <title>Digital Units Platform</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- ✅ تم إصلاح رابط Chart.js (إزالة المسافات الزائدة) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -92,7 +93,6 @@ Users participate at their own responsibility.<br><br>
 
 Administrative service fees apply to platform operations.
 </div>
-
 
 <!-- 🔹 الأسهم المتاحة -->
  <div class="card">
@@ -199,6 +199,7 @@ let stockPrice = 0;
 let feeFixed = 0;
 let feePercent = 0;
 let currentAction = null;
+let chartInstance = null; // 🔹 لتخزين مثيل الشارت وتحديثه بدلاً من إنشائه مجددًا
 
 const priceEl   = document.getElementById("price");
 const balanceEl = document.getElementById("balance");
@@ -206,11 +207,31 @@ const stocksEl  = document.getElementById("stocks");
 const feeEl     = document.getElementById("fee");
 const userIdEl  = document.getElementById("userId");
 const msgEl     = document.getElementById("msg");
+const amount    = document.getElementById("amount");
+const confirmBox= document.getElementById("confirmBox");
+const confirmText= document.getElementById("confirmText");
+const txTable   = document.getElementById("txTable");
 
 /* ================== أدوات ================== */
 function showMsg(text, ok=true){
   msgEl.textContent = text;
   msgEl.className = "message " + (ok ? "success" : "error");
+  setTimeout(() => { msgEl.textContent = ""; }, 5000);
+}
+
+// 🔹 دالة موحدة لتنسيق التاريخ بالإنجليزية
+function formatDateTime(dateInput) {
+  if (!dateInput) return "N/A";
+  const dateObj = new Date(dateInput);
+  return dateObj.toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
 }
 
 /* ================== تحميل البيانات ================== */
@@ -218,10 +239,12 @@ async function loadInvestment(){
   try{
     const r = await fetch(`/api/investment-data?user_id=${user_id}`);
     const j = await r.json();
-    if(j.status !== "success") return showMsg(j.message,false);
+    if(j.status !== "success") {
+      console.error("loadInvestment error:", j.message);
+      return showMsg(j.message || "Failed to load data", false);
+    }
 
     const d = j.data;
-
     stockPrice = Number(d.price);
     feeFixed   = Number(d.admin_fee_fixed);
     feePercent = Number(d.admin_fee_percent);
@@ -231,8 +254,9 @@ async function loadInvestment(){
     balanceEl.textContent = `💵 Balance: ${Number(d.balance).toFixed(6)}$`;
     stocksEl.textContent  = `📦 My Units: ${d.stocks}`;
     feeEl.textContent     = `🧾 Service Fee: ${feeFixed}$ + ${feePercent}%`;
-  }catch{
-    showMsg("Failed to load investment data",false);
+  } catch(err){
+    console.error("loadInvestment exception:", err);
+    showMsg("Failed to load investment data", false);
   }
 }
 
@@ -266,67 +290,70 @@ async function confirmAction(){
   const qty = Number(amount.value);
   const endpoint = currentAction === "Acquire" ? "/api/buy-stock" : "/api/sell-stock";
 
-  const r = await fetch(endpoint,{
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ user_id, quantity: qty })
-  });
+  try {
+    const r = await fetch(endpoint,{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ user_id, quantity: qty })
+    });
 
-  const j = await r.json();
-  if(j.status === "success"){
-    showMsg(j.message);
-    loadInvestment();
-    loadTransactions();
-    loadChart();
-    loadTotalStocks();
-    loadAvailableStocks();
-    loadStockLocks();
-    loadPendingSales();
-  }else{
-    showMsg(j.message,false);
+    const j = await r.json();
+    if(j.status === "success"){
+      showMsg(j.message);
+      // 🔹 تحديث كل الأقسام فوراً
+      await Promise.all([
+        loadInvestment(),
+        loadTransactions(),
+        loadChart(),
+        loadTotalStocks(),
+        loadAvailableStocks(),
+        loadStockLocks(),
+        loadPendingSales()
+      ]);
+    }else{
+      showMsg(j.message || "Operation failed", false);
+    }
+  } catch(err) {
+    console.error("confirmAction error:", err);
+    showMsg("Connection error", false);
   }
   cancelAction();
 }
 
 /* ================== سجل العمليات ================== */
 async function loadTransactions(){
-  const r = await fetch(`/api/transactions?user_id=${user_id}`);
-  const j = await r.json();
-  if(j.status !== "success") return;
+  try {
+    const r = await fetch(`/api/transactions?user_id=${user_id}`);
+    const j = await r.json();
+    if(j.status !== "success") return;
 
-  txTable.innerHTML = "";
-  j.data.forEach(t=>{
-    const actionName =
-      t.type === "BUY"  ? "Acquire" :
-      t.type === "SELL" ? "Release" :
-      t.type;
+    txTable.innerHTML = "";
+    if (!j.data || j.data.length === 0) {
+      txTable.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:8px;">No transactions yet</td></tr>`;
+      return;
+    }
+    
+    j.data.forEach(t=>{
+      const actionName =
+        t.type === "BUY"  ? "Acquire" :
+        t.type === "SELL" ? "Release" :
+        t.type || "Unknown";
 
-    // 🔹 تنسيق التاريخ بالإنجليزية فقط
-    const dateObj = new Date(t.date);
-    const formattedDate = dateObj.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true  // لإظهار AM/PM بالإنجليزية
+      txTable.innerHTML += `
+        <tr>
+          <td>${actionName}</td>
+          <td>${t.quantity || 0}</td>
+          <td>${Number(t.price || 0).toFixed(6)}</td>
+          <td>${Number(t.fee || 0).toFixed(6)}</td>
+          <td>${Number(t.total || 0).toFixed(6)}</td>
+          <td>${formatDateTime(t.date)}</td>
+        </tr>
+      `;
     });
-
-    txTable.innerHTML += `
-      <tr>
-        <td>${actionName}</td>
-        <td>${t.quantity}</td>
-        <td>${Number(t.price).toFixed(6)}</td>
-        <td>${Number(t.fee).toFixed(6)}</td>
-        <td>${Number(t.total).toFixed(6)}</td>
-        <td>${formattedDate}</td>
-      </tr>
-    `;
-  });
+  } catch(err) {
+    console.error("loadTransactions error:", err);
+  }
 }
-
-
 
 /* ================== الرسم البياني ================== */
 async function loadChart(){
@@ -407,29 +434,39 @@ async function loadTotalStocks() {
   try {
     const res = await fetch('/api/total-stocks');
     const data = await res.json();
-
-    if (data.status === "success") {
-      document.getElementById("totalStocksValue").textContent =
-        data.total_stocks + " Units";
+    const el = document.getElementById("totalStocksValue");
+    
+    if (data && data.status === "success") {
+      el.textContent = (data.total_stocks || 0) + " Units";
     } else {
-      document.getElementById("totalStocksValue").textContent = "Error";
+      el.textContent = "Error";
     }
   } catch (err) {
+    console.error("loadTotalStocks error:", err);
     document.getElementById("totalStocksValue").textContent = "Server Error";
   }
 }
+
 // =====================
 // الأسهم المتاحة
 // =====================
 async function loadAvailableStocks(){
-  const r = await fetch('/api/available-stocks');
-  const j = await r.json();
-
-  if(j.status === "success"){
-    document.getElementById("availableStocks").textContent =
-      j.available + " Units available";
+  try {
+    const r = await fetch('/api/available-stocks');
+    const j = await r.json();
+    const el = document.getElementById("availableStocks");
+    
+    if(j && j.status === "success"){
+      el.textContent = (j.available || 0) + " Units available";
+    } else {
+      el.textContent = "Error";
+    }
+  } catch(err) {
+    console.error("loadAvailableStocks error:", err);
+    document.getElementById("availableStocks").textContent = "Server Error";
   }
 }
+
 // =====================
 // لأسهم المقفولة - ⏳ Unit Availability
 // =====================
@@ -437,11 +474,10 @@ async function loadStockLocks() {
   try {
     const r = await fetch(`/api/my-stock-locks?user_id=${user_id}`);
     const data = await r.json();
-
     const tbody = document.getElementById("locksTable");
     tbody.innerHTML = "";
 
-    if (!data.length) {
+    if (!data || !data.length) {
       tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">No Units holdings</td></tr>`;
       return;
     }
@@ -449,32 +485,21 @@ async function loadStockLocks() {
     data.forEach(row => {
       const statusText = row.locked ? "🔒 Locked" : "🔓 Available";
       const statusColor = row.locked ? "#ef4444" : "#22c55e";
-      
-      // 🔹 تنسيق التاريخ والوقت بالإنجليزية فقط (بدون ص/م)
-      const dateObj = new Date(row.unlock_at);
-      const unlockDate = dateObj.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true  // لإظهار AM/PM بالإنجليزية
-      });
+      const unlockDate = formatDateTime(row.unlock_at);
 
       tbody.innerHTML += `
         <tr style="transition: background 0.3s; cursor:pointer;" 
             onmouseover="this.style.background='#1e293b'" 
             onmouseout="this.style.background='transparent'">
-          <td>${row.quantity}</td>
-          <td>${row.remaining}</td>
+          <td>${row.quantity || 0}</td>
+          <td>${row.remaining || 0}</td>
           <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${unlockDate}</td>
         </tr>
       `;
     });
-
   } catch (err) {
+    console.error("loadStockLocks error:", err);
     const tbody = document.getElementById("locksTable");
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
@@ -487,11 +512,10 @@ async function loadPendingSales() {
   try {
     const r = await fetch(`/api/pending-sales?user_id=${user_id}`);
     const data = await r.json();
-
     const tbody = document.getElementById("pendingSalesTable");
     tbody.innerHTML = "";
 
-    if (!data.length) {
+    if (!data || !data.length) {
       tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">No pending sales</td></tr>`;
       return;
     }
@@ -499,24 +523,13 @@ async function loadPendingSales() {
     data.forEach(s => {
       const statusText = s.status === 'pending' ? '⏳ Pending' : '✅ Completed';
       const statusColor = s.status === 'pending' ? "#facc15" : "#22c55e";
-      
-      // 🔹 تنسيق التاريخ والوقت بالإنجليزية فقط (بدون ص/م)
-      const dateObj = new Date(s.release_date);
-      const releaseDate = dateObj.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true  // لإظهار AM/PM بالإنجليزية
-      });
+      const releaseDate = formatDateTime(s.release_date);
       
       tbody.innerHTML += `
         <tr style="transition: background 0.3s; cursor:pointer;" 
             onmouseover="this.style.background='#1e293b'" 
             onmouseout="this.style.background='transparent'">
-          <td>${Number(s.amount).toFixed(6)}</td>
+          <td>${Number(s.amount || 0).toFixed(6)}</td>
           <td>--</td>
           <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${releaseDate}</td>
@@ -524,10 +537,12 @@ async function loadPendingSales() {
       `;
     });
   } catch (e) {
+    console.error("loadPendingSales error:", e);
     const tbody = document.getElementById("pendingSalesTable");
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
+
 
 /* ================== تشغيل ================== */
 loadInvestment();
