@@ -356,43 +356,55 @@ async function loadTransactions(){
 }
 
 /* ================== الرسم البياني ================== */
+
 async function loadChart(){
   try {
     const r = await fetch("/api/stock-chart");
     const j = await r.json();
     if(j.status !== "success") return;
 
-    const chartData = j.data || [];
+    let chartData = j.data || [];
     if (chartData.length === 0) return;
+
+    // 🔹 ضمان: أخذ آخر 15 نقطة فقط (حماية إضافية)
+    chartData = chartData.slice(-15);
 
     const labels = chartData.map(x => new Date(x.date).toLocaleDateString('en-US'));
     const prices = chartData.map(x => Number(x.price));
 
     // 🔹 تحديث الشارت الموجود أو إنشاؤه جديد
     if (chartInstance) {
+      // ✅ استبدال البيانات بالكامل (ليس إضافة)
       chartInstance.data.labels = labels;
       chartInstance.data.datasets[0].data = prices;
-      chartInstance.update();
+      
+      // ✅ تحديث فوري بدون تراكم أنيميشن
+      chartInstance.update('none');
     } else {
-      // ✅ ✅ ✅ تم الإصلاح النهائي هنا ✅ ✅ ✅
       chartInstance = new Chart(document.getElementById("priceChart"), {
         type: "line",
-        data: {  // 🔹 الإصلاح #1: إضافة مفتاح "data:" هنا
+         {
           labels: labels,
           datasets: [{
-            data: prices,  // 🔹 الإصلاح #2: إضافة مفتاح "data:" هنا
+             prices,
             borderWidth: 2,
             tension: 0.4,
             borderColor: '#22c55e',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',
             fill: true,
             pointRadius: 3,
-            pointHoverRadius: 6
+            pointHoverRadius: 6,
+            // ✅ منع تراكم النقاط القديمة
+            maxBarThickness: 15
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          animation: {
+            duration: 300,  // ✅ أنيميشن قصير وسريع
+            easing: 'linear'
+          },
           plugins: { 
             legend: { display: false },
             tooltip: {
@@ -408,7 +420,12 @@ async function loadChart(){
           scales: {
             x: { 
               grid: { color: '#334155' },
-              ticks: { color: '#94a3b8', maxTicksLimit: 7 }
+              ticks: { 
+                color: '#94a3b8', 
+                maxTicksLimit: 7,
+                // ✅ إخفاء التسميات الزائدة تلقائيًا
+                autoSkip: true
+              }
             },
             y: { 
               grid: { color: '#334155' },
@@ -427,7 +444,6 @@ async function loadChart(){
     console.error("loadChart error:", err);
   }
 }
-
 // =====================
 // تحميل إجمالي الأسهم
 // =====================
