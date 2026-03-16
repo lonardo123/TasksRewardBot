@@ -277,6 +277,11 @@ async function confirmAction(){
     showMsg(j.message);
     loadInvestment();
     loadTransactions();
+    loadChart();
+    loadTotalStocks();
+    loadAvailableStocks();
+    loadStockLocks();
+    loadPendingSales();
   }else{
     showMsg(j.message,false);
   }
@@ -296,6 +301,18 @@ async function loadTransactions(){
       t.type === "SELL" ? "Release" :
       t.type;
 
+    // 🔹 تنسيق التاريخ بالإنجليزية فقط
+    const dateObj = new Date(t.date);
+    const formattedDate = dateObj.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true  // لإظهار AM/PM بالإنجليزية
+    });
+
     txTable.innerHTML += `
       <tr>
         <td>${actionName}</td>
@@ -303,7 +320,7 @@ async function loadTransactions(){
         <td>${Number(t.price).toFixed(6)}</td>
         <td>${Number(t.fee).toFixed(6)}</td>
         <td>${Number(t.total).toFixed(6)}</td>
-        <td>${new Date(t.date).toLocaleString()}</td>
+        <td>${formattedDate}</td>
       </tr>
     `;
   });
@@ -316,18 +333,40 @@ async function loadChart(){
   const j = await r.json();
   if(j.status !== "success") return;
 
+  // 🔹 أخذ آخر 15 نقطة فقط
+  const recentData = j.data.slice(-15);
+
   new Chart(document.getElementById("priceChart"),{
     type:"line",
     data:{
-      labels:j.data.map(x=>new Date(x.date).toLocaleDateString()),
+      labels: recentData.map(x=>new Date(x.date).toLocaleDateString('en-US')),
       datasets:[{
-        data:j.data.map(x=>x.price),
+        data: recentData.map(x=>x.price),
         borderWidth:2,
-        tension:0.4
+        tension:0.4,
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        fill: true
       }]
     },
     options:{
-      plugins:{ legend:{display:false} }
+      plugins:{ 
+        legend:{display:false},
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+        }
+      },
+      scales: {
+        x: { 
+          grid: { color: '#334155' },
+          ticks: { color: '#94a3b8', maxTicksLimit: 7 }
+        },
+        y: { 
+          grid: { color: '#334155' },
+          ticks: { color: '#94a3b8' }
+        }
+      }
     }
   });
 }
