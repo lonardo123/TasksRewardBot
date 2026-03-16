@@ -5,7 +5,7 @@
 <title>Digital Units Platform</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<!-- ✅ تم إصلاح رابط Chart.js (إزالة المسافات الزائدة) -->
+<!-- ✅ تم إصلاح رابط Chart.js (إزالة المسافات) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -93,6 +93,7 @@ Users participate at their own responsibility.<br><br>
 
 Administrative service fees apply to platform operations.
 </div>
+
 
 <!-- 🔹 الأسهم المتاحة -->
  <div class="card">
@@ -199,7 +200,8 @@ let stockPrice = 0;
 let feeFixed = 0;
 let feePercent = 0;
 let currentAction = null;
-let chartInstance = null; // 🔹 لتخزين مثيل الشارت وتحديثه بدلاً من إنشائه مجددًا
+// ✅ إضافة متغير الشارت للتحديث الديناميكي
+let chartInstance = null;
 
 const priceEl   = document.getElementById("price");
 const balanceEl = document.getElementById("balance");
@@ -216,14 +218,12 @@ const txTable   = document.getElementById("txTable");
 function showMsg(text, ok=true){
   msgEl.textContent = text;
   msgEl.className = "message " + (ok ? "success" : "error");
-  setTimeout(() => { msgEl.textContent = ""; }, 5000);
 }
 
-// 🔹 دالة موحدة لتنسيق التاريخ بالإنجليزية
+// 🔹 دالة موحدة لتنسيق التاريخ بالإنجليزية (بدون ص/م)
 function formatDateTime(dateInput) {
   if (!dateInput) return "N/A";
-  const dateObj = new Date(dateInput);
-  return dateObj.toLocaleString('en-US', {
+  return new Date(dateInput).toLocaleString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -239,12 +239,10 @@ async function loadInvestment(){
   try{
     const r = await fetch(`/api/investment-data?user_id=${user_id}`);
     const j = await r.json();
-    if(j.status !== "success") {
-      console.error("loadInvestment error:", j.message);
-      return showMsg(j.message || "Failed to load data", false);
-    }
+    if(j.status !== "success") return showMsg(j.message,false);
 
     const d = j.data;
+
     stockPrice = Number(d.price);
     feeFixed   = Number(d.admin_fee_fixed);
     feePercent = Number(d.admin_fee_percent);
@@ -254,9 +252,8 @@ async function loadInvestment(){
     balanceEl.textContent = `💵 Balance: ${Number(d.balance).toFixed(6)}$`;
     stocksEl.textContent  = `📦 My Units: ${d.stocks}`;
     feeEl.textContent     = `🧾 Service Fee: ${feeFixed}$ + ${feePercent}%`;
-  } catch(err){
-    console.error("loadInvestment exception:", err);
-    showMsg("Failed to load investment data", false);
+  }catch{
+    showMsg("Failed to load investment data",false);
   }
 }
 
@@ -290,160 +287,112 @@ async function confirmAction(){
   const qty = Number(amount.value);
   const endpoint = currentAction === "Acquire" ? "/api/buy-stock" : "/api/sell-stock";
 
-  try {
-    const r = await fetch(endpoint,{
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ user_id, quantity: qty })
-    });
+  const r = await fetch(endpoint,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ user_id, quantity: qty })
+  });
 
-    const j = await r.json();
-    if(j.status === "success"){
-      showMsg(j.message);
-      // 🔹 تحديث كل الأقسام فوراً
-      await Promise.all([
-        loadInvestment(),
-        loadTransactions(),
-        loadChart(),
-        loadTotalStocks(),
-        loadAvailableStocks(),
-        loadStockLocks(),
-        loadPendingSales()
-      ]);
-    }else{
-      showMsg(j.message || "Operation failed", false);
-    }
-  } catch(err) {
-    console.error("confirmAction error:", err);
-    showMsg("Connection error", false);
+  const j = await r.json();
+  if(j.status === "success"){
+    showMsg(j.message);
+    loadInvestment();
+    loadTransactions();
+    loadChart();
+    // ✅ تحديث فوري لكل الأقسام بعد البيع/الشراء
+    loadTotalStocks();
+    loadAvailableStocks();
+    loadStockLocks();
+    loadPendingSales();
+  }else{
+    showMsg(j.message,false);
   }
   cancelAction();
 }
 
 /* ================== سجل العمليات ================== */
 async function loadTransactions(){
-  try {
-    const r = await fetch(`/api/transactions?user_id=${user_id}`);
-    const j = await r.json();
-    if(j.status !== "success") return;
+  const r = await fetch(`/api/transactions?user_id=${user_id}`);
+  const j = await r.json();
+  if(j.status !== "success") return;
 
-    txTable.innerHTML = "";
-    if (!j.data || j.data.length === 0) {
-      txTable.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:8px;">No transactions yet</td></tr>`;
-      return;
-    }
-    
-    j.data.forEach(t=>{
-      const actionName =
-        t.type === "BUY"  ? "Acquire" :
-        t.type === "SELL" ? "Release" :
-        t.type || "Unknown";
+  txTable.innerHTML = "";
+  j.data.forEach(t=>{
+    const actionName =
+      t.type === "BUY"  ? "Acquire" :
+      t.type === "SELL" ? "Release" :
+      t.type;
 
-      txTable.innerHTML += `
-        <tr>
-          <td>${actionName}</td>
-          <td>${t.quantity || 0}</td>
-          <td>${Number(t.price || 0).toFixed(6)}</td>
-          <td>${Number(t.fee || 0).toFixed(6)}</td>
-          <td>${Number(t.total || 0).toFixed(6)}</td>
-          <td>${formatDateTime(t.date)}</td>
-        </tr>
-      `;
-    });
-  } catch(err) {
-    console.error("loadTransactions error:", err);
-  }
+    // ✅ تنسيق التاريخ بالإنجليزية فقط (بدون ص/م)
+    txTable.innerHTML += `
+      <tr>
+        <td>${actionName}</td>
+        <td>${t.quantity}</td>
+        <td>${Number(t.price).toFixed(6)}</td>
+        <td>${Number(t.fee).toFixed(6)}</td>
+        <td>${Number(t.total).toFixed(6)}</td>
+        <td>${formatDateTime(t.date)}</td>
+      </tr>
+    `;
+  });
 }
+
 
 /* ================== الرسم البياني ================== */
-
 async function loadChart(){
-  try {
-    const r = await fetch("/api/stock-chart");
-    const j = await r.json();
-    if(j.status !== "success") return;
+  const r = await fetch("/api/stock-chart");
+  const j = await r.json();
+  if(j.status !== "success") return;
 
-    let chartData = j.data || [];
-    if (chartData.length === 0) return;
+  // 🔹 أخذ آخر 15 نقطة فقط (حماية إضافية)
+  const chartData = (j.data || []).slice(-15);
+  if (chartData.length === 0) return;
 
-    // 🔹 ضمان: أخذ آخر 15 نقطة فقط (حماية إضافية)
-    chartData = chartData.slice(-15);
+  const labels = chartData.map(x => new Date(x.date).toLocaleDateString('en-US'));
+  const prices = chartData.map(x => Number(x.price));
 
-    const labels = chartData.map(x => new Date(x.date).toLocaleDateString('en-US'));
-    const prices = chartData.map(x => Number(x.price));
-
-    // 🔹 تحديث الشارت الموجود أو إنشاؤه جديد
-    if (chartInstance) {
-      // ✅ استبدال البيانات بالكامل (ليس إضافة)
-      chartInstance.data.labels = labels;
-      chartInstance.data.datasets[0].data = prices;
-      
-      // ✅ تحديث فوري بدون تراكم أنيميشن
-      chartInstance.update('none');
-    } else {
-      chartInstance = new Chart(document.getElementById("priceChart"), {
-        type: "line",
-         {
-          labels: labels,
-          datasets: [{
-             prices,
-            borderWidth: 2,
-            tension: 0.4,
-            borderColor: '#22c55e',
-            backgroundColor: 'rgba(34, 197, 94, 0.1)',
-            fill: true,
-            pointRadius: 3,
-            pointHoverRadius: 6,
-            // ✅ منع تراكم النقاط القديمة
-            maxBarThickness: 15
-          }]
+  // 🔹 تحديث الشارت الموجود أو إنشاؤه جديد
+  if (chartInstance) {
+    chartInstance.data.labels = labels;
+    chartInstance.data.datasets[0].data = prices;
+    chartInstance.update('none'); // تحديث فوري بدون تراكم
+  } else {
+    // ✅ تم الإصلاح: إضافة مفاتيح  و data: الصحيحة
+    chartInstance = new Chart(document.getElementById("priceChart"), {
+      type: "line",
+       {
+        labels: labels,
+        datasets: [{
+           prices,
+          borderWidth: 2,
+          tension: 0.4,
+          borderColor: '#22c55e',
+          backgroundColor: 'rgba(34, 197, 94, 0.1)',
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { 
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false }
         },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: {
-            duration: 300,  // ✅ أنيميشن قصير وسريع
-            easing: 'linear'
+        scales: {
+          x: { 
+            grid: { color: '#334155' },
+            ticks: { color: '#94a3b8', maxTicksLimit: 7, autoSkip: true }
           },
-          plugins: { 
-            legend: { display: false },
-            tooltip: {
-              mode: 'index',
-              intersect: false,
-              callbacks: {
-                label: function(context) {
-                  return `Value: ${context.parsed.y.toFixed(6)}$`;
-                }
-              }
-            }
-          },
-          scales: {
-            x: { 
-              grid: { color: '#334155' },
-              ticks: { 
-                color: '#94a3b8', 
-                maxTicksLimit: 7,
-                // ✅ إخفاء التسميات الزائدة تلقائيًا
-                autoSkip: true
-              }
-            },
-            y: { 
-              grid: { color: '#334155' },
-              ticks: { 
-                color: '#94a3b8',
-                callback: function(value) {
-                  return value.toFixed(4);
-                }
-              }
-            }
+          y: { 
+            grid: { color: '#334155' },
+            ticks: { color: '#94a3b8' }
           }
         }
-      });
-    }
-  } catch(err) {
-    console.error("loadChart error:", err);
+      }
+    });
   }
 }
+
 // =====================
 // تحميل إجمالي الأسهم
 // =====================
@@ -451,15 +400,14 @@ async function loadTotalStocks() {
   try {
     const res = await fetch('/api/total-stocks');
     const data = await res.json();
-    const el = document.getElementById("totalStocksValue");
-    
-    if (data && data.status === "success") {
-      el.textContent = (data.total_stocks || 0) + " Units";
+
+    if (data.status === "success") {
+      document.getElementById("totalStocksValue").textContent =
+        data.total_stocks + " Units";
     } else {
-      el.textContent = "Error";
+      document.getElementById("totalStocksValue").textContent = "Error";
     }
   } catch (err) {
-    console.error("loadTotalStocks error:", err);
     document.getElementById("totalStocksValue").textContent = "Server Error";
   }
 }
@@ -468,33 +416,27 @@ async function loadTotalStocks() {
 // الأسهم المتاحة
 // =====================
 async function loadAvailableStocks(){
-  try {
-    const r = await fetch('/api/available-stocks');
-    const j = await r.json();
-    const el = document.getElementById("availableStocks");
-    
-    if(j && j.status === "success"){
-      el.textContent = (j.available || 0) + " Units available";
-    } else {
-      el.textContent = "Error";
-    }
-  } catch(err) {
-    console.error("loadAvailableStocks error:", err);
-    document.getElementById("availableStocks").textContent = "Server Error";
+  const r = await fetch('/api/available-stocks');
+  const j = await r.json();
+
+  if(j.status === "success"){
+    document.getElementById("availableStocks").textContent =
+      j.available + " Units available";
   }
 }
 
 // =====================
-// لأسهم المقفولة - ⏳ Unit Availability
+// لأسهم المقفولة
 // =====================
 async function loadStockLocks() {
   try {
     const r = await fetch(`/api/my-stock-locks?user_id=${user_id}`);
     const data = await r.json();
+
     const tbody = document.getElementById("locksTable");
     tbody.innerHTML = "";
 
-    if (!data || !data.length) {
+    if (!data.length) {
       tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">No Units holdings</td></tr>`;
       return;
     }
@@ -502,37 +444,38 @@ async function loadStockLocks() {
     data.forEach(row => {
       const statusText = row.locked ? "🔒 Locked" : "🔓 Available";
       const statusColor = row.locked ? "#ef4444" : "#22c55e";
+      // ✅ تنسيق التاريخ بالإنجليزية فقط (بدون ص/م)
       const unlockDate = formatDateTime(row.unlock_at);
 
       tbody.innerHTML += `
         <tr style="transition: background 0.3s; cursor:pointer;" 
             onmouseover="this.style.background='#1e293b'" 
             onmouseout="this.style.background='transparent'">
-          <td>${row.quantity || 0}</td>
-          <td>${row.remaining || 0}</td>
+          <td>${row.quantity}</td>
+          <td>${row.remaining}</td>
           <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${unlockDate}</td>
         </tr>
       `;
     });
+
   } catch (err) {
-    console.error("loadStockLocks error:", err);
-    const tbody = document.getElementById("locksTable");
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
 
 // =====================
-// Pending Sales - 💰 Pending Sales
+// Pending Sales
 // =====================
 async function loadPendingSales() { 
   try {
     const r = await fetch(`/api/pending-sales?user_id=${user_id}`);
     const data = await r.json();
+
     const tbody = document.getElementById("pendingSalesTable");
     tbody.innerHTML = "";
 
-    if (!data || !data.length) {
+    if (!data.length) {
       tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">No pending sales</td></tr>`;
       return;
     }
@@ -540,13 +483,14 @@ async function loadPendingSales() {
     data.forEach(s => {
       const statusText = s.status === 'pending' ? '⏳ Pending' : '✅ Completed';
       const statusColor = s.status === 'pending' ? "#facc15" : "#22c55e";
+      // ✅ تنسيق التاريخ بالإنجليزية فقط (بدون ص/م)
       const releaseDate = formatDateTime(s.release_date);
       
       tbody.innerHTML += `
         <tr style="transition: background 0.3s; cursor:pointer;" 
             onmouseover="this.style.background='#1e293b'" 
             onmouseout="this.style.background='transparent'">
-          <td>${Number(s.amount || 0).toFixed(6)}</td>
+          <td>${Number(s.amount).toFixed(6)}</td>
           <td>--</td>
           <td style="color:${statusColor}; font-weight:bold;">${statusText}</td>
           <td>${releaseDate}</td>
@@ -554,25 +498,19 @@ async function loadPendingSales() {
       `;
     });
   } catch (e) {
-    console.error("loadPendingSales error:", e);
-    const tbody = document.getElementById("pendingSalesTable");
     tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:8px;">Error loading data</td></tr>`;
   }
 }
 
+
 /* ================== تشغيل ================== */
-// 🔹 تحميل البيانات الأساسية أولاً، ثم الباقي
-loadInvestment().then(() => {
-  loadTransactions();
-  loadChart();
-  loadTotalStocks(); 
-  loadAvailableStocks();  
-  loadStockLocks();  
-  loadPendingSales();
-});
-
-
-
+loadInvestment();
+loadTransactions();
+loadChart();
+loadTotalStocks(); 
+loadAvailableStocks();  
+loadStockLocks();  
+loadPendingSales();  
 </script>
 
 </body>
