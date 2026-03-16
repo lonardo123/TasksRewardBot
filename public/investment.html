@@ -333,17 +333,17 @@ async function loadChart(){
   const j = await r.json();
   if(j.status !== "success") return;
 
-  // 🔹 أخذ آخر 15 نقطة فقط
-  const recentData = j.data.slice(-15);
+  // 🔹 البيانات تأتي مرتبة من السيرفر (أقدم ← أحدث)
+  const chartData = j.data;
 
   new Chart(document.getElementById("priceChart"),{
     type:"line",
-    data:{
-      labels: recentData.map(x=>new Date(x.date).toLocaleDateString('en-US')),
+     {
+      labels: chartData.map(x => new Date(x.date).toLocaleDateString('en-US')),
       datasets:[{
-        data: recentData.map(x=>x.price),
-        borderWidth:2,
-        tension:0.4,
+        data: chartData.map(x => x.price),
+        borderWidth: 2,
+        tension: 0.4,
         borderColor: '#22c55e',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         fill: true
@@ -351,7 +351,7 @@ async function loadChart(){
     },
     options:{
       plugins:{ 
-        legend:{display:false},
+        legend: { display: false },
         tooltip: {
           mode: 'index',
           intersect: false,
