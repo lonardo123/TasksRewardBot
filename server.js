@@ -539,7 +539,7 @@ app.get('/api/stock-chart', async (req, res) => {
     // ✅ تم الإصلاح: إضافة مفتاح data: قبل .map
     res.json({
       status: "success",
-       reversedRows.map(r => ({
+      data: reversedRows.map(r => ({
         price: Number(r.price),
         date: r.updated_at
       }))
@@ -552,6 +552,7 @@ app.get('/api/stock-chart', async (req, res) => {
     });
   }
 });
+
 
 // ======================= تحديث السعر من الادمن =======================
 app.post('/api/admin/update-price', async (req, res) => {
@@ -581,10 +582,11 @@ app.post('/api/admin/update-price', async (req, res) => {
       )
     `);
 
+    // ✅ تم الإصلاح: إضافة مفتاح data: قبل الكائن
     res.json({
       status: "success",
       message: "✅ تم تحديث السعر بنجاح",
-       { price: new_price }
+      data: { price: new_price }
     });
 
   } catch (err) {
