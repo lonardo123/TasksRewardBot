@@ -8,6 +8,9 @@
 <!-- ✅ تم إصلاح رابط Chart.js (إزالة المسافات) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+
+
+
 <style>
 body{
   background:#020617;
@@ -66,14 +69,9 @@ th,td{
   padding:6px;
 }
 th{ background:#334155; }
-
-/* ✅ ✅ ✅ إضافة تثبيت أبعاد الشارت ✅ ✅ ✅ */
-#priceChart {
-  width: 100% !important;
-  height: 120px !important;
-  display: block;
-}
 </style>
+
+
 </head>
 
 <body>
@@ -344,58 +342,24 @@ async function loadTransactions(){
   });
 }
 
-/* ================== الرسم البياني ================== */
-
+ /* ================== الرسم البياني ================== */
 async function loadChart(){
   const r = await fetch("/api/stock-chart");
   const j = await r.json();
   if(j.status !== "success") return;
 
-  // 🔹 أخذ آخر 15 نقطة فقط (من الأحدث للأقدم في القاعدة)
-  const chartData = j.data.slice(-15);
-  
-  // 🔹 عكس الترتيب للعرض الصحيح في الشارت (من الأقدم للأحدث ← تسلسل زمني)
-  const reversedData = chartData.reverse();
-
-  // 🔹 تدمير الشارت القديم لمنع التراكم والتمدد
-  if (chartInstance) {
-    chartInstance.destroy();
-  }
-
-  // 🔹 إنشاء شارت جديد ببيانات محدثة
-  chartInstance = new Chart(document.getElementById("priceChart"),{
+  new Chart(document.getElementById("priceChart"),{
     type:"line",
-     {
-      labels: reversedData.map(x => new Date(x.date).toLocaleDateString('en-US')),
+    data:{
+      labels:j.data.map(x=>new Date(x.date).toLocaleDateString()),
       datasets:[{
-         reversedData.map(x => x.price),
+        data:j.data.map(x=>x.price),
         borderWidth:2,
-        tension:0.4,
-        borderColor: '#22c55e',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        fill: true
+        tension:0.4
       }]
     },
     options:{
-      responsive: true,
-      maintainAspectRatio: false,  // 🔹 منع تمدد الارتفاع
-      plugins:{ 
-        legend:{display:false}
-      },
-      scales: {
-        x: { 
-          grid: { color: '#334155' },
-          ticks: { 
-            color: '#94a3b8',
-            maxTicksLimit: 7,     // 🔹 عرض 7 تسميات كحد أقصى
-            autoSkip: true         // 🔹 تخطي التسميات الزائدة
-          }
-        },
-        y: { 
-          grid: { color: '#334155' },
-          ticks: { color: '#94a3b8' }
-        }
-      }
+      plugins:{ legend:{display:false} }
     }
   });
 }
