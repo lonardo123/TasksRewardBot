@@ -581,8 +581,10 @@ app.post('/api/admin/update-price', async (req, res) => {
   }
 });
 
+// ======================= صفحة الاستثمار =======================
 app.get('/investment', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'investment.html'));
+}); 
   
 // ======================= إجمالي الأسهم لجميع المستخدمين =======================
 app.get('/api/total-stocks', async (req, res) => {
