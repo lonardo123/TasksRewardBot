@@ -66,6 +66,22 @@ th,td{
   padding:6px;
 }
 th{ background:#334155; }
+
+/* ✅ ✅ ✅ أضف الكود الجديد هنا في الأسفل ✅ ✅ ✅ */
+/* 🔹 قيود الرسم البياني لمنع التمدد */
+#priceChart {
+  width: 100% !important;
+  max-width: 100%;
+  height: 120px !important;
+  max-height: 120px !important;
+  display: block;
+}
+
+/* 🔹 منع تمدد البطاقة التي تحتوي الشارت */
+.card:has(#priceChart) {
+  overflow: hidden;
+  min-height: auto;
+}
 </style>
 </head>
 
@@ -348,45 +364,71 @@ async function loadChart(){
     const chartData = j.data || [];
     if (chartData.length === 0) return;
     
-    // 🔹 أخذ آخر 15 نقطة فقط
+    // 🔹 أخذ آخر 15 نقطة فقط (ضمان نهائي)
     const recentData = chartData.slice(-15);
 
     const labels = recentData.map(x => new Date(x.date).toLocaleDateString('en-US'));
     const prices = recentData.map(x => Number(x.price));
 
-    // 🔹 تدمير الشارت القديم إذا وجد (أسلوب آمن يمنع التراكم)
+    // 🔹 تدمير الشارت القديم لمنع التراكم
     if (chartInstance) {
       chartInstance.destroy();
     }
 
-    // 🔹 إنشاء شارت جديد
+    // 🔹 إنشاء شارت جديد بقيود ثابتة
     chartInstance = new Chart(document.getElementById("priceChart"), {
       type: "line",
-      data: {
+       {
         labels: labels,
         datasets: [{
-          data: prices,
+           prices,
           borderWidth: 2,
           tension: 0.4,
           borderColor: '#22c55e',
           backgroundColor: 'rgba(34, 197, 94, 0.1)',
-          fill: true
+          fill: true,
+          pointRadius: 3,
+          pointHoverRadius: 5
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // 🔹 منع الأنيميشن المتراكم
+        animation: {
+          duration: 0
+        },
         plugins: { 
-          legend: { display: false }
+          legend: { display: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
         },
         scales: {
           x: { 
             grid: { color: '#334155' },
-            ticks: { color: '#94a3b8' }
+            ticks: { 
+              color: '#94a3b8',
+              maxTicksLimit: 7,  // 🔹 عرض 7 تسميات كحد أقصى
+              autoSkip: true,     // 🔹 تخطي التسميات الزائدة تلقائيًا
+              sampleSize: 7       // 🔹 أخذ عينات من 7 نقاط فقط للعرض
+            },
+            // 🔹 منع تمدد المحور الأفقي
+            offset: false,
+            grace: '0%'
           },
           y: { 
             grid: { color: '#334155' },
-            ticks: { color: '#94a3b8' }
+            ticks: { 
+              color: '#94a3b8',
+              // 🔹 تنسيق القيم بعشرتين فقط لتوفير مساحة
+              callback: function(value) {
+                return value.toFixed(4);
+              }
+            },
+            // 🔹 تثبيت نطاق المحور الرأسي (اختياري)
+            beginAtZero: false
           }
         }
       }
