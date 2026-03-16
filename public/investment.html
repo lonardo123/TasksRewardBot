@@ -374,12 +374,13 @@ async function loadChart(){
       chartInstance.data.datasets[0].data = prices;
       chartInstance.update();
     } else {
+      // ✅ ✅ ✅ تم الإصلاح النهائي هنا ✅ ✅ ✅
       chartInstance = new Chart(document.getElementById("priceChart"), {
         type: "line",
-         {  // ✅ تم الإصلاح: مفتاح  مضاف
+        data: {  // 🔹 الإصلاح #1: إضافة مفتاح "data:" هنا
           labels: labels,
           datasets: [{
-             prices,
+            data: prices,  // 🔹 الإصلاح #2: إضافة مفتاح "data:" هنا
             borderWidth: 2,
             tension: 0.4,
             borderColor: '#22c55e',
@@ -543,15 +544,23 @@ async function loadPendingSales() {
   }
 }
 
-
 /* ================== تشغيل ================== */
-loadInvestment();
-loadTransactions();
-loadChart();
-loadTotalStocks(); 
-loadAvailableStocks();  
-loadStockLocks();  
-loadPendingSales();  
+// 🔹 تحميل البيانات الأساسية أولاً، ثم الباقي
+loadInvestment().then(() => {
+  loadTransactions();
+  loadChart();
+  loadTotalStocks(); 
+  loadAvailableStocks();  
+  loadStockLocks();  
+  loadPendingSales();
+});
+
+// 🔹 تحديث دوري كل 30 ثانية (اختياري)
+setInterval(() => {
+  loadInvestment();
+  loadChart();
+}, 30000);
+
 </script>
 
 </body>
