@@ -67,20 +67,11 @@ th,td{
 }
 th{ background:#334155; }
 
-/* ✅ ✅ ✅ أضف الكود الجديد هنا في الأسفل ✅ ✅ ✅ */
-/* 🔹 قيود الرسم البياني لمنع التمدد */
+/* ✅ ✅ ✅ إضافة تثبيت أبعاد الشارت ✅ ✅ ✅ */
 #priceChart {
   width: 100% !important;
-  max-width: 100%;
   height: 120px !important;
-  max-height: 120px !important;
   display: block;
-}
-
-/* 🔹 منع تمدد البطاقة التي تحتوي الشارت */
-.card:has(#priceChart) {
-  overflow: hidden;
-  min-height: auto;
 }
 </style>
 </head>
@@ -356,88 +347,58 @@ async function loadTransactions(){
 /* ================== الرسم البياني ================== */
 
 async function loadChart(){
-  try {
-    const r = await fetch("/api/stock-chart");
-    const j = await r.json();
-    if(j.status !== "success") return;
+  const r = await fetch("/api/stock-chart");
+  const j = await r.json();
+  if(j.status !== "success") return;
 
-    const chartData = j.data || [];
-    if (chartData.length === 0) return;
-    
-    // 🔹 أخذ آخر 15 نقطة فقط (ضمان نهائي)
-    const recentData = chartData.slice(-15);
+  // 🔹 أخذ آخر 15 نقطة فقط (من الأحدث للأقدم في القاعدة)
+  const chartData = j.data.slice(-15);
+  
+  // 🔹 عكس الترتيب للعرض الصحيح في الشارت (من الأقدم للأحدث ← تسلسل زمني)
+  const reversedData = chartData.reverse();
 
-    const labels = recentData.map(x => new Date(x.date).toLocaleDateString('en-US'));
-    const prices = recentData.map(x => Number(x.price));
+  // 🔹 تدمير الشارت القديم لمنع التراكم والتمدد
+  if (chartInstance) {
+    chartInstance.destroy();
+  }
 
-    // 🔹 تدمير الشارت القديم لمنع التراكم
-    if (chartInstance) {
-      chartInstance.destroy();
-    }
-
-    // 🔹 إنشاء شارت جديد بقيود ثابتة
-    chartInstance = new Chart(document.getElementById("priceChart"), {
-      type: "line",
-       {
-        labels: labels,
-        datasets: [{
-           prices,
-          borderWidth: 2,
-          tension: 0.4,
-          borderColor: '#22c55e',
-          backgroundColor: 'rgba(34, 197, 94, 0.1)',
-          fill: true,
-          pointRadius: 3,
-          pointHoverRadius: 5
-        }]
+  // 🔹 إنشاء شارت جديد ببيانات محدثة
+  chartInstance = new Chart(document.getElementById("priceChart"),{
+    type:"line",
+     {
+      labels: reversedData.map(x => new Date(x.date).toLocaleDateString('en-US')),
+      datasets:[{
+         reversedData.map(x => x.price),
+        borderWidth:2,
+        tension:0.4,
+        borderColor: '#22c55e',
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        fill: true
+      }]
+    },
+    options:{
+      responsive: true,
+      maintainAspectRatio: false,  // 🔹 منع تمدد الارتفاع
+      plugins:{ 
+        legend:{display:false}
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        // 🔹 منع الأنيميشن المتراكم
-        animation: {
-          duration: 0
-        },
-        plugins: { 
-          legend: { display: false },
-          tooltip: {
-            mode: 'index',
-            intersect: false
+      scales: {
+        x: { 
+          grid: { color: '#334155' },
+          ticks: { 
+            color: '#94a3b8',
+            maxTicksLimit: 7,     // 🔹 عرض 7 تسميات كحد أقصى
+            autoSkip: true         // 🔹 تخطي التسميات الزائدة
           }
         },
-        scales: {
-          x: { 
-            grid: { color: '#334155' },
-            ticks: { 
-              color: '#94a3b8',
-              maxTicksLimit: 7,  // 🔹 عرض 7 تسميات كحد أقصى
-              autoSkip: true,     // 🔹 تخطي التسميات الزائدة تلقائيًا
-              sampleSize: 7       // 🔹 أخذ عينات من 7 نقاط فقط للعرض
-            },
-            // 🔹 منع تمدد المحور الأفقي
-            offset: false,
-            grace: '0%'
-          },
-          y: { 
-            grid: { color: '#334155' },
-            ticks: { 
-              color: '#94a3b8',
-              // 🔹 تنسيق القيم بعشرتين فقط لتوفير مساحة
-              callback: function(value) {
-                return value.toFixed(4);
-              }
-            },
-            // 🔹 تثبيت نطاق المحور الرأسي (اختياري)
-            beginAtZero: false
-          }
+        y: { 
+          grid: { color: '#334155' },
+          ticks: { color: '#94a3b8' }
         }
       }
-    });
-  } catch(err) {
-    console.error("loadChart error:", err);
-  }
+    }
+  });
 }
-
 // =====================
 // تحميل إجمالي الأسهم
 // =====================
