@@ -1900,6 +1900,41 @@ app.get("/user/:id", async (req, res) => {
   }
 
 });
+
+/* =========================
+   USER STOCKS - عرض عدد الوحدات
+========================= */
+app.get("/user/stocks", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // جلب إجمالي الوحدات من جدول user_stocks أو stock_holdings
+    const result = await pool.query(`
+      SELECT COALESCE(SUM(quantity), 0) as total_units 
+      FROM stock_holdings 
+      WHERE telegram_id = $1 AND sold = 0
+    `, [telegramId]);
+    
+    // إذا لم يكن هناك جدول stock_holdings، استخدم user_stocks:
+    // const result = await pool.query("SELECT stocks as total_units FROM user_stocks WHERE telegram_id = $1", [telegramId]);
+    
+    res.json({ 
+      success: true, 
+      total_units: parseInt(result.rows[0].total_units) || 0 
+    });
+    
+  } catch (err) {
+    console.error("User stocks error:", err);
+    res.json({ success: false, message: "Failed to load units" });
+  }
+});
+
 /* =========================
    REFERRAL - Distribute Commission (5%)
 ========================= */
