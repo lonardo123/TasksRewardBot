@@ -1521,14 +1521,11 @@ app.get('/worker/', (req, res) => {
 });
 
 /* =========================
-   REGISTER
+   REGISTER 
 ========================= */
-
 app.post("/register", async (req, res) => {
-
   try {
-
-    const { name, username, password } = req.body;
+    const { name, username, password, referral_code } = req.body;
 
     // التحقق من البيانات
     if (!name || !username || !password) {
@@ -1540,50 +1537,85 @@ app.post("/register", async (req, res) => {
       "SELECT id FROM users WHERE username=$1",
       [username]
     );
-
     if (checkUser.rows.length > 0) {
       return res.json({ success: false, message: "Username already exists" });
     }
 
-    // إنشاء telegram_id عشوائي كبير لتجنب التعارض مع Telegram
+    // توليد كود ريفيرال فريد للمستخدم الجديد
+    const generateReferralCode = () => {
+      return 'REF' + Math.random().toString(36).substr(2, 6).toUpperCase();
+    };
+    let newReferralCode = generateReferralCode();
+    
+    // التأكد من تفرد الكود
+    let codeExists = true;
+    while (codeExists) {
+      const checkCode = await pool.query(
+        "SELECT id FROM users WHERE referral_code=$1",
+        [newReferralCode]
+      );
+      if (checkCode.rows.length === 0) codeExists = false;
+      else newReferralCode = generateReferralCode();
+    }
+
+    // إنشاء telegram_id عشوائي كبير
     let telegram_id;
     while (true) {
-
-      telegram_id = Math.floor(
-        900000000000 + Math.random() * 100000000000
-      );
-
+      telegram_id = Math.floor(900000000000 + Math.random() * 100000000000);
       const checkId = await pool.query(
         "SELECT id FROM users WHERE telegram_id=$1",
         [telegram_id]
       );
-
       if (checkId.rows.length === 0) break;
     }
 
     // تشفير كلمة المرور
     const hash = await bcrypt.hash(password, 10);
 
-    // إنشاء المستخدم
-    await pool.query(
-      `INSERT INTO users
-       (name, username, password, telegram_id, balance)
-       VALUES ($1,$2,$3,$4,0)`,
-      [name, username, hash, telegram_id]
-    );
+    // بدء معاملة قاعدة البيانات
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    res.json({ success: true });
+      // 1️⃣ إنشاء المستخدم الجديد مع كود الريفيرال + استرجاع id الحقيقي
+      const newUser = await client.query(
+        `INSERT INTO users (name, username, password, telegram_id, balance, referral_code)
+         VALUES ($1,$2,$3,$4,0,$5) RETURNING id`,
+        [name, username, hash, telegram_id, newReferralCode]
+      );
+      const newUserId = newUser.rows[0].id;  // ✅ الحصول على id الحقيقي
+
+      // 2️⃣ معالجة كود الريفيرال المدخل (إذا وُجد)
+      if (referral_code && referral_code.trim() !== '') {
+        const referrer = await client.query(
+          "SELECT id FROM users WHERE referral_code=$1 AND telegram_id!=$2",
+          [referral_code.trim().toUpperCase(), telegram_id]
+        );
+        
+        if (referrer.rows.length > 0) {
+          // ✅ تسجيل العلاقة باستخدام id الحقيقي (وليس telegram_id)
+          await client.query(
+            "INSERT INTO referrals (referrer_id, referee_id, created_at) VALUES ($1, $2, NOW())",
+            [referrer.rows[0].id, newUserId]
+          );
+        }
+      }
+
+      await client.query('COMMIT');
+      res.json({ success: true, message: "Account created", referral_code: newReferralCode, telegram_id: telegram_id });
+
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
   } catch (err) {
-
-    console.error(err);
-    res.json({ success: false });
-
+    console.error("Register error:", err);
+    res.json({ success: false, message: "Registration failed" });
   }
-
 });
-
-
 /* =========================
    LOGIN
 ========================= */
@@ -1631,7 +1663,7 @@ app.post("/login", async (req, res) => {
 
 
 // =========================
-// ✅ USER DASHBOARD - نسخة متوافقة مع login/register
+// ✅ USER DASHBOARD 
 // =========================
 app.get("/user/dashboard", async (req, res) => {
     try {
@@ -1639,13 +1671,12 @@ app.get("/user/dashboard", async (req, res) => {
         
         // 🔎 تحقق صارم: يجب أن يكون رقم صحيح
         if(!idParam || typeof idParam !== 'string' || !/^\d+$/.test(idParam.trim())){
-            console.log("❌ Invalid id received:", idParam, typeof idParam);
             return res.json({success:false, message:"Invalid user id"});
         }
         
         const telegramId = Number(idParam.trim());
         
-        // ✅ نفس نمط الاستعلام المستخدم في login (يعمل 100%)
+        // ✅ جلب بيانات المستخدم
         const userQuery = await pool.query(
             "SELECT telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
             [telegramId]
@@ -1657,18 +1688,18 @@ app.get("/user/dashboard", async (req, res) => {
         
         const user = userQuery.rows[0];
         
-        // ✅ حساب المسحوبات المكتملة فقط (نفس منطق withdrawals في بقية الكود)
+        // ✅ حساب المسحوبات المكتملة فقط
         const withdrawQuery = await pool.query(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawals WHERE user_id=$1 AND status='completed'",
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawals WHERE user_id=$1 AND status='done'",
             [telegramId]
         );
         
         const totalWithdrawn = parseFloat(withdrawQuery.rows[0].total) || 0;
         
-        // ✅ إرسال الاستجابة بنفس تنسيق login
+        // ✅ إرسال الاستجابة
         res.json({
             success: true,
-            telegram_id: user.telegram_id,  // ← مهم: أرسله كما في login
+            telegram_id: user.telegram_id,
             username: user.username,
             name: user.name,
             balance: parseFloat(user.balance) || 0,
@@ -1681,6 +1712,163 @@ app.get("/user/dashboard", async (req, res) => {
         console.error("❌ Server error /user/dashboard:", err);
         res.json({success:false, message:"Server error"});
     }
+});
+
+/* =========================
+   WITHDRAWALS - Pending
+========================= */
+app.get("/api/withdrawals/pending", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // جلب السحب التي حالتها 'pending'
+    const result = await pool.query(
+      `SELECT id, amount, payeer_wallet, status, requested_at 
+       FROM withdrawals 
+       WHERE user_id = $1 AND status = 'pending' 
+       ORDER BY requested_at DESC`,
+      [telegramId]
+    );
+    
+    res.json({ 
+      success: true, 
+      data: result.rows.map(row => ({
+        id: row.id,
+        amount: parseFloat(row.amount),
+        payeer_wallet: row.payeer_wallet,
+        status: row.status,
+        requested_at: row.requested_at
+      }))
+    });
+    
+  } catch (err) {
+    console.error("Pending withdrawals error:", err);
+    res.json({ success: false, message: "Failed to load pending withdrawals" });
+  }
+});
+
+/* =========================
+   WITHDRAWALS - Completed
+========================= */
+app.get("/api/withdrawals/completed", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // جلب السحب التي حالتها 'done' (مكتملة)
+    const result = await pool.query(
+      `SELECT id, amount, payeer_wallet, status, requested_at, processed_at 
+       FROM withdrawals 
+       WHERE user_id = $1 AND status = 'done' 
+       ORDER BY processed_at DESC 
+       LIMIT 10`,
+      [telegramId]
+    );
+    
+    res.json({ 
+      success: true, 
+      data: result.rows.map(row => ({
+        id: row.id,
+        amount: parseFloat(row.amount),
+        payeer_wallet: row.payeer_wallet,
+        status: row.status,
+        requested_at: row.requested_at,
+        processed_at: row.processed_at
+      }))
+    });
+    
+  } catch (err) {
+    console.error("Completed withdrawals error:", err);
+    res.json({ success: false, message: "Failed to load completed withdrawals" });
+  }
+});
+
+/* =========================
+   REFERRAL - Statistics
+========================= */
+app.get("/api/referral/stats", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // 1️⃣ جلب كود الريفيرال للمستخدم
+    const userRes = await pool.query(
+      "SELECT referral_code FROM users WHERE telegram_id = $1",
+      [telegramId]
+    );
+    
+    if (userRes.rows.length === 0) {
+      return res.json({ success: false, message: "User not found" });
+    }
+    
+    const referralCode = userRes.rows[0].referral_code || "N/A";
+    
+    // 2️⃣ جلب إحصائيات الريفيرال (العدد + إجمالي الأرباح)
+    const statsRes = await pool.query(`
+      SELECT 
+        COUNT(DISTINCT r.referee_id) as total_referrals,
+        COALESCE(SUM(re.amount), 0) as total_earned
+      FROM referrals r
+      LEFT JOIN referral_earnings re 
+        ON r.referee_id = re.referee_id AND r.referrer_id = re.referrer_id
+      WHERE r.referrer_id = $1
+    `, [telegramId]);
+    
+    const totalReferrals = parseInt(statsRes.rows[0].total_referrals) || 0;
+    const totalEarned = parseFloat(statsRes.rows[0].total_earned) || 0;
+    
+    // 3️⃣ جلب قائمة الأشخاص الذين سجلوا عبر هذا المستخدم
+    const referralsRes = await pool.query(`
+      SELECT 
+        u.username,
+        r.created_at as joined_at,
+        COALESCE(SUM(re.amount), 0) as earned_for_you
+      FROM referrals r
+      JOIN users u ON r.referee_id = u.id
+      LEFT JOIN referral_earnings re 
+        ON r.referee_id = re.referee_id AND r.referrer_id = re.referrer_id
+      WHERE r.referrer_id = $1
+      GROUP BY u.username, r.created_at
+      ORDER BY r.created_at DESC
+      LIMIT 50
+    `, [telegramId]);
+    
+    const referrals = referralsRes.rows.map(row => ({
+      username: row.username,
+      joined_at: row.joined_at,
+      earned_for_you: parseFloat(row.earned_for_you)
+    }));
+    
+    res.json({
+      success: true,
+      data: {
+        referral_code: referralCode,
+        total_referrals: totalReferrals,
+        total_earned: totalEarned,
+        referrals: referrals
+      }
+    });
+    
+  } catch (err) {
+    console.error("Referral stats error:", err);
+    res.json({ success: false, message: "Failed to load referral stats" });
+  }
 });
 /* =========================
    GET USER DATA
@@ -1712,7 +1900,68 @@ app.get("/user/:id", async (req, res) => {
   }
 
 });
-
+/* =========================
+   REFERRAL - Distribute Commission (5%)
+========================= */
+async function distributeReferralCommission(telegramId, earningAmount) {
+  try {
+    // ✅ 1. التحقق من المدخلات
+    if (!telegramId || !earningAmount || earningAmount <= 0) return;
+    
+    // ✅ 2. الحصول على id الحقيقي للمستخدم من خلال telegram_id
+    const userRes = await pool.query(
+      "SELECT id FROM users WHERE telegram_id = $1",
+      [telegramId]
+    );
+    
+    if (userRes.rows.length === 0) return; // مستخدم غير موجود
+    const userId = userRes.rows[0].id;
+    
+    // ✅ 3. البحث عن الريفيرر لهذا المستخدم (باستخدام id في جدول referrals)
+    const refRes = await pool.query(
+      "SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1",
+      [userId]
+    );
+    
+    if (refRes.rows.length === 0) return; // لا يوجد ريفيرر
+    
+    const referrerId = refRes.rows[0].referrer_id;
+    const commission = parseFloat((earningAmount * 0.05).toFixed(6)); // 5% بدقة
+    
+    if (commission <= 0.000001) return; // تجاهل المبالغ الضئيلة جداً
+    
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // ✅ 4. إضافة العمولة لرصيد الريفيرر (تحديث باستخدام id)
+      await client.query(
+        "UPDATE users SET balance = balance + $1, referral_earnings = referral_earnings + $1 WHERE id = $2",
+        [commission, referrerId]
+      );
+      
+      // ✅ 5. تسجيل العمولة في جدول referral_earnings
+      await client.query(
+        "INSERT INTO referral_earnings (referrer_id, referee_id, amount, created_at) VALUES ($1, $2, $3, NOW())",
+        [referrerId, userId, commission]
+      );
+      
+      await client.query('COMMIT');
+      console.log(`✅ Commission $${commission} paid to referrer id:${referrerId} for user:${userId}`);
+      
+    } catch (err) {
+      await client.query('ROLLBACK');
+      console.error("Commission transaction error:", err);
+      throw err;
+    } finally {
+      client.release();
+    }
+    
+  } catch (err) {
+    console.error("distributeReferralCommission error:", err);
+  }
+}
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
