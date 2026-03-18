@@ -1795,11 +1795,13 @@ app.get("/api/withdrawals/completed", async (req, res) => {
 });
 
 /* =========================
-   REFERRAL - Statistics
+   REFERRAL - Statistics (مصحح)
 ========================= */
 app.get("/api/referral/stats", async (req, res) => {
   try {
     const { id } = req.query;
+    
+    console.log("🔍 Referral stats request for id:", id);
     
     if (!id || !/^\d+$/.test(id)) {
       return res.json({ success: false, message: "Invalid user id" });
@@ -1809,17 +1811,22 @@ app.get("/api/referral/stats", async (req, res) => {
     
     // 1️⃣ جلب كود الريفيرال للمستخدم
     const userRes = await pool.query(
-      "SELECT referral_code FROM users WHERE telegram_id = $1",
+      "SELECT id, referral_code FROM users WHERE telegram_id = $1",
       [telegramId]
     );
+    
+    console.log("👤 User query result:", userRes.rows);
     
     if (userRes.rows.length === 0) {
       return res.json({ success: false, message: "User not found" });
     }
     
+    const userId = userRes.rows[0].id;  // ✅ id الحقيقي من جدول users
     const referralCode = userRes.rows[0].referral_code || "N/A";
     
-    // 2️⃣ جلب إحصائيات الريفيرال (العدد + إجمالي الأرباح)
+    console.log("✅ Found user - referral_code:", referralCode);
+    
+    // 2️⃣ جلب إحصائيات الريفيرال
     const statsRes = await pool.query(`
       SELECT 
         COUNT(DISTINCT r.referee_id) as total_referrals,
@@ -1828,10 +1835,12 @@ app.get("/api/referral/stats", async (req, res) => {
       LEFT JOIN referral_earnings re 
         ON r.referee_id = re.referee_id AND r.referrer_id = re.referrer_id
       WHERE r.referrer_id = $1
-    `, [telegramId]);
+    `, [userId]);  // ✅ استخدام userId وليس telegramId
     
     const totalReferrals = parseInt(statsRes.rows[0].total_referrals) || 0;
     const totalEarned = parseFloat(statsRes.rows[0].total_earned) || 0;
+    
+    console.log("📊 Stats:", { totalReferrals, totalEarned });
     
     // 3️⃣ جلب قائمة الأشخاص الذين سجلوا عبر هذا المستخدم
     const referralsRes = await pool.query(`
@@ -1847,7 +1856,7 @@ app.get("/api/referral/stats", async (req, res) => {
       GROUP BY u.username, r.created_at
       ORDER BY r.created_at DESC
       LIMIT 50
-    `, [telegramId]);
+    `, [userId]);  // ✅ استخدام userId
     
     const referrals = referralsRes.rows.map(row => ({
       username: row.username,
@@ -1855,9 +1864,13 @@ app.get("/api/referral/stats", async (req, res) => {
       earned_for_you: parseFloat(row.earned_for_you)
     }));
     
+    console.log("👥 Referrals list:", referrals.length);
+    
+    // ✅ إرسال الرد بالهيكل الصحيح
     res.json({
       success: true,
-      data: {
+      message: "Referral stats loaded",
+      data: {  // ✅ مفتاح "data" إلزامي
         referral_code: referralCode,
         total_referrals: totalReferrals,
         total_earned: totalEarned,
@@ -1866,8 +1879,11 @@ app.get("/api/referral/stats", async (req, res) => {
     });
     
   } catch (err) {
-    console.error("Referral stats error:", err);
-    res.json({ success: false, message: "Failed to load referral stats" });
+    console.error("❌ Referral stats error:", err);
+    res.json({ 
+      success: false, 
+      message: "Failed to load referral stats: " + err.message 
+    });
   }
 });
 /* =========================
