@@ -1970,78 +1970,39 @@ app.get("/user/:id", async (req, res) => {
   }
 });
 /* =========================
-   DEPOSIT - Submit TxID (مصحح)
+   DEPOSIT - Submit TxID
 ========================= */
 app.post("/api/deposit/submit", async (req, res) => {
   try {
     const { user_id, txid, network } = req.body;
-    
     if (!user_id || !txid || txid.length < 10) {
       return res.json({ success: false, message: "Invalid data" });
     }
-    
     const username = `user_${user_id}`;
-    
-    // حفظ الطلب في قاعدة البيانات
     const result = await pool.query(
       `INSERT INTO deposit_requests (user_id, username, txid, status, created_at)
-       VALUES ($1, $2, $3, 'pending', NOW())
-       RETURNING id, txid`,
+       VALUES ($1, $2, $3, 'pending', NOW()) RETURNING id`,
       [user_id, username, txid]
     );
-    
-    const requestId = result.rows[0].id;
-    const fullTxid = result.rows[0].txid; // ✅ حفظ TxID كامل
-    
-    // ✅ إرسال إشعار للإدمن (مع حماية إذا لم يكن bot معرف)
-    const ADMIN_ID = process.env.ADMIN_ID;
-    
-    if (ADMIN_ID) {
+    // إشعار الأدمن (إذا وجد)
+    if (process.env.ADMIN_ID) {
       try {
-        // ✅ التحقق من أن bot معرف قبل استخدامه
-        if (typeof bot !== 'undefined' && bot?.telegram) {
-          await bot.telegram.sendMessage(
-            ADMIN_ID,
-            `📥 <b>طلب إيداع جديد #${requestId}</b>
-<b>من التطبيق</b>
-👤 المستخدم: <code>${user_id}</code>
-🔗 <b>TxID كامل:</b>
-<code>${fullTxid}</code>
-🌐 الشبكة: ${network || 'TRC20'}
-
-✅ للموافقة: /paydep ${requestId} ${user_id}
-❌ للرفض: /rejectdep ${requestId}`,
-            {
-              parse_mode: "HTML",
-              disable_web_page_preview: true
-            }
-          );
-          console.log(`✅ Deposit notification sent to admin for request #${requestId}`);
-        } else {
-          console.warn(`⚠️ Bot not available, deposit #${requestId} saved but no notification sent`);
-        }
-      } catch (notifyErr) {
-        console.error(`❌ Failed to send deposit notification: ${notifyErr.message}`);
-        // لا نوقف العملية، الطلب محفوظ في القاعدة
-      }
-    } else {
-      console.warn("⚠️ ADMIN_ID not set in environment variables");
+        await bot?.telegram?.sendMessage(process.env.ADMIN_ID,
+          `📥 New Deposit #${result.rows[0].id}\n👤 User: ${user_id}\n🔗 TxID: <code>${txid}</code>`,
+          { parse_mode: "HTML", reply_markup: { inline_keyboard: [
+            [{ text: "✅ Approve", callback_ `DEP_OK_${result.rows[0].id}_${user_id}` }],
+            [{ text: "❌ Reject", callback_ `DEP_NO_${result.rows[0].id}_${user_id}` }]
+          ]}}
+        );
+      } catch(e) { console.warn("⚠️ Admin notify failed:", e.message); }
     }
-    
-    res.json({ 
-      success: true, 
-      message: "Deposit request submitted",
-      request_id: requestId 
-    });
-    
+    res.json({ success: true, message: "Request submitted", request_id: result.rows[0].id });
   } catch (err) {
-    console.error("❌ Deposit submit error:", err.message);
-    res.json({ 
-      success: false, 
-      message: "Failed to submit deposit: " + err.message 
-    });
+    console.error("Deposit submit error:", err);
+    res.json({ success: false, message: "Failed to submit" });
   }
 });
+
 
 /* =========================
    DEPOSIT - History
