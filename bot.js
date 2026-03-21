@@ -584,7 +584,7 @@ bot.on("text", async (ctx, next) => {
   }
 });
 
-// ✅ موافقة الأدمن
+// ✅ موافقة الأدمن - مصحح لانتظار المبلغ فقط
 bot.action(/DEP_OK_(\d+)_(\d+)/, async (ctx) => {
   if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
   
@@ -614,7 +614,7 @@ bot.action(/DEP_OK_(\d+)_(\d+)/, async (ctx) => {
     if (!ctx.session) ctx.session = {};
     ctx.session.awaitingDepositAmount = {
       requestId: requestId,
-      userId: userId,
+      userId: userId,  // ← telegram_id كنص
       timestamp: Date.now()
     };
     
@@ -644,79 +644,119 @@ bot.action(/DEP_OK_(\d+)_(\d+)/, async (ctx) => {
     await ctx.answerCbQuery('حدث خطأ');
   }
 });
-// ✅ معالج انتظار المبلغ بعد الموافقة على الإيداع
-bot.on("text", async (ctx, next) => {
-  // 🔹 أولاً: معالجة حالة انتظار المبلغ بعد الموافقة
+// 📥 معالج جميع الرسائل النصية - مصحح لانتظار المبلغ فقط بعد الموافقة
+bot.on('text', async (ctx, next) => {
+  if (!ctx.session) ctx.session = {};
+  const text = ctx.message?.text?.trim() || '';
+  
+  // 🚫 تجاهل معالجة أزرار الأدمن
+  const adminButtons = [
+    '📋 عرض الطلبات', '📊 الإحصائيات', '➕ إضافة رصيد', '➖ خصم رصيد',
+    '➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين',
+    '💰 معالجة الدفع', '📥 طلبات الإيداع', '👥 ريفيرال', '📢 رسالة جماعية',
+    '📬 رسائل المستخدمين', '📈 إدارة الاستثمار', '🚪 خروج من لوحة الأدمن'
+  ];
+  if (adminButtons.includes(text)) return next();
+  
+  // 🚫 تجاهل أزرار المستخدم (ديناميكية حسب اللغة)
+  const lang = getLang(ctx);
+  const userButtons = [
+    t(lang, 'deposit'), t(lang, 'videos'), t(lang, 'Units'),
+    t(lang, 'your_balance'), t(lang, 'earn_sources'), t(lang, 'withdraw'),
+    t(lang, 'referral'), t(lang, 'tasks'), t(lang, 'facebook')
+  ];
+  if (userButtons.includes(text)) return next();
+  
+  // ============================================
+  // 🔹 أولاً: معالجة انتظار المبلغ بعد الموافقة (للأدمن فقط)
+  // ============================================
   if (ctx.session?.awaitingDepositAmount && isAdmin(ctx)) {
     const { requestId, userId, timestamp } = ctx.session.awaitingDepositAmount;
     
+    console.log(`🔍 Admin ${ctx.from.id} sent amount for request #${requestId}`);
+    
     // ✅ التحقق من أن الرسالة الحالية هي مبلغ رقمي
-    const amountText = ctx.message.text.trim();
+    const amountText = text;
     const amount = parseFloat(amountText);
     
     if (isNaN(amount) || amount <= 0) {
       return ctx.reply('❌ يرجى إدخال مبلغ صحيح (رقم فقط)، مثال: 1.50');
     }
     
-    // ✅ التحقق من أن الجلسة لم تنتهِ (اختياري: صلاحية 5 دقائق)
+    // ✅ التحقق من أن الجلسة لم تنتهِ (صلاحية 5 دقائق)
     if (Date.now() - timestamp > 5 * 60 * 1000) {
       ctx.session.awaitingDepositAmount = null;
       return ctx.reply('⏰ انتهت مهلة إدخال المبلغ. حاول مجدداً.');
     }
     
     try {
-      // ✅ تحديث رصيد المستخدم
-      await pool.query(
-        'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2',
-        [amount, userId]
+      console.log(`💰 Adding ${amount}$ to user ${userId}...`);
+      
+      // ✅ 1. تحديث رصيد المستخدم (باستخدام telegram_id كنص)
+      const updateRes = await pool.query(
+        'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2 RETURNING balance',
+        [amount, userId]  // ← تمرير كنص، ليس رقم
       );
       
-      // ✅ تسجيل الكسب في جدول earnings
+      console.log(`✅ Balance updated. New balance: ${updateRes.rows[0]?.balance}`);
+      
+      // ✅ 2. تسجيل الكسب في جدول earnings
       await pool.query(
         'INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
         [userId, amount, 'deposit', `Manual approval of deposit request #${requestId}`]
       );
       
-      // ✅ تطبيق مكافأة الإحالة (5%)
+      // ✅ 3. تطبيق مكافأة الإحالة (5%)
       await applyReferralBonus(userId, amount);
       
-      // ✅ إرسال إشعار للمستخدم
-      const userLangCode = userLang[userId] || autoDetectLang({ from: { id: Number(userId) } });
-      await ctx.telegram.sendMessage(
-        userId,
-        t(userLangCode, 'deposit_approved') + `\n💰 تم إضافة ${amount.toFixed(4)}$ لرصيدك`
-      );
+      // ✅ 4. إرسال إشعار للمستخدم (مع حماية الخطأ)
+      try {
+        const userLangCode = userLang[userId] || autoDetectLang({ from: { id: Number(userId) } });
+        await ctx.telegram.sendMessage(
+          userId,
+          t(userLangCode, 'deposit_approved') + `\n💰 تم إضافة ${amount.toFixed(4)}$ لرصيدك`
+        );
+        console.log(`📩 User ${userId} notified`);
+      } catch (notifyErr) {
+        console.warn(`⚠️ Failed to notify user ${userId}:`, notifyErr.message);
+        // لا نوقف العملية إذا فشل الإشعار
+      }
       
-      // ✅ تأكيد للأدمن
+      // ✅ 5. تأكيد للأدمن (قبل مسح الجلسة)
       await ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${userId}
-💰 رصيده الجديد سيظهر في لوحة التحكم`);
+💰 رصيده الجديد: ${updateRes.rows[0]?.balance || 'N/A'}$`);
       
-      // ✅ مسح حالة الانتظار
+      console.log(`✅ Admin ${ctx.from.id} confirmed`);
+      
+      // ✅ 6. مسح حالة الانتظار (أخيرًا)
       ctx.session.awaitingDepositAmount = null;
       
     } catch (err) {
-      console.error('❌ خطأ في إضافة المبلغ:', err);
-      await ctx.reply('❌ فشل إضافة الرصيد. حاول مجدداً.');
+      console.error('❌ Critical error in add amount:', err);
+      await ctx.reply(`❌ حدث خطأ: ${err.message || 'فشل غير معروف'}`);
     }
     
-    return; // ← مهم: عدم متابعة المعالجة العادية
+    return; // ← مهم جدًا: منع تنفيذ الكود التالي
   }
   
-  // 🔹 ثانياً: معالجة حالة انتظار TxID (الكود الأصلي)
+  // ============================================
+  // 🔹 ثانياً: معالجة حالة انتظار TxID (الكود الأصلي للمستخدمين)
+  // ============================================
   const session = userSessions[ctx.from.id];
   if (!session?.waitingTxID) return next();
   
-  // ... (بقية كود انتظار TxID الأصلي كما هو) ...
   const lang = getLang(ctx);
-  const txid = ctx.message.text.trim();
+  const txid = text;
   const txUserId = ctx.from.id;
   const username = ctx.from.username || ctx.from.first_name || "NoUsername";
   
+  // مسح حالة الانتظار
   if (userSessions[txUserId]) {
     userSessions[txUserId].waitingTxID = false;
   }
 
   try {
+    // حفظ الطلب في قاعدة البيانات
     const res = await pool.query(
       `INSERT INTO deposit_requests (user_id, username, txid, status, created_at)
        VALUES ($1, $2, $3, 'pending', NOW())
@@ -728,6 +768,7 @@ bot.on("text", async (ctx, next) => {
     
     await ctx.reply(t(lang, "deposit_processing"));
     
+    // إرسال إشعار للأدمن مع أزرار الموافقة/الرفض
     await ctx.telegram.sendMessage(
       ADMIN_ID,
       `📥 طلب إيداع جديد #${newRequestId}
