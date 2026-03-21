@@ -718,8 +718,7 @@ bot.hears('📥 طلبات الإيداع', async (ctx) => {
       return ctx.reply('✅ لا توجد طلبات إيداع معلقة حالياً.');
     }
     
-    let message = `📥 <b>طلبات الإيداع المعلقة (${res.rows.length})</b>\n\n`;
-    
+    // ✅ عرض كل طلب في رسالة منفصلة مع أزرار الموافقة/الرفض
     for (const req of res.rows) {
       const createdAt = new Date(req.created_at).toLocaleString('ar-EG', {
         hour12: false,
@@ -729,22 +728,34 @@ bot.hears('📥 طلبات الإيداع', async (ctx) => {
         month: '2-digit'
       });
       
-      message += `🆔 #${req.id} | 👤 ${req.username || req.user_id}\n`;
-      message += `⏰ ${createdAt}\n`;
-      message += `🔗 TxID: <code>${req.txid.substring(0, 15)}...</code>\n`;
-      message += `━━━━━━━━━━━━━━━━━━\n`;
+      // ✅ إرسال كل طلب كرسالة منفصلة مع أزرار تفاعلية
+      await ctx.replyWithHTML(
+        `📥 طلب إيداع جديد #${req.id}
+👤 ${req.username || req.user_id}
+⏰ ${createdAt}
+🔗 TxID:
+<code>${req.txid}</code>`,  // ✅ عرض TxID كامل
+        {
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+          reply_markup: Markup.inlineKeyboard([
+            [
+              Markup.button.callback("✅ موافقة", `DEP_OK_${req.id}_${req.user_id}`),
+              Markup.button.callback("❌ رفض", `DEP_NO_${req.id}_${req.user_id}`)
+            ]
+          ])
+        }
+      );
     }
     
-    message += `\nللموافقة أو الرفض: اضغط على الأزرار في رسائل الإشعارات`;
-    
-    await ctx.replyWithHTML(message);
+    // ✅ رسالة ختامية صغيرة
+    await ctx.reply('✅ اضغط على الأزرار أعلاه للموافقة أو الرفض على كل طلب.');
     
   } catch (err) {
     console.error('❌ خطأ في عرض طلبات الإيداع:', err);
     await ctx.reply('حدث خطأ أثناء جلب الطلبات.');
   }
 });
-
 // ✅ عرض المهمات (للمستخدمين)
 bot.hears((text, ctx) => text === t(getLang(ctx), 'tasks'), async (ctx) => {
   try {
