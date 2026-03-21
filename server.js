@@ -1933,85 +1933,45 @@ app.get("/user/:id", async (req, res) => {
 });
 
 /* =========================
-   USER STOCKS - عرض عدد الوحدات
-========================= */
-app.get("/user/stocks", async (req, res) => {
-  try {
-    const { id } = req.query;
-    
-    if (!id || !/^\d+$/.test(id)) {
-      return res.json({ success: false, message: "Invalid user id" });
-    }
-    
-    const telegramId = Number(id);
-    
-    // جلب إجمالي الوحدات من جدول user_stocks أو stock_holdings
-    const result = await pool.query(`
-      SELECT COALESCE(SUM(quantity), 0) as total_units 
-      FROM stock_holdings 
-      WHERE telegram_id = $1 AND sold = 0
-    `, [telegramId]);
-    
-    // إذا لم يكن هناك جدول stock_holdings، استخدم user_stocks:
-    // const result = await pool.query("SELECT stocks as total_units FROM user_stocks WHERE telegram_id = $1", [telegramId]);
-    
-    res.json({ 
-      success: true, 
-      total_units: parseInt(result.rows[0].total_units) || 0 
-    });
-    
-  } catch (err) {
-    console.error("User stocks error:", err);
-    res.json({ success: false, message: "Failed to load units" });
-  }
-});
-
-/* =========================
-   USER UNITS - عرض عدد الوحدات (مصحح نهائيًا)
+   USER UNITS - عرض عدد الوحدات للمستخدم (مصحح نهائيًا)
 ========================= */
 app.get("/user/units", async (req, res) => {
   try {
     const { id } = req.query;
     
-    // ✅ التحقق من صحة telegram_id
-    if (!id || !/^\d+$/.test(id)) {
-      console.log(`⚠️ Invalid id format: ${id}`);
-      return res.json({ success: true, total_units: 0, message: "Invalid id format, returning 0" });
+    // ✅ التحقق من وجود id فقط (بدون تحقق صارم جدًا)
+    if (!id) {
+      return res.json({ 
+        success: false, 
+        message: "user_id is required", 
+        total_units: 0 
+      });
     }
     
-    const telegramId = Number(id);
+    // ✅ استخدام id كنص لتجنب مشاكل الأرقام الكبيرة (bigint)
+    const telegramId = id.toString().trim();
+    
     let totalUnits = 0;
     
-    // ✅ الخيار 1: البحث في جدول user_stocks
+    // ✅ البحث في جدول user_stocks (نفس طريقة /api/investment-data)
     try {
-      const stocksResult = await pool.query(
-        "SELECT COALESCE(stocks, 0) as stocks FROM user_stocks WHERE telegram_id = $1 LIMIT 1",
-        [telegramId]
+      const stocksQ = await pool.query(
+        `SELECT stocks FROM user_stocks WHERE telegram_id = $1`,
+        [telegramId]  // ✅ نمرر كنص وليس رقم
       );
-      if (stocksResult.rows.length > 0) {
-        totalUnits = parseInt(stocksResult.rows[0].stocks) || 0;
-        console.log(`📦 Found ${totalUnits} units in user_stocks for user ${telegramId}`);
-      }
+      
+      // ✅ نفس المنطق الصحيح: Number(stocksQ.rows[0]?.stocks || 0)
+      totalUnits = Number(stocksQ.rows[0]?.stocks || 0);
+      
+      console.log(`📦 Found ${totalUnits} units in user_stocks for user ${telegramId}`);
     } catch (err) {
-      console.warn(`⚠️ user_stocks query skipped: ${err.message}`);
-    }
-    
-    // ✅ الخيار 2: إذا لم نجد، نبحث في stock_holdings
-    if (totalUnits === 0) {
-      try {
-        const holdingsResult = await pool.query(`
-          SELECT COALESCE(SUM(quantity - COALESCE(sold, 0)), 0) as total_units
-          FROM stock_holdings
-          WHERE telegram_id = $1
-        `, [telegramId]);
-        totalUnits = parseInt(holdingsResult.rows[0].total_units) || 0;
-        console.log(`📦 Found ${totalUnits} units in stock_holdings for user ${telegramId}`);
-      } catch (err) {
-        console.warn(`⚠️ stock_holdings query skipped: ${err.message}`);
-      }
+      console.warn(`⚠️ user_stocks query error: ${err.message}`);
+      // لا نوقف التنفيذ، نرجع 0 وحدات
     }
     
     // ✅ دائماً نرجع نجاح مع العدد (حتى لو 0)
+    console.log(`📦 Final result for user ${telegramId}: ${totalUnits} units`);
+    
     res.json({ 
       success: true, 
       total_units: totalUnits,
@@ -2019,8 +1979,8 @@ app.get("/user/units", async (req, res) => {
     });
     
   } catch (err) {
-    console.error("❌ User units error:", err.message);
-    // ✅ نرجع نجاح مع 0 وحدات بدلاً من فشل
+    console.error("❌ User units endpoint error:", err);
+    // ✅ نرجع نجاح مع 0 وحدات بدلاً من فشل لمنع توقف الواجهة
     res.json({ 
       success: true, 
       message: "Query error, returning 0", 
