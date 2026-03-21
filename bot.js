@@ -314,7 +314,7 @@ async function applyReferralBonus(earnerId, earnedAmount) {
     if (ref.rows.length === 0) return;
     const referrerId = ref.rows[0].referrer_id;
     if (!referrerId || Number(referrerId) === Number(earnerId)) return;
-    const bonus = Number(earnedAmount) * 0.05;
+    const bonus = Number(earnedAmount) * 0.03;
     if (bonus <= 0) return;
     const balRes = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [referrerId]);
     if (balRes.rows.length === 0) {
@@ -700,7 +700,7 @@ bot.on('text', async (ctx, next) => {
       
       console.log(`✅ Deposit request #${requestId} updated with amount: ${amount}`);
     
-      // ✅ 3. تطبيق مكافأة الإحالة (5%)
+      // ✅ 3. تطبيق مكافأة الإحالة (3%)
       await applyReferralBonus(userId, amount);
       
       // ✅ 4. إرسال إشعار للمستخدم (مع حماية الخطأ)
