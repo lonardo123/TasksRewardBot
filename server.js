@@ -2020,6 +2020,217 @@ app.get("/user/units", async (req, res) => {
     });
   }
 });
+
+/* =========================
+   DEPOSIT - Submit TxID
+========================= */
+app.post("/api/deposit/submit", async (req, res) => {
+  try {
+    const { user_id, txid, network } = req.body;
+    
+    if (!user_id || !txid || txid.length < 10) {
+      return res.json({ success: false, message: "Invalid data" });
+    }
+    
+    const username = `user_${user_id}`; // اسم مؤقت
+    
+    // حفظ الطلب في قاعدة البيانات
+    const result = await pool.query(
+      `INSERT INTO deposit_requests (user_id, username, txid, status, created_at)
+       VALUES ($1, $2, $3, 'pending', NOW())
+       RETURNING id`,
+      [user_id, username, txid]
+    );
+    
+    const requestId = result.rows[0].id;
+    
+    // ✅ إرسال إشعار للأدمن (إذا كان معرف الأدمن موجود)
+    if (process.env.ADMIN_ID) {
+      try {
+        await bot?.telegram?.sendMessage(
+          process.env.ADMIN_ID,
+          `📥 New Deposit Request #${requestId}\n` +
+          `👤 User ID: ${user_id}\n` +
+          `🔗 TxID: <code>${txid}</code>\n` +
+          `🌐 Network: ${network || 'TRC20'}`,
+          {
+            parse_mode: "HTML",
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "✅ Approve", callback_data: `DEP_OK_${requestId}_${user_id}` },
+                  { text: "❌ Reject", callback_data: `DEP_NO_${requestId}_${user_id}` }
+                ]
+              ]
+            }
+          }
+        );
+      } catch (e) {
+        console.warn("⚠️ Failed to notify admin:", e.message);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: "Deposit request submitted",
+      request_id: requestId
+    });
+    
+  } catch (err) {
+    console.error("Deposit submit error:", err);
+    res.json({ success: false, message: "Failed to submit deposit" });
+  }
+});
+
+/* =========================
+   DEPOSIT - History
+========================= */
+app.get("/api/deposit/history", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const result = await pool.query(
+      `SELECT txid, status, created_at, processed_at
+       FROM deposit_requests
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20`,
+      [id]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        txid: row.txid,
+        status: row.status,
+        created_at: row.created_at,
+        processed_at: row.processed_at
+      }))
+    });
+    
+  } catch (err) {
+    console.error("Deposit history error:", err);
+    res.json({ success: false, message: "Failed to load history" });
+  }
+});
+
+/* =========================
+   WITHDRAW - Submit Request
+========================= */
+app.post("/api/withdraw/submit", async (req, res) => {
+  try {
+    const { user_id, wallet, network } = req.body;
+    
+    if (!user_id || !wallet) {
+      return res.json({ success: false, message: "Invalid data" });
+    }
+    
+    // ✅ التحقق من صحة عنوان TRC20
+    const tronRegex = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+    if (!tronRegex.test(wallet.trim())) {
+      return res.json({ success: false, message: "Invalid TRC20 address" });
+    }
+    
+    // جلب رصيد المستخدم
+    const userRes = await pool.query(
+      "SELECT balance FROM users WHERE telegram_id = $1",
+      [user_id]
+    );
+    
+    if (userRes.rows.length === 0) {
+      return res.json({ success: false, message: "User not found" });
+    }
+    
+    let balance = parseFloat(userRes.rows[0].balance) || 0;
+    
+    // ✅ التحقق من الحد الأدنى للسحب
+    if (balance < 1.00) {
+      return res.json({ success: false, message: `Minimum withdraw is $1.00. Your balance: $${balance.toFixed(4)}` });
+    }
+    
+    // ✅ حساب المبلغ للسحب (الرصيد الكامل مقرب لـ 2 خانات)
+    const withdrawAmount = Math.floor(balance * 100) / 100;
+    const remaining = balance - withdrawAmount;
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      // حفظ طلب السحب
+      await client.query(
+        `INSERT INTO withdrawals (user_id, amount, payeer_wallet, status, requested_at)
+         VALUES ($1, $2, $3, 'pending', NOW())`,
+        [user_id, withdrawAmount, wallet.toUpperCase()]
+      );
+      
+      // خصم المبلغ من رصيد المستخدم فوراً
+      await client.query(
+        "UPDATE users SET balance = $1 WHERE telegram_id = $2",
+        [remaining, user_id]
+      );
+      
+      await client.query('COMMIT');
+      
+      res.json({
+        success: true,
+        message: "Withdrawal request submitted",
+        amount: withdrawAmount,
+        remaining: remaining
+      });
+      
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    
+  } catch (err) {
+    console.error("Withdraw submit error:", err);
+    res.json({ success: false, message: "Failed to submit withdrawal" });
+  }
+});
+
+/* =========================
+   WITHDRAW - History
+========================= */
+app.get("/api/withdraw/history", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const result = await pool.query(
+      `SELECT amount, payeer_wallet, status, requested_at, processed_at
+       FROM withdrawals
+       WHERE user_id = $1
+       ORDER BY requested_at DESC
+       LIMIT 20`,
+      [id]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        amount: parseFloat(row.amount),
+        wallet: row.payeer_wallet,
+        status: row.status,
+        requested_at: row.requested_at,
+        processed_at: row.processed_at
+      }))
+    });
+    
+  } catch (err) {
+    console.error("Withdraw history error:", err);
+    res.json({ success: false, message: "Failed to load history" });
+  }
+});
 /* =========================
    REFERRAL - Distribute Commission (5%)
 ========================= */
