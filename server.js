@@ -686,6 +686,61 @@ app.get('/api/user/profile', async (req, res) => {
   }
 });
 
+/* =========================
+   USER UNITS - عرض عدد الوحدات للمستخدم
+   متوافق مع جداول: user_stocks و stock_holdings
+========================= */
+app.get("/user/units", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    // التحقق من صحة telegram_id
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    let totalUnits = 0;
+    
+    // ✅ الخيار 1: البحث في جدول user_stocks أولاً
+    const stocksResult = await pool.query(
+      "SELECT stocks FROM user_stocks WHERE telegram_id = $1 LIMIT 1",
+      [telegramId]
+    );
+    
+    if (stocksResult.rows.length > 0 && stocksResult.rows[0].stocks !== null) {
+      totalUnits = parseInt(stocksResult.rows[0].stocks) || 0;
+    } 
+    // ✅ الخيار 2: إذا لم يوجد، البحث في جدول stock_holdings
+    else {
+      const holdingsResult = await pool.query(`
+        SELECT COALESCE(SUM(quantity - COALESCE(sold, 0)), 0) as total_units 
+        FROM stock_holdings 
+        WHERE telegram_id = $1
+      `, [telegramId]);
+      
+      totalUnits = parseInt(holdingsResult.rows[0].total_units) || 0;
+    }
+    
+    console.log(`📦 User ${telegramId} has ${totalUnits} units`);
+    
+    res.json({ 
+      success: true, 
+      total_units: totalUnits,
+      message: "Units loaded successfully"
+    });
+    
+  } catch (err) {
+    console.error("❌ User units error:", err.message);
+    res.json({ 
+      success: false, 
+      message: "Failed to load units: " + err.message,
+      total_units: 0
+    });
+  }
+});
+
 app.get('/', (req, res) => {
   res.send('✅ السيرفر يعمل! Postback جاهز.');
 });
