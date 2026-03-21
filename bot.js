@@ -728,22 +728,25 @@ bot.hears('📥 طلبات الإيداع', async (ctx) => {
         month: '2-digit'
       });
       
-      // ✅ إرسال كل طلب كرسالة منفصلة مع أزرار تفاعلية
+      // ✅ إرسال كل طلب كرسالة منفصلة مع أزرار تفاعلية (الكود المصحح)
       await ctx.replyWithHTML(
         `📥 طلب إيداع جديد #${req.id}
 👤 ${req.username || req.user_id}
 ⏰ ${createdAt}
 🔗 TxID:
-<code>${req.txid}</code>`,  // ✅ عرض TxID كامل
+<code>${req.txid}</code>`,
         {
           parse_mode: "HTML",
           disable_web_page_preview: true,
-          reply_markup: Markup.inlineKeyboard([
-            [
-              Markup.button.callback("✅ موافقة", `DEP_OK_${req.id}_${req.user_id}`),
-              Markup.button.callback("❌ رفض", `DEP_NO_${req.id}_${req.user_id}`)
+          // ✅ التصحيح: بناء reply_markup يدويًا بدلاً من Markup.inlineKeyboard
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "✅ موافقة", callback_data: `DEP_OK_${req.id}_${req.user_id}` },
+                { text: "❌ رفض", callback_data: `DEP_NO_${req.id}_${req.user_id}` }
+              ]
             ]
-          ])
+          }
         }
       );
     }
