@@ -688,7 +688,18 @@ bot.on('text', async (ctx, next) => {
         'INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
         [userId, amount, 'deposit', `Manual approval of deposit request #${requestId}`]
       );
+      await pool.query(
+        `UPDATE deposit_requests 
+         SET amount = $1, 
+             status = 'approved', 
+             processed_at = NOW(), 
+             processed_by = $2 
+         WHERE id = $3`,
+        [amount, ctx.from.id, requestId]
+      );
       
+      console.log(`✅ Deposit request #${requestId} updated with amount: ${amount}`);
+    
       // ✅ 3. تطبيق مكافأة الإحالة (5%)
       await applyReferralBonus(userId, amount);
       
