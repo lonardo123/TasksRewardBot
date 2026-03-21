@@ -1901,75 +1901,31 @@ app.get("/api/referral/stats", async (req, res) => {
     });
   }
 });
-/* =========================
-   GET USER DATA
-========================= */
-
-app.get("/user/:id", async (req, res) => {
-
-  try {
-
-    const result = await pool.query(
-      "SELECT id, telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
-      [req.params.id]
-    );
-
-    if (result.rows.length === 0) {
-      return res.json({ success: false });
-    }
-
-    res.json({
-      success: true,
-      user: result.rows[0]
-    });
-
-  } catch (err) {
-
-    console.error(err);
-    res.json({ success: false });
-
-  }
-
-});
-
-/* =========================
-   USER UNITS - عرض عدد الوحدات للمستخدم (مصحح نهائيًا)
-========================= */
+// =========================
+// ✅ أولاً: المسار المحدد /user/units
+// =========================
 app.get("/user/units", async (req, res) => {
   try {
     const { id } = req.query;
     
-    // ✅ التحقق من وجود id فقط (بدون تحقق صارم جدًا)
     if (!id) {
-      return res.json({ 
-        success: false, 
-        message: "user_id is required", 
-        total_units: 0 
-      });
+      return res.json({ success: false, message: "user_id is required", total_units: 0 });
     }
     
-    // ✅ استخدام id كنص لتجنب مشاكل الأرقام الكبيرة (bigint)
     const telegramId = id.toString().trim();
-    
     let totalUnits = 0;
     
-    // ✅ البحث في جدول user_stocks (نفس طريقة /api/investment-data)
     try {
       const stocksQ = await pool.query(
         `SELECT stocks FROM user_stocks WHERE telegram_id = $1`,
-        [telegramId]  // ✅ نمرر كنص وليس رقم
+        [telegramId]
       );
-      
-      // ✅ نفس المنطق الصحيح: Number(stocksQ.rows[0]?.stocks || 0)
       totalUnits = Number(stocksQ.rows[0]?.stocks || 0);
-      
       console.log(`📦 Found ${totalUnits} units in user_stocks for user ${telegramId}`);
     } catch (err) {
       console.warn(`⚠️ user_stocks query error: ${err.message}`);
-      // لا نوقف التنفيذ، نرجع 0 وحدات
     }
     
-    // ✅ دائماً نرجع نجاح مع العدد (حتى لو 0)
     console.log(`📦 Final result for user ${telegramId}: ${totalUnits} units`);
     
     res.json({ 
@@ -1980,12 +1936,37 @@ app.get("/user/units", async (req, res) => {
     
   } catch (err) {
     console.error("❌ User units endpoint error:", err);
-    // ✅ نرجع نجاح مع 0 وحدات بدلاً من فشل لمنع توقف الواجهة
     res.json({ 
       success: true, 
       message: "Query error, returning 0", 
       total_units: 0 
     });
+  }
+});
+
+
+// =========================
+// ✅ ثانياً: المسار العام /user/:id (يجب أن يكون في النهاية)
+// =========================
+app.get("/user/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false });
+    }
+    
+    res.json({
+      success: true,
+      user: result.rows[0]
+    });
+    
+  } catch (err) {
+    console.error(err);
+    res.json({ success: false });
   }
 });
 /* =========================
