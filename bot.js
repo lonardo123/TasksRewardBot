@@ -649,24 +649,7 @@ bot.on('text', async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const text = ctx.message?.text?.trim() || '';
   
-  // 🚫 تجاهل معالجة أزرار الأدمن
-  const adminButtons = [
-    '📋 عرض الطلبات', '📊 الإحصائيات', '➕ إضافة رصيد', '➖ خصم رصيد',
-    '➕ إضافة مهمة جديدة', '📝 المهمات', '📝 اثباتات مهمات المستخدمين',
-    '💰 معالجة الدفع', '📥 طلبات الإيداع', '👥 ريفيرال', '📢 رسالة جماعية',
-    '📬 رسائل المستخدمين', '📈 إدارة الاستثمار', '🚪 خروج من لوحة الأدمن'
-  ];
-  if (adminButtons.includes(text)) return next();
-  
-  // 🚫 تجاهل أزرار المستخدم (ديناميكية حسب اللغة)
-  const lang = getLang(ctx);
-  const userButtons = [
-    t(lang, 'deposit'), t(lang, 'videos'), t(lang, 'Units'),
-    t(lang, 'your_balance'), t(lang, 'earn_sources'), t(lang, 'withdraw'),
-    t(lang, 'referral'), t(lang, 'tasks'), t(lang, 'facebook')
-  ];
-  if (userButtons.includes(text)) return next();
-  
+ 
   // ============================================
   // 🔹 أولاً: معالجة انتظار المبلغ بعد الموافقة (للأدمن فقط)
   // ============================================
