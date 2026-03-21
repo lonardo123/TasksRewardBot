@@ -1970,40 +1970,78 @@ app.get("/user/:id", async (req, res) => {
   }
 });
 /* =========================
-   DEPOSIT - Submit TxID
+   DEPOSIT - Submit TxID (مصحح)
 ========================= */
 app.post("/api/deposit/submit", async (req, res) => {
   try {
     const { user_id, txid, network } = req.body;
+    
     if (!user_id || !txid || txid.length < 10) {
       return res.json({ success: false, message: "Invalid data" });
     }
+    
     const username = `user_${user_id}`;
+    
+    // حفظ الطلب في قاعدة البيانات
     const result = await pool.query(
       `INSERT INTO deposit_requests (user_id, username, txid, status, created_at)
-       VALUES ($1, $2, $3, 'pending', NOW()) RETURNING id`,
+       VALUES ($1, $2, $3, 'pending', NOW())
+       RETURNING id, txid`,
       [user_id, username, txid]
     );
-    // إشعار الأدمن (إذا وجد)
-    if (process.env.ADMIN_ID) {
+    
+    const requestId = result.rows[0].id;
+    const fullTxid = result.rows[0].txid; // ✅ حفظ TxID كامل للعرض
+    
+    // ✅ إرسال إشعار للإدمن مع أزرار الموافقة/الرفض (بنفس نمط البوت)
+    const ADMIN_ID = process.env.ADMIN_ID;
+    
+    if (ADMIN_ID && typeof bot !== 'undefined' && bot?.telegram) {
       try {
-        await bot?.telegram?.sendMessage(process.env.ADMIN_ID,
-          `📥 New Deposit #${result.rows[0].id}\n👤 User: ${user_id}\n🔗 TxID: <code>${txid}</code>`,
-          { parse_mode: "HTML", reply_markup: { inline_keyboard: [
-            [{ text: "✅ Approve", callback_ `DEP_OK_${result.rows[0].id}_${user_id}` }],
-            [{ text: "❌ Reject", callback_ `DEP_NO_${result.rows[0].id}_${user_id}` }]
-          ]}}
+        await bot.telegram.sendMessage(
+          ADMIN_ID,
+          `📥 طلب إيداع جديد #${requestId}
+من التطبيق
+👤 @${username} (ID: ${user_id})
+🔗 TxID:
+<code>${fullTxid}</code>`,  // ✅ عرض TxID كامل
+          {
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  // ✅ تم الإصلاح: "callback_data:" بدلاً من "callback_"
+                  { text: "✅ موافقة", callback_data: `DEP_OK_${requestId}_${user_id}` },
+                  { text: "❌ رفض", callback_data: `DEP_NO_${requestId}_${user_id}` }
+                ]
+              ]
+            }
+          }
         );
-      } catch(e) { console.warn("⚠️ Admin notify failed:", e.message); }
+        console.log(`✅ Deposit notification sent to admin for request #${requestId}`);
+      } catch (notifyErr) {
+        console.error(`❌ Failed to send deposit notification: ${notifyErr.message}`);
+        // لا نوقف العملية، الطلب محفوظ في القاعدة
+      }
+    } else {
+      console.warn(`⚠️ Bot not available or ADMIN_ID not set, deposit #${requestId} saved but no notification sent`);
     }
-    res.json({ success: true, message: "Request submitted", request_id: result.rows[0].id });
+    
+    res.json({ 
+      success: true, 
+      message: "Deposit request submitted",
+      request_id: requestId 
+    });
+    
   } catch (err) {
-    console.error("Deposit submit error:", err);
-    res.json({ success: false, message: "Failed to submit" });
+    console.error("❌ Deposit submit error:", err.message);
+    res.json({ 
+      success: false, 
+      message: "Failed to submit deposit: " + err.message 
+    });
   }
 });
-
-
 /* =========================
    DEPOSIT - History
 ========================= */
