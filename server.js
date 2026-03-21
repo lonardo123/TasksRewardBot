@@ -2043,20 +2043,43 @@ app.post("/api/deposit/submit", async (req, res) => {
   }
 });
 /* =========================
-   DEPOSIT - History
+   DEPOSIT - History (معدلة لإرجاع المبلغ)
 ========================= */
 app.get("/api/deposit/history", async (req, res) => {
   try {
     const { id } = req.query;
-    if (!id || !/^\d+$/.test(id)) return res.json({ success: false, message: "Invalid id" });
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // ✅ جلب سجل الإيداعات مع المبلغ والحالة
     const result = await pool.query(
-      `SELECT txid, status, created_at, processed_at FROM deposit_requests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20`,
-      [id]
+      `SELECT id, txid, amount, status, created_at, processed_at 
+       FROM deposit_requests 
+       WHERE user_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 20`,
+      [telegramId]
     );
-    res.json({ success: true, data: result.rows });
+    
+    res.json({ 
+      success: true, 
+      data: result.rows.map(row => ({
+        id: row.id,
+        txid: row.txid,
+        amount: parseFloat(row.amount || 0),  // ✅ إرجاع المبلغ
+        status: row.status,
+        created_at: row.created_at,
+        processed_at: row.processed_at
+      }))
+    });
+    
   } catch (err) {
     console.error("Deposit history error:", err);
-    res.json({ success: false, message: "Failed to load" });
+    res.json({ success: false, message: "Failed to load history" });
   }
 });
 
