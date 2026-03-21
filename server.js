@@ -1967,7 +1967,7 @@ app.get("/user/stocks", async (req, res) => {
 });
 
 /* =========================
-   USER UNITS - عرض عدد الوحدات (مصحح)
+   USER UNITS - عرض عدد الوحدات (مصحح نهائيًا)
 ========================= */
 app.get("/user/units", async (req, res) => {
   try {
@@ -1976,7 +1976,7 @@ app.get("/user/units", async (req, res) => {
     // ✅ التحقق من صحة telegram_id
     if (!id || !/^\d+$/.test(id)) {
       console.log(`⚠️ Invalid id format: ${id}`);
-      return res.json({ success: false, message: "Invalid user id format", total_units: 0 });
+      return res.json({ success: true, total_units: 0, message: "Invalid id format, returning 0" });
     }
     
     const telegramId = Number(id);
@@ -1985,10 +1985,10 @@ app.get("/user/units", async (req, res) => {
     // ✅ الخيار 1: البحث في جدول user_stocks
     try {
       const stocksResult = await pool.query(
-        "SELECT stocks FROM user_stocks WHERE telegram_id = $1 LIMIT 1",
+        "SELECT COALESCE(stocks, 0) as stocks FROM user_stocks WHERE telegram_id = $1 LIMIT 1",
         [telegramId]
       );
-      if (stocksResult.rows.length > 0 && stocksResult.rows[0].stocks !== null) {
+      if (stocksResult.rows.length > 0) {
         totalUnits = parseInt(stocksResult.rows[0].stocks) || 0;
         console.log(`📦 Found ${totalUnits} units in user_stocks for user ${telegramId}`);
       }
@@ -2011,11 +2011,11 @@ app.get("/user/units", async (req, res) => {
       }
     }
     
-    // ✅ دائماً نرجع نجاح حتى لو كان 0 وحدات
+    // ✅ دائماً نرجع نجاح مع العدد (حتى لو 0)
     res.json({ 
       success: true, 
       total_units: totalUnits,
-      message: totalUnits > 0 ? "Units loaded" : "No units found"
+      message: totalUnits > 0 ? "Units loaded" : "No units found for this user"
     });
     
   } catch (err) {
@@ -2028,7 +2028,6 @@ app.get("/user/units", async (req, res) => {
     });
   }
 });
-
 /* =========================
    DEPOSIT - Submit TxID
 ========================= */
