@@ -562,7 +562,7 @@ app.post('/api/admin/update-price', async (req, res) => {
     if (!new_price || new_price <= 0) {
       return res.status(400).json({ 
         status: "error", 
-        message: "سعر غير صالح" 
+        message: "Invalid price" 
       });
     }
 
@@ -585,7 +585,7 @@ app.post('/api/admin/update-price', async (req, res) => {
     // ✅ تم الإصلاح: إضافة مفتاح data: قبل الكائن
     res.json({
       status: "success",
-      message: "✅ تم تحديث السعر بنجاح",
+      message: "✅ Price updated successfully",
       data: { price: new_price }
     });
 
@@ -695,7 +695,7 @@ app.get('/', (req, res) => {
 app.post('/api/add-video', async (req, res) => {
   const { user_id, title, video_url, duration_seconds, keywords } = req.body;
   if (!user_id || !title || !video_url || !duration_seconds) {
-    return res.status(400).json({ error: 'جميع الحقول مطلوبة' });
+    return res.status(400).json({ error: 'All fields are required' });
   }
   const duration = parseInt(duration_seconds, 10);
   if (isNaN(duration) || duration < 50) {
@@ -713,10 +713,10 @@ app.post('/api/add-video', async (req, res) => {
     // جلب رصيد المستخدم
     const user = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
     if (user.rows.length === 0) {
-      return res.status(400).json({ error: 'المستخدم غير موجود' });
+      return res.status(400).json({ error: 'User not found' });
     }
     if (parseFloat(user.rows[0].balance) < cost) {
-      return res.status(400).json({ error: 'رصيدك غير كافٍ' });
+      return res.status(400).json({ error: 'Insufficient balance' });
     }
     // نحول keywords إلى JSON string للتخزين (نتأكد أنها مصفوفة أو نستخدم [])
     const keywordsArray = Array.isArray(keywords) ? keywords : [];
@@ -1263,11 +1263,11 @@ app.get('/api/check', async (req, res) => {
       success: true,
       user_id,
       balance: parseFloat(user.balance || 0),
-      message: 'المستخدم موجود وجاهز'
+      message: 'User is ready'
     });
   } catch (err) {
     console.error('❌ /api/check:', err);
-    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1346,7 +1346,7 @@ app.post('/api/worker/start', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ خطأ في /api/worker:', err);
-    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1422,7 +1422,7 @@ app.post('/api/worker', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ خطأ في /api/worker:', err);
-    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1468,7 +1468,7 @@ app.post('/api/report', async (req, res) => {
   } catch (err) {
     await pool.query('ROLLBACK');
     console.error('❌ /api/report:', err);
-    res.status(500).json({ error: 'خطأ داخلي في الخادم' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1476,26 +1476,39 @@ app.post('/api/report', async (req, res) => {
 🔹 /api/lang/full — ترجمة واجهة الإضافة
 ============================ */
 app.get('/api/lang/full', async (req, res) => {
-  try {
-    const translations = {
-      start_button: "ابدأ المشاهدة",
-      stop_button: "إيقاف",
-      balance_label: "رصيدك",
-      coins_label: "العملات",
-      membership_label: "العضوية",
-      loading_text: "جارٍ تحميل المهام...",
-      error_text: "حدث خطأ أثناء الاتصال بالخادم"
-    };
-    const payload = {
-      lang: translations,
-      server_time: new Date().toISOString()
-    };
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
-    res.json({ langData: encoded });
-  } catch (err) {
-    console.error('❌ /api/lang/full:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
+    try {
+        // ✅ 1. اكتشاف اللغة من الطلب (افتراضي عربي)
+        const lang = req.query.lang || 'ar'; 
+        
+        // ✅ 2. قاموس الترجمة
+        const translations = lang === 'en' ? {
+            start_button: "Start Watching",
+            stop_button: "Stop",
+            balance_label: "Your Balance",
+            coins_label: "Coins",
+            membership_label: "Membership",
+            loading_text: "Loading tasks...",
+            error_text: "Connection error occurred"
+        } : {
+            start_button: "ابدأ المشاهدة",
+            stop_button: "إيقاف",
+            balance_label: "رصيدك",
+            coins_label: "العملات",
+            membership_label: "العضوية",
+            loading_text: "جارٍ تحميل المهام...",
+            error_text: "حدث خطأ أثناء الاتصال بالخادم"
+        };
+
+        const payload = {
+            lang: translations,
+            server_time: new Date().toISOString()
+        };
+        const encoded = Buffer.from(JSON.stringify(payload)).toString('base64');
+        res.json({ langData: encoded });
+    } catch (err) {
+        console.error('❌ /api/lang/full:', err);
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 /* ============================
