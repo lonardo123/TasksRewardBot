@@ -2182,7 +2182,7 @@ app.post("/api/withdraw/submit", async (req, res) => {
   }
 });
 /* =========================
-   WITHDRAW - History
+   WITHDRAW - History (مصحح)
 ========================= */
 app.get("/api/withdraw/history", async (req, res) => {
   try {
@@ -2194,9 +2194,9 @@ app.get("/api/withdraw/history", async (req, res) => {
     
     const telegramId = Number(id);
     
-    // جلب سجل السحب للمستخدم
+    // جلب سجل السحب للمستخدم مع الحالة الصحيحة
     const result = await pool.query(
-      `SELECT amount as net_amount, payeer_wallet, status, requested_at, processed_at, admin_note
+      `SELECT amount, payeer_wallet, status, requested_at, processed_at
        FROM withdrawals
        WHERE user_id = $1
        ORDER BY requested_at DESC
@@ -2207,12 +2207,11 @@ app.get("/api/withdraw/history", async (req, res) => {
     res.json({
       success: true,
       data: result.rows.map(row => ({
-        net_amount: parseFloat(row.net_amount),  // ✅ المبلغ الصافي
+        amount: parseFloat(row.amount),
         wallet: row.payeer_wallet,
-        status: row.status,
+        status: row.status,  // ✅ ترجع: 'pending' أو 'paid' أو 'rejected'
         requested_at: row.requested_at,
-        processed_at: row.processed_at,
-        admin_note: row.admin_note  // ✅ ملاحظة تحتوي على تفاصيل العمولة
+        processed_at: row.processed_at
       }))
     });
     
