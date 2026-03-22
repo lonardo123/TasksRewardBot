@@ -1536,17 +1536,17 @@ app.get('/worker/', (req, res) => {
 });
 
 /* =========================
-   REGISTER 
+   REGISTER - مع دعم الريفيرال (مصحح لاستخدام telegram_id)
 ========================= */
 app.post("/register", async (req, res) => {
   try {
     const { name, username, password, referral_code } = req.body;
-
+    
     // التحقق من البيانات
     if (!name || !username || !password) {
       return res.json({ success: false, message: "Missing data" });
     }
-
+    
     // التحقق من عدم وجود username مسبقًا
     const checkUser = await pool.query(
       "SELECT id FROM users WHERE username=$1",
@@ -1555,7 +1555,7 @@ app.post("/register", async (req, res) => {
     if (checkUser.rows.length > 0) {
       return res.json({ success: false, message: "Username already exists" });
     }
-
+    
     // توليد كود ريفيرال فريد للمستخدم الجديد
     const generateReferralCode = () => {
       return 'REF' + Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -1572,7 +1572,7 @@ app.post("/register", async (req, res) => {
       if (checkCode.rows.length === 0) codeExists = false;
       else newReferralCode = generateReferralCode();
     }
-
+    
     // إنشاء telegram_id عشوائي كبير
     let telegram_id;
     while (true) {
@@ -1583,49 +1583,58 @@ app.post("/register", async (req, res) => {
       );
       if (checkId.rows.length === 0) break;
     }
-
+    
     // تشفير كلمة المرور
     const hash = await bcrypt.hash(password, 10);
-
+    
     // بدء معاملة قاعدة البيانات
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-
-      // 1️⃣ إنشاء المستخدم الجديد مع كود الريفيرال + استرجاع id الحقيقي
-      const newUser = await client.query(
+      
+      // 1️⃣ إنشاء المستخدم الجديد مع كود الريفيرال
+      await client.query(
         `INSERT INTO users (name, username, password, telegram_id, balance, referral_code)
-         VALUES ($1,$2,$3,$4,0,$5) RETURNING id`,
+         VALUES ($1,$2,$3,$4,0,$5)`,
         [name, username, hash, telegram_id, newReferralCode]
       );
-      const newUserId = newUser.rows[0].id;  // ✅ الحصول على id الحقيقي
-
+      
       // 2️⃣ معالجة كود الريفيرال المدخل (إذا وُجد)
       if (referral_code && referral_code.trim() !== '') {
+        // البحث عن الريفيرر باستخدام كود الريفيرال
         const referrer = await client.query(
-          "SELECT id FROM users WHERE referral_code=$1 AND telegram_id!=$2",
-          [referral_code.trim().toUpperCase(), telegram_id]
+          "SELECT telegram_id FROM users WHERE referral_code=$1",
+          [referral_code.trim().toUpperCase()]
         );
         
         if (referrer.rows.length > 0) {
-          // ✅ تسجيل العلاقة باستخدام id الحقيقي (وليس telegram_id)
+          const referrerTelegramId = referrer.rows[0].telegram_id;  // ✅ استخدام telegram_id
+          
+          // ✅ تسجيل العلاقة في جدول referrals باستخدام telegram_id (وليس users.id)
           await client.query(
             "INSERT INTO referrals (referrer_id, referee_id, created_at) VALUES ($1, $2, NOW())",
-            [referrer.rows[0].id, newUserId]
+            [referrerTelegramId, telegram_id]  // ← كلاهما telegram_id
           );
+          
+          console.log(`👥 Referral link created: referrer_id=${referrerTelegramId}, referee_id=${telegram_id}`);
         }
       }
-
+      
       await client.query('COMMIT');
-      res.json({ success: true, message: "Account created", referral_code: newReferralCode, telegram_id: telegram_id });
-
+      res.json({ 
+        success: true, 
+        message: "Account created", 
+        referral_code: newReferralCode, 
+        telegram_id: telegram_id 
+      });
+      
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
     } finally {
       client.release();
     }
-
+    
   } catch (err) {
     console.error("Register error:", err);
     res.json({ success: false, message: "Registration failed" });
