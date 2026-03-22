@@ -1841,7 +1841,7 @@ app.get("/api/referral/stats", async (req, res) => {
     
     console.log("✅ Found user - referral_code:", referralCode);
     
-    // 2️⃣ جلب إحصائيات الريفيرال
+    // 2️⃣ جلب إحصائيات الريفيرال من جدول referral_earnings
     const statsRes = await pool.query(`
       SELECT 
         COUNT(DISTINCT r.referee_id) as total_referrals,
@@ -2136,7 +2136,7 @@ app.get("/api/withdraw/history", async (req, res) => {
   }
 });
 /* =========================
-   REFERRAL - Distribute Commission (5%)
+   REFERRAL - Distribute Commission (5% من الأرباح غير الإيداع)
 ========================= */
 async function distributeReferralCommission(telegramId, earningAmount) {
   try {
@@ -2161,7 +2161,9 @@ async function distributeReferralCommission(telegramId, earningAmount) {
     if (refRes.rows.length === 0) return; // لا يوجد ريفيرر
     
     const referrerId = refRes.rows[0].referrer_id;
-    const commission = parseFloat((earningAmount * 0.05).toFixed(6)); // 5% بدقة
+    
+    // ✅ 5% من الأرباح الأخرى (فيديوهات، مهام، إلخ)
+    const commission = parseFloat((earningAmount * 0.05).toFixed(6));
     
     if (commission <= 0.000001) return; // تجاهل المبالغ الضئيلة جداً
     
