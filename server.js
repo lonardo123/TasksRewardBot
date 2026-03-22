@@ -1819,38 +1819,35 @@ app.get("/api/withdrawals/completed", async (req, res) => {
 });
 
 /* =========================
-   REFERRAL - Statistics (مصحح)
+   REFERRAL - Statistics (مصحح لاستخدام telegram_id)
 ========================= */
 app.get("/api/referral/stats", async (req, res) => {
   try {
     const { id } = req.query;
     
-    console.log("🔍 Referral stats request for id:", id);
+    console.log("🔍 Referral stats request for telegram_id:", id);
     
     if (!id || !/^\d+$/.test(id)) {
       return res.json({ success: false, message: "Invalid user id" });
     }
     
-    const telegramId = Number(id);
+    const telegramId = id.toString().trim();  // ✅ استخدام كنص، ليس رقم
     
-    // 1️⃣ جلب كود الريفيرال للمستخدم
+    // 1️⃣ جلب كود الريفيرال للمستخدم مباشرة بـ telegram_id
     const userRes = await pool.query(
-      "SELECT id, referral_code FROM users WHERE telegram_id = $1",
+      "SELECT referral_code FROM users WHERE telegram_id = $1",
       [telegramId]
     );
-    
-    console.log("👤 User query result:", userRes.rows);
     
     if (userRes.rows.length === 0) {
       return res.json({ success: false, message: "User not found" });
     }
     
-    const userId = userRes.rows[0].id;  // ✅ id الحقيقي من جدول users
     const referralCode = userRes.rows[0].referral_code || "N/A";
-    
     console.log("✅ Found user - referral_code:", referralCode);
     
-    // 2️⃣ جلب إحصائيات الريفيرال من جدول referral_earnings
+    // 2️⃣ جلب إحصائيات الريفيرال باستخدام telegram_id مباشرة
+    // ✅ جدول referrals الآن يحتوي على telegram_id، لذا نبحث به مباشرة
     const statsRes = await pool.query(`
       SELECT 
         COUNT(DISTINCT r.referee_id) as total_referrals,
@@ -1859,7 +1856,7 @@ app.get("/api/referral/stats", async (req, res) => {
       LEFT JOIN referral_earnings re 
         ON r.referee_id = re.referee_id AND r.referrer_id = re.referrer_id
       WHERE r.referrer_id = $1
-    `, [userId]);  // ✅ استخدام userId وليس telegramId
+    `, [telegramId]);  // ✅ استخدام telegram_id مباشرة
     
     const totalReferrals = parseInt(statsRes.rows[0].total_referrals) || 0;
     const totalEarned = parseFloat(statsRes.rows[0].total_earned) || 0;
@@ -1873,14 +1870,14 @@ app.get("/api/referral/stats", async (req, res) => {
         r.created_at as joined_at,
         COALESCE(SUM(re.amount), 0) as earned_for_you
       FROM referrals r
-      JOIN users u ON r.referee_id = u.id
+      JOIN users u ON r.referee_id = u.telegram_id  // ✅ الربط بـ telegram_id
       LEFT JOIN referral_earnings re 
         ON r.referee_id = re.referee_id AND r.referrer_id = re.referrer_id
       WHERE r.referrer_id = $1
       GROUP BY u.username, r.created_at
       ORDER BY r.created_at DESC
       LIMIT 50
-    `, [userId]);  // ✅ استخدام userId
+    `, [telegramId]);  // ✅ استخدام telegram_id مباشرة
     
     const referrals = referralsRes.rows.map(row => ({
       username: row.username,
@@ -1894,7 +1891,7 @@ app.get("/api/referral/stats", async (req, res) => {
     res.json({
       success: true,
       message: "Referral stats loaded",
-      data: {  // ✅ مفتاح "data" إلزامي
+       {  // ✅ مفتاح "data" إلزامي
         referral_code: referralCode,
         total_referrals: totalReferrals,
         total_earned: totalEarned,
