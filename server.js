@@ -2098,7 +2098,7 @@ app.get("/api/deposit/history", async (req, res) => {
 });
 
 /* =========================
-   WITHDRAW - Submit Request (مع عمولة 5% وحقل المبلغ)
+   WITHDRAW - Submit Request (مصحح)
 ========================= */
 app.post("/api/withdraw/submit", async (req, res) => {
   try {
@@ -2115,13 +2115,13 @@ app.post("/api/withdraw/submit", async (req, res) => {
     
     // ✅ التحقق من المبلغ المطلوب
     const requested = parseFloat(requestedAmount);
-    if (!requested || requested < 1.00) {
-      return res.json({ success: false, message: "Minimum withdraw is $1.00" });
+    if (!requested || isNaN(requested) || requested < 1.00) {
+      return res.json({ success: false, message: `Minimum withdraw is $${MIN_WITHDRAW}` });
     }
     
     // جلب رصيد المستخدم
     const userRes = await pool.query(
-      "SELECT balance FROM users WHERE telegram_id = $1",
+      "SELECT telegram_id, balance FROM users WHERE telegram_id = $1",
       [user_id]
     );
     
@@ -2133,13 +2133,16 @@ app.post("/api/withdraw/submit", async (req, res) => {
     
     // ✅ التحقق من أن الرصيد يكفي للمبلغ المطلوب
     if (balance < requested) {
-      return res.json({ success: false, message: `Insufficient balance. Required: $${requested.toFixed(4)}, Available: $${balance.toFixed(4)}` });
+      return res.json({ 
+        success: false, 
+        message: `Insufficient balance. Required: $${requested.toFixed(4)}, Available: $${balance.toFixed(4)}` 
+      });
     }
     
     // ✅ حساب عمولة السحب 5%
-    const withdrawalFee = requested * 0.05;  // 5% fee
-    const netAmount = requested - withdrawalFee;  // المبلغ الصافي بعد الخصم
-    const remaining = balance - requested;  // الرصيد المتبقي بعد خصم المبلغ المطلوب
+    const withdrawalFee = requested * 0.05;
+    const netAmount = requested - withdrawalFee;
+    const remaining = balance - requested;
     
     const client = await pool.connect();
     try {
@@ -2152,7 +2155,7 @@ app.post("/api/withdraw/submit", async (req, res) => {
         [user_id, netAmount, wallet.toUpperCase(), `Requested: ${requested.toFixed(4)}$, Fee: ${withdrawalFee.toFixed(4)}$ (5%)`]
       );
       
-      // خصم المبلغ المطلوب (وليس الصافي) من رصيد المستخدم فوراً
+      // خصم المبلغ المطلوب من رصيد المستخدم فوراً
       await client.query(
         "UPDATE users SET balance = $1 WHERE telegram_id = $2",
         [remaining, user_id]
@@ -2163,10 +2166,10 @@ app.post("/api/withdraw/submit", async (req, res) => {
       res.json({
         success: true,
         message: "Withdrawal request submitted",
-        requested_amount: requested,    // ✅ المبلغ الذي طلبه المستخدم
-        fee: withdrawalFee,             // ✅ قيمة العمولة 5%
-        net_amount: netAmount,          // ✅ المبلغ الصافي الذي سيستلمه
-        remaining: remaining            // ✅ الرصيد المتبقي
+        requested_amount: requested,
+        fee: withdrawalFee,
+        net_amount: netAmount,
+        remaining: remaining
       });
       
     } catch (err) {
@@ -2178,7 +2181,7 @@ app.post("/api/withdraw/submit", async (req, res) => {
     
   } catch (err) {
     console.error("Withdraw submit error:", err);
-    res.json({ success: false, message: "Failed to submit withdrawal" });
+    res.json({ success: false, message: "Failed to submit withdrawal: " + err.message });
   }
 });
 /* =========================
