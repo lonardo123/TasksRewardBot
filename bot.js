@@ -1701,14 +1701,15 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
 💵 المبلغ: ${Number(req.amount).toFixed(2)}$
 💳 محفظة USDT (TRC20): ${req.payeer_wallet}`,
           {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: "✅ قبول", callback_ `WITHDRAW_OK_${req.id}_${req.user_id}` },
-                  { text: "❌ رفض", callback_ `WITHDRAW_NO_${req.id}_${req.user_id}` }
-                ]
-              ]
-            }
+            // ✅ صحيح 100%:
+reply_markup: {
+  inline_keyboard: [
+    [
+      { text: "✅ قبول", callback_data: `WITHDRAW_OK_${req.id}_${req.user_id}` },
+      { text: "❌ رفض", callback_data: `WITHDRAW_NO_${req.id}_${req.user_id}` }
+    ]
+  ]
+}
           }
         );
       }
