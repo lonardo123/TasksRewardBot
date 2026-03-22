@@ -1701,15 +1701,14 @@ bot.hears('📋 عرض الطلبات', async (ctx) => {
 💵 المبلغ: ${Number(req.amount).toFixed(2)}$
 💳 محفظة USDT (TRC20): ${req.payeer_wallet}`,
           {
-            // ✅ صحيح 100%:
-reply_markup: {
-  inline_keyboard: [
-    [
-      { text: "✅ قبول", callback_data: `WITHDRAW_OK_${req.id}_${req.user_id}` },
-      { text: "❌ رفض", callback_data: `WITHDRAW_NO_${req.id}_${req.user_id}` }
-    ]
-  ]
-}
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "✅ قبول", callback_data: `WITHDRAW_OK_${req.id}_${req.user_id}` },
+                  { text: "❌ رفض", callback_data: `WITHDRAW_NO_${req.id}_${req.user_id}` }
+                ]
+              ]
+            }
           }
         );
       }
@@ -1742,10 +1741,10 @@ bot.action(/WITHDRAW_OK_(\d+)_(\d+)/, async (ctx) => {
     const amount = parseFloat(withdrawal.amount).toFixed(2);
     const wallet = withdrawal.payeer_wallet;
     
-    // تعديل رسالة الزر
+    // ✅ تعديل رسالة الزر - التصحيح هنا: "callback_data:" مع النقطتين
     await ctx.editMessageReplyMarkup({
       inline_keyboard: [
-        [{ text: "✅ تم القبول", callback_ "done" }]
+        [{ text: "✅ تم القبول", callback_data: "done" }]  // ← ✅ هذا هو التصحيح
       ]
     });
     
@@ -1792,10 +1791,10 @@ bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
     const amount = parseFloat(withdrawal.amount).toFixed(2);
     const wallet = withdrawal.payeer_wallet;
     
-    // تعديل رسالة الزر
+    // ✅ تعديل رسالة الزر - التصحيح هنا: "callback_data:" مع النقطتين
     await ctx.editMessageReplyMarkup({
       inline_keyboard: [
-        [{ text: "❌ تم الرفض", callback_ "done" }]
+        [{ text: "❌ تم الرفض", callback_data: "done" }]  // ← ✅ هذا هو التصحيح
       ]
     });
     
