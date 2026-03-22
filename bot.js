@@ -1681,28 +1681,141 @@ bot.hears('📈 إدارة الاستثمار', async (ctx) => {
   );
 });
 
-// 🔐 لوحة الأدمن - عرض الطلبات
+// 🔐 لوحة الأدمن - عرض الطلبات (مع أزرار تفاعلية)
 bot.hears('📋 عرض الطلبات', async (ctx) => {
   if (!isAdmin(ctx)) return ctx.reply('❌ الوصول مرفوض.');
+  
   try {
-    const res = await pool.query('SELECT * FROM withdrawals WHERE status = $1 ORDER BY id DESC', ['pending']);
+    const res = await pool.query(
+      'SELECT * FROM withdrawals WHERE status = $1 ORDER BY id DESC', 
+      ['pending']
+    );
+    
     if (res.rows.length === 0) {
       await ctx.reply('✅ لا توجد طلبات معلقة.');
     } else {
       for (const req of res.rows) {
         await ctx.reply(
-          `طلب سحب #${req.id}\n` +
-          `👤 المستخدم: ${req.user_id}\n` +
-          `💵 المبلغ: ${Number(req.amount).toFixed(2)}$\n` +
-          `💳 محفظة USDT (TRC20): ${req.payeer_wallet}\n` +
-          `لقبول: /pay ${req.id}\n` +
-          `لرفض: /reject ${req.id}`
+          `طلب سحب #${req.id}
+👤 المستخدم: ${req.user_id}
+💵 المبلغ: ${Number(req.amount).toFixed(2)}$
+💳 محفظة USDT (TRC20): ${req.payeer_wallet}`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "✅ قبول", callback_ `WITHDRAW_OK_${req.id}_${req.user_id}` },
+                  { text: "❌ رفض", callback_ `WITHDRAW_NO_${req.id}_${req.user_id}` }
+                ]
+              ]
+            }
+          }
         );
       }
     }
   } catch (err) {
     console.error('❌ خطأ في عرض الطلبات:', err);
     await ctx.reply('حدث خطأ فني.');
+  }
+});
+
+// ✅ معالجة زر قبول السحب
+bot.action(/WITHDRAW_OK_(\d+)_(\d+)/, async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
+  
+  const withdrawId = ctx.match[1];
+  const userId = ctx.match[2];
+  
+  try {
+    // تحديث حالة السحب إلى "مدفوع"
+    const res = await pool.query(
+      "UPDATE withdrawals SET status = 'paid', processed_at = NOW() WHERE id = $1 RETURNING *",
+      [withdrawId]
+    );
+    
+    if (res.rowCount === 0) {
+      return ctx.answerCbQuery('⚠️ الطلب غير موجود أو معالج مسبقاً');
+    }
+    
+    const withdrawal = res.rows[0];
+    const amount = parseFloat(withdrawal.amount).toFixed(2);
+    const wallet = withdrawal.payeer_wallet;
+    
+    // تعديل رسالة الزر
+    await ctx.editMessageReplyMarkup({
+      inline_keyboard: [
+        [{ text: "✅ تم القبول", callback_ "done" }]
+      ]
+    });
+    
+    // إشعار المستخدم
+    try {
+      await ctx.telegram.sendMessage(
+        userId,
+        `✅ تم قبول طلب السحب الخاص بك.
+💰 المبلغ: ${amount}$
+💳 المحفظة: ${wallet}
+⏳ سيتم تنفيذ السحب قريباً.`
+      );
+    } catch (e) {
+      console.error('❌ خطأ عند إرسال رسالة للمستخدم:', e);
+    }
+    
+    await ctx.answerCbQuery('✅ تم قبول الطلب');
+    
+  } catch (err) {
+    console.error('❌ WITHDRAW_OK error:', err);
+    await ctx.answerCbQuery('حدث خطأ');
+  }
+});
+
+// ✅ معالجة زر رفض السحب
+bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
+  if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
+  
+  const withdrawId = ctx.match[1];
+  const userId = ctx.match[2];
+  
+  try {
+    // تحديث حالة السحب إلى "مرفوض"
+    const res = await pool.query(
+      "UPDATE withdrawals SET status = 'rejected', processed_at = NOW() WHERE id = $1 RETURNING *",
+      [withdrawId]
+    );
+    
+    if (res.rowCount === 0) {
+      return ctx.answerCbQuery('⚠️ الطلب غير موجود أو معالج مسبقاً');
+    }
+    
+    const withdrawal = res.rows[0];
+    const amount = parseFloat(withdrawal.amount).toFixed(2);
+    const wallet = withdrawal.payeer_wallet;
+    
+    // تعديل رسالة الزر
+    await ctx.editMessageReplyMarkup({
+      inline_keyboard: [
+        [{ text: "❌ تم الرفض", callback_ "done" }]
+      ]
+    });
+    
+    // إشعار المستخدم
+    try {
+      await ctx.telegram.sendMessage(
+        userId,
+        `❌ تم رفض طلب السحب الخاص بك.
+💰 المبلغ: ${amount}$
+💳 المحفظة: ${wallet}
+🔹 يمكنك تعديل طلبك أو المحاولة لاحقاً.`
+      );
+    } catch (e) {
+      console.error('❌ خطأ عند إرسال رسالة للمستخدم:', e);
+    }
+    
+    await ctx.answerCbQuery('❌ تم رفض الطلب');
+    
+  } catch (err) {
+    console.error('❌ WITHDRAW_NO error:', err);
+    await ctx.answerCbQuery('حدث خطأ');
   }
 });
 
