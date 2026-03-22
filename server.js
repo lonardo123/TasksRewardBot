@@ -2098,37 +2098,84 @@ app.get("/api/deposit/history", async (req, res) => {
 });
 
 /* =========================
-   WITHDRAW - Submit Request
+   WITHDRAW - Submit Request (مع عمولة 5%)
 ========================= */
 app.post("/api/withdraw/submit", async (req, res) => {
   try {
     const { user_id, wallet, network } = req.body;
-    if (!user_id || !wallet) return res.json({ success: false, message: "Invalid data" });
+    
+    if (!user_id || !wallet) {
+      return res.json({ success: false, message: "Invalid data" });
+    }
+    
+    // ✅ التحقق من صحة عنوان TRC20
     if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet.trim())) {
       return res.json({ success: false, message: "Invalid TRC20 address" });
     }
-    const userRes = await pool.query("SELECT balance FROM users WHERE telegram_id = $1", [user_id]);
-    if (userRes.rows.length === 0) return res.json({ success: false, message: "User not found" });
-    let balance = parseFloat(userRes.rows[0].balance) || 0;
-    if (balance < MIN_WITHDRAW) {
-      return res.json({ success: false, message: `Minimum withdraw is $${MIN_WITHDRAW}. Balance: $${balance.toFixed(4)}` });
+    
+    // جلب رصيد المستخدم
+    const userRes = await pool.query(
+      "SELECT balance FROM users WHERE telegram_id = $1",
+      [user_id]
+    );
+    
+    if (userRes.rows.length === 0) {
+      return res.json({ success: false, message: "User not found" });
     }
-    const withdrawAmount = Math.floor(balance * 100) / 100;
-    const remaining = balance - withdrawAmount;
+    
+    let balance = parseFloat(userRes.rows[0].balance) || 0;
+    
+    // ✅ التحقق من الحد الأدنى للسحب
+    if (balance < 1.00) {
+      return res.json({ success: false, message: `Minimum withdraw is $1.00. Your balance: $${balance.toFixed(4)}` });
+    }
+    
+    // ✅ حساب المبلغ المطلوب سحبه (الرصيد الكامل مقرب لـ 2 خانات)
+    const requestedAmount = Math.floor(balance * 100) / 100;
+    
+    // ✅ ✅ ✅ حساب عمولة السحب 5% ✅ ✅ ✅
+    const withdrawalFee = requestedAmount * 0.05;  // 5% fee
+    const netAmount = requestedAmount - withdrawalFee;  // المبلغ الصافي بعد الخصم
+    const remaining = balance - requestedAmount;  // الرصيد المتبقي بعد خصم المبلغ المطلوب
+    
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-      await client.query(`INSERT INTO withdrawals (user_id, amount, payeer_wallet, status, requested_at) VALUES ($1, $2, $3, 'pending', NOW())`, [user_id, withdrawAmount, wallet.toUpperCase()]);
-      await client.query("UPDATE users SET balance = $1 WHERE telegram_id = $2", [remaining, user_id]);
+      
+      // حفظ طلب السحب مع تفاصيل العمولة
+      await client.query(
+        `INSERT INTO withdrawals (user_id, amount, payeer_wallet, status, requested_at, admin_note)
+         VALUES ($1, $2, $3, 'pending', NOW(), $4)`,
+        [user_id, netAmount, wallet.toUpperCase(), `Fee: ${withdrawalFee.toFixed(4)}$ (5%)`]
+      );
+      
+      // خصم المبلغ المطلوب (وليس الصافي) من رصيد المستخدم فوراً
+      await client.query(
+        "UPDATE users SET balance = $1 WHERE telegram_id = $2",
+        [remaining, user_id]
+      );
+      
       await client.query('COMMIT');
-      res.json({ success: true, message: "Request submitted", amount: withdrawAmount, remaining: remaining });
+      
+      res.json({
+        success: true,
+        message: "Withdrawal request submitted",
+        requested_amount: requestedAmount,
+        fee: withdrawalFee,      // ✅ إرجاع قيمة العمولة
+        net_amount: netAmount,   // ✅ إرجاع المبلغ الصافي
+        remaining: remaining
+      });
+      
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;
-    } finally { client.release(); }
+    } finally {
+      client.release();
+    }
+    
   } catch (err) {
     console.error("Withdraw submit error:", err);
-    res.json({ success: false, message: "Failed to submit" });
+    res.json({ success: false, message: "Failed to submit withdrawal" });
   }
 });
 
@@ -2138,15 +2185,37 @@ app.post("/api/withdraw/submit", async (req, res) => {
 app.get("/api/withdraw/history", async (req, res) => {
   try {
     const { id } = req.query;
-    if (!id || !/^\d+$/.test(id)) return res.json({ success: false, message: "Invalid id" });
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // جلب سجل السحب للمستخدم
     const result = await pool.query(
-      `SELECT amount, payeer_wallet, status, requested_at, processed_at FROM withdrawals WHERE user_id = $1 ORDER BY requested_at DESC LIMIT 20`,
-      [id]
+      `SELECT amount, payeer_wallet, status, requested_at, processed_at
+       FROM withdrawals
+       WHERE user_id = $1
+       ORDER BY requested_at DESC
+       LIMIT 20`,
+      [telegramId]
     );
-    res.json({ success: true, data: result.rows });
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        amount: parseFloat(row.amount),
+        wallet: row.payeer_wallet,
+        status: row.status,
+        requested_at: row.requested_at,
+        processed_at: row.processed_at
+      }))
+    });
+    
   } catch (err) {
     console.error("Withdraw history error:", err);
-    res.json({ success: false, message: "Failed to load" });
+    res.json({ success: false, message: "Failed to load history" });
   }
 });
 /* =========================
