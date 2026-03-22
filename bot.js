@@ -307,31 +307,63 @@ async function sendFaucetPayPayment(address, amount) {
   });
 }
 
-// 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (5%)
+// 🔵 أداة مساعدة: تطبيق مكافأة الإحالة (3% من الإيداعات)
 async function applyReferralBonus(earnerId, earnedAmount) {
   try {
-    const ref = await pool.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [earnerId]);
-    if (ref.rows.length === 0) return;
+    // البحث عن الريفيرر لهذا المستخدم
+    const ref = await pool.query(
+      'SELECT referrer_id FROM referrals WHERE referee_id = $1', 
+      [earnerId]
+    );
+    
+    if (ref.rows.length === 0) return; // لا يوجد ريفيرر
+    
     const referrerId = ref.rows[0].referrer_id;
+    
+    // منع المستخدم من الحصول على عمولة من نفسه
     if (!referrerId || Number(referrerId) === Number(earnerId)) return;
+    
+    // ✅ حساب العمولة: 3% من مبلغ الإيداع
     const bonus = Number(earnedAmount) * 0.03;
-    if (bonus <= 0) return;
-    const balRes = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [referrerId]);
+    
+    if (bonus <= 0) return; // تجاهل المبالغ الضئيلة
+    
+    // التأكد من وجود الريفيرر في قاعدة البيانات
+    const balRes = await pool.query(
+      'SELECT balance FROM users WHERE telegram_id = $1', 
+      [referrerId]
+    );
+    
     if (balRes.rows.length === 0) {
-      await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [referrerId, 0]);
+      // إنشاء المستخدم إذا لم يكن موجوداً
+      await pool.query(
+        'INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', 
+        [referrerId, 0]
+      );
     }
-    await pool.query('UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', [bonus, referrerId]);
+    
+    // إضافة العمولة لرصيد الريفيرر
+    await pool.query(
+      'UPDATE users SET balance = COALESCE(balance,0) + $1 WHERE telegram_id = $2', 
+      [bonus, referrerId]
+    );
+    
+    // تسجيل العمولة في جدول referral_earnings
     await pool.query(
       'INSERT INTO referral_earnings (referrer_id, referee_id, amount) VALUES ($1,$2,$3)',
       [referrerId, earnerId, bonus]
     );
+    
+    // تسجيل الكسب في جدول earnings (للسجل المالي)
     try {
       await pool.query(
         'INSERT INTO earnings (user_id, amount, source) VALUES ($1,$2,$3)',
-        [referrerId, bonus, 'referral_bonus']
+        [referrerId, bonus, 'referral_deposit']
       );
     } catch (_) {}
-    console.log(`🎉 إحالة: أضيفت مكافأة ${bonus.toFixed(4)}$ للمحيل ${referrerId} بسبب ربح ${earnerId}`);
+    
+    console.log(`🎉 إحالة: أضيفت مكافأة ${bonus.toFixed(4)}$ للمحيل ${referrerId} بسبب إيداع ${earnerId}`);
+    
   } catch (e) {
     console.error('❌ applyReferralBonus:', e);
   }
@@ -651,87 +683,90 @@ bot.on('text', async (ctx, next) => {
   
  
   // ============================================
-  // 🔹 أولاً: معالجة انتظار المبلغ بعد الموافقة (للأدمن فقط)
-  // ============================================
-  if (ctx.session?.awaitingDepositAmount && isAdmin(ctx)) {
-    const { requestId, userId, timestamp } = ctx.session.awaitingDepositAmount;
-    
-    console.log(`🔍 Admin ${ctx.from.id} sent amount for request #${requestId}`);
-    
-    // ✅ التحقق من أن الرسالة الحالية هي مبلغ رقمي
-    const amountText = text;
-    const amount = parseFloat(amountText);
-    
-    if (isNaN(amount) || amount <= 0) {
-      return ctx.reply('❌ يرجى إدخال مبلغ صحيح (رقم فقط)، مثال: 1.50');
-    }
-    
-    // ✅ التحقق من أن الجلسة لم تنتهِ (صلاحية 5 دقائق)
-    if (Date.now() - timestamp > 5 * 60 * 1000) {
-      ctx.session.awaitingDepositAmount = null;
-      return ctx.reply('⏰ انتهت مهلة إدخال المبلغ. حاول مجدداً.');
-    }
-    
-    try {
-      console.log(`💰 Adding ${amount}$ to user ${userId}...`);
-      
-      // ✅ 1. تحديث رصيد المستخدم (باستخدام telegram_id كنص)
-      const updateRes = await pool.query(
-        'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2 RETURNING balance',
-        [amount, userId]  // ← تمرير كنص، ليس رقم
-      );
-      
-      console.log(`✅ Balance updated. New balance: ${updateRes.rows[0]?.balance}`);
-      
-      // ✅ 2. تسجيل الكسب في جدول earnings
-      await pool.query(
-        'INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
-        [userId, amount, 'deposit', `Manual approval of deposit request #${requestId}`]
-      );
-      await pool.query(
-        `UPDATE deposit_requests 
-         SET amount = $1, 
-             status = 'approved', 
-             processed_at = NOW(), 
-             processed_by = $2 
-         WHERE id = $3`,
-        [amount, ctx.from.id, requestId]
-      );
-      
-      console.log(`✅ Deposit request #${requestId} updated with amount: ${amount}`);
-    
-      // ✅ 3. تطبيق مكافأة الإحالة (3%)
-      await applyReferralBonus(userId, amount);
-      
-      // ✅ 4. إرسال إشعار للمستخدم (مع حماية الخطأ)
-      try {
-        const userLangCode = userLang[userId] || autoDetectLang({ from: { id: Number(userId) } });
-        await ctx.telegram.sendMessage(
-          userId,
-          t(userLangCode, 'deposit_approved') + `\n💰 تم إضافة ${amount.toFixed(4)}$ لرصيدك`
-        );
-        console.log(`📩 User ${userId} notified`);
-      } catch (notifyErr) {
-        console.warn(`⚠️ Failed to notify user ${userId}:`, notifyErr.message);
-        // لا نوقف العملية إذا فشل الإشعار
-      }
-      
-      // ✅ 5. تأكيد للأدمن (قبل مسح الجلسة)
-      await ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${userId}
-💰 رصيده الجديد: ${updateRes.rows[0]?.balance || 'N/A'}$`);
-      
-      console.log(`✅ Admin ${ctx.from.id} confirmed`);
-      
-      // ✅ 6. مسح حالة الانتظار (أخيرًا)
-      ctx.session.awaitingDepositAmount = null;
-      
-    } catch (err) {
-      console.error('❌ Critical error in add amount:', err);
-      await ctx.reply(`❌ حدث خطأ: ${err.message || 'فشل غير معروف'}`);
-    }
-    
-    return; // ← مهم جدًا: منع تنفيذ الكود التالي
+// 🔹 أولاً: معالجة انتظار المبلغ بعد الموافقة (للأدمن فقط)
+// ============================================
+if (ctx.session?.awaitingDepositAmount && isAdmin(ctx)) {
+  const { requestId, userId, timestamp } = ctx.session.awaitingDepositAmount;
+  
+  console.log(`🔍 Admin ${ctx.from.id} sent amount for request #${requestId}`);
+  
+  // ✅ التحقق من أن الرسالة الحالية هي مبلغ رقمي
+  const amountText = text;
+  const amount = parseFloat(amountText);
+  
+  if (isNaN(amount) || amount <= 0) {
+    return ctx.reply('❌ يرجى إدخال مبلغ صحيح (رقم فقط)، مثال: 1.50');
   }
+  
+  // ✅ التحقق من أن الجلسة لم تنتهِ (صلاحية 5 دقائق)
+  if (Date.now() - timestamp > 5 * 60 * 1000) {
+    ctx.session.awaitingDepositAmount = null;
+    return ctx.reply('⏰ انتهت مهلة إدخال المبلغ. حاول مجدداً.');
+  }
+  
+  try {
+    console.log(`💰 Adding ${amount}$ to user ${userId}...`);
+    
+    // ✅ 1. تحديث رصيد المستخدم (باستخدام telegram_id كنص)
+    const updateRes = await pool.query(
+      'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2 RETURNING balance',
+      [amount, userId]  // ← تمرير كنص، ليس رقم
+    );
+    
+    console.log(`✅ Balance updated. New balance: ${updateRes.rows[0]?.balance}`);
+    
+    // ✅ 2. تسجيل الكسب في جدول earnings
+    await pool.query(
+      'INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())',
+      [userId, amount, 'deposit', `Manual approval of deposit request #${requestId}`]
+    );
+    
+    // ✅ 3. تحديث deposit_requests بالمبلغ والحالة
+    await pool.query(
+      `UPDATE deposit_requests 
+       SET amount = $1, 
+           status = 'approved', 
+           processed_at = NOW(), 
+           processed_by = $2 
+       WHERE id = $3`,
+      [amount, ctx.from.id, requestId]
+    );
+    
+    console.log(`✅ Deposit request #${requestId} updated with amount: ${amount}`);
+    
+    // ✅ 4. تطبيق مكافأة الإحالة (3% من الإيداع) ← هذا هو السطر المهم!
+    await applyReferralBonus(userId, amount);
+    
+    // ✅ 5. إرسال إشعار للمستخدم (مع حماية الخطأ)
+    try {
+      const userLangCode = userLang[userId] || autoDetectLang({ from: { id: Number(userId) } });
+      await ctx.telegram.sendMessage(
+        userId,
+        t(userLangCode, 'deposit_approved') + `\n💰 تم إضافة ${amount.toFixed(4)}$ لرصيدك`
+      );
+      console.log(`📩 User ${userId} notified`);
+    } catch (notifyErr) {
+      console.warn(`⚠️ Failed to notify user ${userId}:`, notifyErr.message);
+      // لا نوقف العملية إذا فشل الإشعار
+    }
+    
+    // ✅ 6. تأكيد للأدمن (قبل مسح الجلسة)
+    await ctx.reply(`✅ تم إضافة ${amount.toFixed(4)}$ للمستخدم ${userId}
+💰 رصيده الجديد: ${updateRes.rows[0]?.balance || 'N/A'}$
+🎁 تم تطبيق مكافأة الإحالة 3% (إن وجدت)`);
+    
+    console.log(`✅ Admin ${ctx.from.id} confirmed`);
+    
+    // ✅ 7. مسح حالة الانتظار (أخيرًا)
+    ctx.session.awaitingDepositAmount = null;
+    
+  } catch (err) {
+    console.error('❌ Critical error in add amount:', err);
+    await ctx.reply(`❌ حدث خطأ: ${err.message || 'فشل غير معروف'}`);
+  }
+  
+  return; // ← مهم جدًا: منع تنفيذ الكود التالي
+}
   
   // ============================================
   // 🔹 ثانياً: معالجة حالة انتظار TxID (الكود الأصلي للمستخدمين)
