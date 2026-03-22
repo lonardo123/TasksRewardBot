@@ -2098,11 +2098,11 @@ app.get("/api/deposit/history", async (req, res) => {
 });
 
 /* =========================
-   WITHDRAW - Submit Request (مع عمولة 5%)
+   WITHDRAW - Submit Request (مع عمولة 5% وحقل المبلغ)
 ========================= */
 app.post("/api/withdraw/submit", async (req, res) => {
   try {
-    const { user_id, wallet, network } = req.body;
+    const { user_id, wallet, network, amount: requestedAmount } = req.body;
     
     if (!user_id || !wallet) {
       return res.json({ success: false, message: "Invalid data" });
@@ -2111,6 +2111,12 @@ app.post("/api/withdraw/submit", async (req, res) => {
     // ✅ التحقق من صحة عنوان TRC20
     if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet.trim())) {
       return res.json({ success: false, message: "Invalid TRC20 address" });
+    }
+    
+    // ✅ التحقق من المبلغ المطلوب
+    const requested = parseFloat(requestedAmount);
+    if (!requested || requested < 1.00) {
+      return res.json({ success: false, message: "Minimum withdraw is $1.00" });
     }
     
     // جلب رصيد المستخدم
@@ -2125,18 +2131,15 @@ app.post("/api/withdraw/submit", async (req, res) => {
     
     let balance = parseFloat(userRes.rows[0].balance) || 0;
     
-    // ✅ التحقق من الحد الأدنى للسحب
-    if (balance < 1.00) {
-      return res.json({ success: false, message: `Minimum withdraw is $1.00. Your balance: $${balance.toFixed(4)}` });
+    // ✅ التحقق من أن الرصيد يكفي للمبلغ المطلوب
+    if (balance < requested) {
+      return res.json({ success: false, message: `Insufficient balance. Required: $${requested.toFixed(4)}, Available: $${balance.toFixed(4)}` });
     }
     
-    // ✅ حساب المبلغ المطلوب سحبه (الرصيد الكامل مقرب لـ 2 خانات)
-    const requestedAmount = Math.floor(balance * 100) / 100;
-    
-    // ✅ ✅ ✅ حساب عمولة السحب 5% ✅ ✅ ✅
-    const withdrawalFee = requestedAmount * 0.05;  // 5% fee
-    const netAmount = requestedAmount - withdrawalFee;  // المبلغ الصافي بعد الخصم
-    const remaining = balance - requestedAmount;  // الرصيد المتبقي بعد خصم المبلغ المطلوب
+    // ✅ حساب عمولة السحب 5%
+    const withdrawalFee = requested * 0.05;  // 5% fee
+    const netAmount = requested - withdrawalFee;  // المبلغ الصافي بعد الخصم
+    const remaining = balance - requested;  // الرصيد المتبقي بعد خصم المبلغ المطلوب
     
     const client = await pool.connect();
     try {
@@ -2146,7 +2149,7 @@ app.post("/api/withdraw/submit", async (req, res) => {
       await client.query(
         `INSERT INTO withdrawals (user_id, amount, payeer_wallet, status, requested_at, admin_note)
          VALUES ($1, $2, $3, 'pending', NOW(), $4)`,
-        [user_id, netAmount, wallet.toUpperCase(), `Fee: ${withdrawalFee.toFixed(4)}$ (5%)`]
+        [user_id, netAmount, wallet.toUpperCase(), `Requested: ${requested.toFixed(4)}$, Fee: ${withdrawalFee.toFixed(4)}$ (5%)`]
       );
       
       // خصم المبلغ المطلوب (وليس الصافي) من رصيد المستخدم فوراً
@@ -2160,10 +2163,10 @@ app.post("/api/withdraw/submit", async (req, res) => {
       res.json({
         success: true,
         message: "Withdrawal request submitted",
-        requested_amount: requestedAmount,
-        fee: withdrawalFee,      // ✅ إرجاع قيمة العمولة
-        net_amount: netAmount,   // ✅ إرجاع المبلغ الصافي
-        remaining: remaining
+        requested_amount: requested,    // ✅ المبلغ الذي طلبه المستخدم
+        fee: withdrawalFee,             // ✅ قيمة العمولة 5%
+        net_amount: netAmount,          // ✅ المبلغ الصافي الذي سيستلمه
+        remaining: remaining            // ✅ الرصيد المتبقي
       });
       
     } catch (err) {
@@ -2178,7 +2181,6 @@ app.post("/api/withdraw/submit", async (req, res) => {
     res.json({ success: false, message: "Failed to submit withdrawal" });
   }
 });
-
 /* =========================
    WITHDRAW - History
 ========================= */
@@ -2194,7 +2196,7 @@ app.get("/api/withdraw/history", async (req, res) => {
     
     // جلب سجل السحب للمستخدم
     const result = await pool.query(
-      `SELECT amount, payeer_wallet, status, requested_at, processed_at
+      `SELECT amount as net_amount, payeer_wallet, status, requested_at, processed_at, admin_note
        FROM withdrawals
        WHERE user_id = $1
        ORDER BY requested_at DESC
@@ -2205,11 +2207,12 @@ app.get("/api/withdraw/history", async (req, res) => {
     res.json({
       success: true,
       data: result.rows.map(row => ({
-        amount: parseFloat(row.amount),
+        net_amount: parseFloat(row.net_amount),  // ✅ المبلغ الصافي
         wallet: row.payeer_wallet,
         status: row.status,
         requested_at: row.requested_at,
-        processed_at: row.processed_at
+        processed_at: row.processed_at,
+        admin_note: row.admin_note  // ✅ ملاحظة تحتوي على تفاصيل العمولة
       }))
     });
     
