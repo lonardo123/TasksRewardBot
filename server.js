@@ -1059,8 +1059,16 @@ app.get('/callback', async (req, res) => {
         VALUES ($1, $2, $3, $4, NULL, NULL, NOW())`,
         [referrerId, 'referral', bonus, `Referral bonus from ${user_id} (Transaction: ${transaction_id})`]
       );
-      console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
-    }
+        // ✅ ✅ ✅ إضافة سجل في جدول referral_earnings (هذا هو المطلوب) ✅ ✅ ✅
+      await pool.query(
+    `INSERT INTO referral_earnings (referrer_id, referee_id, amount, created_at)
+    VALUES ($1, $2, $3, NOW())`,
+    [referrerId, user_id, bonus]  // ← كلاهما telegram_id
+  );
+  
+  console.log(`👥 تم إضافة ${bonus}$ (3%) للمحيل ${referrerId} من ربح المستخدم ${user_id}`);
+  console.log(`📊 سجل في referral_earnings: referrer=${referrerId}, referee=${user_id}, amount=${bonus}`);
+}
     await pool.query('COMMIT');
     res.status(200).send('تمت المعالجة بنجاح');
   } catch (err) {
