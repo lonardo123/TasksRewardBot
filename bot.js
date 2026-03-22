@@ -1769,7 +1769,7 @@ bot.action(/WITHDRAW_OK_(\d+)_(\d+)/, async (ctx) => {
   }
 });
 
-// ✅ معالجة زر رفض السحب
+// ✅ معالجة زر رفض السحب - مصحح لإرجاع المبلغ
 bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
   if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
   
@@ -1777,48 +1777,59 @@ bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
   const userId = ctx.match[2];
   
   try {
-    // تحديث حالة السحب إلى "مرفوض"
-    const res = await pool.query(
-      "UPDATE withdrawals SET status = 'rejected', processed_at = NOW() WHERE id = $1 RETURNING *",
-      [withdrawId]
+    // ✅ أولاً: جلب تفاصيل الطلب قبل التحديث (للتأكد من أنه معلق)
+    const withdrawalRes = await pool.query(
+      'SELECT * FROM withdrawals WHERE id = $1 AND status = $2',
+      [withdrawId, 'pending']
     );
     
-    if (res.rowCount === 0) {
+    if (withdrawalRes.rowCount === 0) {
       return ctx.answerCbQuery('⚠️ الطلب غير موجود أو معالج مسبقاً');
     }
     
-    const withdrawal = res.rows[0];
-    const amount = parseFloat(withdrawal.amount).toFixed(2);
+    const withdrawal = withdrawalRes.rows[0];
+    const amount = parseFloat(withdrawal.amount);
     const wallet = withdrawal.payeer_wallet;
     
-    // ✅ تعديل رسالة الزر - التصحيح هنا: "callback_data:" مع النقطتين
+    // ✅ ثانياً: تحديث حالة السحب إلى "مرفوض"
+    await pool.query(
+      'UPDATE withdrawals SET status = $1, processed_at = NOW() WHERE id = $2',
+      ['rejected', withdrawId]
+    );
+    
+    // ✅ ✅ ✅ ثالثاً: إرجاع المبلغ لرصيد المستخدم ← هذا هو التعديل المطلوب ✅ ✅ ✅
+    await pool.query(
+      'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+      [amount, userId]
+    );
+    
+    // ✅ رابعاً: تعديل رسالة الزر
     await ctx.editMessageReplyMarkup({
       inline_keyboard: [
-        [{ text: "❌ تم الرفض", callback_data: "done" }]  // ← ✅ هذا هو التصحيح
+        [{ text: "❌ تم الرفض", callback_data: "done" }]
       ]
     });
     
-    // إشعار المستخدم
+    // ✅ خامساً: إشعار المستخدم
     try {
       await ctx.telegram.sendMessage(
         userId,
         `❌ تم رفض طلب السحب الخاص بك.
-💰 المبلغ: ${amount}$
+💰 المبلغ: ${amount.toFixed(2)}$
 💳 المحفظة: ${wallet}
-🔹 يمكنك تعديل طلبك أو المحاولة لاحقاً.`
+🔄 تم إرجاع المبلغ إلى رصيدك.`
       );
     } catch (e) {
       console.error('❌ خطأ عند إرسال رسالة للمستخدم:', e);
     }
     
-    await ctx.answerCbQuery('❌ تم رفض الطلب');
+    await ctx.answerCbQuery('❌ تم رفض الطلب وإرجاع المبلغ');
     
   } catch (err) {
     console.error('❌ WITHDRAW_NO error:', err);
     await ctx.answerCbQuery('حدث خطأ');
   }
 });
-
 // ➕ إضافة مهمة جديدة
 bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
   if (!isAdmin(ctx)) return;
@@ -2249,7 +2260,7 @@ bot.command('reject', async (ctx) => {
   if (!id) return ctx.reply('استخدم: /reject <ID>');
   
   try {
-    // ✅ أولاً: جلب تفاصيل الطلب قبل التحديث
+    // ✅ أولاً: جلب تفاصيل الطلب قبل التحديث (للتأكد من أنه معلق)
     const withdrawalRes = await pool.query(
       'SELECT * FROM withdrawals WHERE id = $1 AND status = $2',
       [id, 'pending']
@@ -2270,7 +2281,7 @@ bot.command('reject', async (ctx) => {
       ['rejected', id]
     );
     
-    // ✅ ثالثاً: إرجاع المبلغ لرصيد المستخدم
+    // ✅ ثالثاً: إرجاع المبلغ لرصيد المستخدم ← هذا هو التعديل المطلوب
     await pool.query(
       'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
       [amount, userId]
