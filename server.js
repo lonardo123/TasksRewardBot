@@ -1887,17 +1887,17 @@ app.get("/api/referral/stats", async (req, res) => {
     
     console.log("👥 Referrals list:", referrals.length);
     
-    // ✅ إرسال الرد بالهيكل الصحيح
-    res.json({
-      success: true,
-      message: "Referral stats loaded",
-       {  // ✅ مفتاح "data" إلزامي
-        referral_code: referralCode,
-        total_referrals: totalReferrals,
-        total_earned: totalEarned,
-        referrals: referrals
-      }
-    });
+   // ✅ صحيح: إضافة مفتاح "data:"
+res.json({
+  success: true,
+  message: "Referral stats loaded",
+  data: {  // ← ✅ هذا هو التصحيح
+    referral_code: referralCode,
+    total_referrals: totalReferrals,
+    total_earned: totalEarned,
+    referrals: referrals
+  }
+});
     
   } catch (err) {
     console.error("❌ Referral stats error:", err);
@@ -2143,63 +2143,55 @@ app.get("/api/withdraw/history", async (req, res) => {
 });
 /* =========================
    REFERRAL - Distribute Commission (5% من الأرباح غير الإيداع)
+   ✅ مصحح لاستخدام telegram_id بشكل متسق
 ========================= */
 async function distributeReferralCommission(telegramId, earningAmount) {
   try {
     // ✅ 1. التحقق من المدخلات
     if (!telegramId || !earningAmount || earningAmount <= 0) return;
     
-    // ✅ 2. الحصول على id الحقيقي للمستخدم من خلال telegram_id
-    const userRes = await pool.query(
-      "SELECT id FROM users WHERE telegram_id = $1",
-      [telegramId]
+    // ✅ 2. التأكد من وجود المستخدم
+    const userCheck = await pool.query(
+      "SELECT telegram_id FROM users WHERE telegram_id = $1",
+      [telegramId.toString()]  // ✅ تمرير كنص
     );
     
-    if (userRes.rows.length === 0) return; // مستخدم غير موجود
-    const userId = userRes.rows[0].id;
+    if (userCheck.rows.length === 0) return; // مستخدم غير موجود
     
-    // ✅ 3. البحث عن الريفيرر لهذا المستخدم (باستخدام id في جدول referrals)
+    // ✅ 3. البحث عن الريفيرر لهذا المستخدم (باستخدام telegram_id في جدول referrals)
     const refRes = await pool.query(
       "SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1",
-      [userId]
+      [telegramId.toString()]  // ✅ استخدام telegram_id مباشرة (وليس users.id)
     );
     
     if (refRes.rows.length === 0) return; // لا يوجد ريفيرر
     
-    const referrerId = refRes.rows[0].referrer_id;
+    const referrerTelegramId = refRes.rows[0].referrer_id;  // ✅ هذا هو telegram_id للريفيرر
     
-    // ✅ 5% من الأرباح الأخرى (فيديوهات، مهام، إلخ)
+    // ✅ 4. حساب العمولة: 5% من الأرباح الأخرى
     const commission = parseFloat((earningAmount * 0.05).toFixed(6));
     
     if (commission <= 0.000001) return; // تجاهل المبالغ الضئيلة جداً
     
-    const client = await pool.connect();
+    // ✅ 5. إضافة العمولة لرصيد الريفيرر (باستخدام telegram_id)
+    await pool.query(
+      "UPDATE users SET balance = balance + $1, referral_earnings = referral_earnings + $1 WHERE telegram_id = $2",
+      [commission, referrerTelegramId]  // ✅ استخدام telegram_id
+    );
     
-    try {
-      await client.query('BEGIN');
-      
-      // ✅ 4. إضافة العمولة لرصيد الريفيرر (تحديث باستخدام id)
-      await client.query(
-        "UPDATE users SET balance = balance + $1, referral_earnings = referral_earnings + $1 WHERE id = $2",
-        [commission, referrerId]
-      );
-      
-      // ✅ 5. تسجيل العمولة في جدول referral_earnings
-      await client.query(
-        "INSERT INTO referral_earnings (referrer_id, referee_id, amount, created_at) VALUES ($1, $2, $3, NOW())",
-        [referrerId, userId, commission]
-      );
-      
-      await client.query('COMMIT');
-      console.log(`✅ Commission $${commission} paid to referrer id:${referrerId} for user:${userId}`);
-      
-    } catch (err) {
-      await client.query('ROLLBACK');
-      console.error("Commission transaction error:", err);
-      throw err;
-    } finally {
-      client.release();
-    }
+    // ✅ 6. تسجيل العمولة في جدول referral_earnings
+    await pool.query(
+      "INSERT INTO referral_earnings (referrer_id, referee_id, amount, created_at) VALUES ($1, $2, $3, NOW())",
+      [referrerTelegramId, telegramId.toString(), commission]  // ✅ كلاهما telegram_id
+    );
+    
+    // ✅ 7. تسجيل الكسب في جدول earnings
+    await pool.query(
+      "INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())",
+      [referrerTelegramId, commission, 'referral_bonus', `Commission from user ${telegramId}`]
+    );
+    
+    console.log(`✅ Commission $${commission} paid to referrer ${referrerTelegramId} for user:${telegramId}`);
     
   } catch (err) {
     console.error("distributeReferralCommission error:", err);
