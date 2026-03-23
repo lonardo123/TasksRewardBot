@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>📝 Tasks </title>
+<title>📝 Tasks Platform - TasksRewardBot</title>
 <style>
 /* === Base Styles === */
 *{box-sizing:border-box;margin:0;padding:0}
@@ -19,7 +19,7 @@ body{font-family:'Segoe UI',Tahoma,sans-serif;background:#0f172a;color:#fff;min-
 .btn-sm{padding:6px 12px;font-size:13px}
 .btn-group{display:flex;gap:10px;flex-wrap:wrap}
 .input-group{margin-bottom:15px}
-.input-group label{display:block;margin-bottom:5px;color:#94a3b8}
+.input-group label{display:block;margin-bottom:5px;color:#94a3b8;font-size:14px}
 .input-group input,.input-group textarea,.input-group select{
   width:100%;padding:12px;border:1px solid #475569;border-radius:8px;
   background:#1e293b;color:white;font-size:14px
@@ -36,7 +36,7 @@ tr:hover{background:#1e293b/50}
 .status-disputed{background:#8b5cf620;color:#8b5cf6}
 .modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
 .modal.active{display:flex}
-.modal-content{background:#1e293b;border-radius:12px;padding:25px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto}
+.modal-content{background:#1e293b;border-radius:12px;padding:25px;width:90%;max-width:900px;max-height:90vh;overflow-y:auto}
 .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #334155}
 .modal-close{background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer}
 .modal-close:hover{color:white}
@@ -57,10 +57,37 @@ tr:hover{background:#1e293b/50}
 .commission-info{font-size:12px;color:#94a3b8;margin-top:5px}
 .loading{text-align:center;padding:40px;color:#94a3b8}
 .hidden{display:none!important}
+/* === Form Styles (Aviso-style) === */
+.task-form-table{width:100%;border-collapse:collapse;font-size:14px}
+.task-form-table th{background:#1e293b;padding:12px;text-align:left;color:#94a3b8}
+.task-form-table td{padding:10px 12px;border-bottom:1px solid #334155;vertical-align:top}
+.task-form-table td:first-child{width:35%;color:#94a3b8}
+.task-form-table td:last-child{width:5%;text-align:center}
+.task-form-table input[type="text"],.task-form-table input[type="number"],.task-form-table textarea,.task-form-table select{
+  width:100%;padding:8px;border:1px solid #475569;border-radius:4px;background:#0f172a;color:white;font-size:13px
+}
+.task-form-table textarea{min-height:100px;resize:vertical}
+.task-form-table .hint-quest{cursor:help;color:#60a5fa;font-size:12px}
+.task-form-table .hint-quest:hover{color:#3b82f6}
+.tooltip{position:absolute;background:#1e293b;border:1px solid #475569;padding:10px;border-radius:6px;z-index:100;max-width:300px;font-size:12px;color:#cbd5e1;display:none}
+.tooltip b{color:#60a5fa}
+.hint-quest{position:relative}
+.hint-quest:hover .tooltip{display:block}
+.bb-code{display:inline-block;padding:2px 8px;background:#334155;border-radius:4px;margin-right:5px;cursor:pointer;font-size:12px}
+.bb-code:hover{background:#475569}
+.price-display{font-size:18px;font-weight:600;color:#22c55e}
+.interval-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;font-size:11px}
+.interval-grid input{width:100%;padding:4px;text-align:center}
+.form-actions{text-align:center;padding:20px;border-top:1px solid #334155;margin-top:10px}
+.required{color:#ef4444}*
+.section-divider{border-top:1px dashed #475569;margin:15px 0;padding-top:15px}
 @media(max-width:768px){
   .btn-group{flex-direction:column}
   th,td{padding:8px;font-size:13px}
-  .modal-content{width:95%;padding:20px}
+  .modal-content{width:95%;padding:15px}
+  .task-form-table td:first-child{width:100%;padding-bottom:5px}
+  .task-form-table tr{display:block;margin-bottom:15px;border-bottom:1px solid #334155}
+  .interval-grid{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
@@ -70,14 +97,14 @@ tr:hover{background:#1e293b/50}
   <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
     <h2>📝 Tasks Center</h2>
     <div class="btn-group">
-      <button class="btn btn-primary" onclick="openCreateTaskModal()">➕ Create New Task</button>
+      <button class="btn btn-primary" onclick="openAddTaskModal()">➕ Add Task</button>
       <button class="btn btn-success" onclick="loadAvailableTasks()">🔍 Browse Tasks</button>
       <button class="btn btn-warning" onclick="loadMyTasks()">📋 My Tasks</button>
       <button class="btn btn-primary" onclick="goBack()">⬅️ Back</button>
     </div>
   </div>
 
-  <!-- Alert Messages -->
+  <!-- Alert Messages (inside page) -->
   <div id="alertBox" class="alert hidden"></div>
 
   <!-- Tabs -->
@@ -110,79 +137,427 @@ tr:hover{background:#1e293b/50}
     <button class="btn btn-primary btn-sm" onclick="showSection('list')">⬅️ Back to List</button>
     <div id="taskDetailContent"></div>
   </div>
-</div>
 
-<!-- Create Task Modal -->
-<div id="createTaskModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>➕ Create New Task</h3>
-      <button class="modal-close" onclick="closeModal('createTaskModal')">&times;</button>
+  <!-- Add Task Internal Page (Modal) -->
+  <div id="addTaskModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>➕ Create New Paid Task</h3>
+        <button class="modal-close" onclick="closeModal('addTaskModal')">&times;</button>
+      </div>
+      
+      <div class="alert alert-info">
+        <strong>💡 Tip:</strong> There are many users willing to complete simple tasks for a small fee. 
+        How attractive and interesting your task is depends on you. Don't be stingy with the reward. 
+        Minimum price per task: <strong>$0.001</strong>
+      </div>
+
+      <form id="addTaskForm" onsubmit="return createTaskFromForm(event)">
+        <table class="task-form-table">
+          <tr><th colspan="3">New Task Details</th></tr>
+
+          <!-- Task Title -->
+          <tr>
+            <td>Task Title <span class="required">*</span></td>
+            <td><input type="text" id="formTitle" maxlength="55" placeholder="Short, clear title (max 55 chars)" required></td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Task Title</b> - Maximum 55 characters.<br>
+                  Title should be short and clear.<br>
+                  Use proper grammar. Poor writing will discourage users.<br>
+                  Don't write in ALL CAPS or use excessive punctuation like !!!!!!
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Category -->
+          <tr>
+            <td>Task Category <span class="required">*</span></td>
+            <td>
+              <select id="formCategory" required>
+                <option value="">-- Select Category --</option>
+                <option value="registration">Registration Only</option>
+                <option value="clicks">Clicks Only</option>
+                <option value="youtube">YouTube</option>
+                <option value="social">Social Media</option>
+                <option value="posting">Posting/Comments</option>
+                <option value="article">Write Article</option>
+                <option value="review">Leave Review</option>
+                <option value="vote">Vote/Poll</option>
+                <option value="games">Play Games</option>
+                <option value="download">Download Files</option>
+                <option value="other">Other</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Task must be placed in the correct category for better visibility.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Verification Method -->
+          <tr>
+            <td>Verification Method<br><span style="color:#ef4444;font-size:12px">Cannot be changed later</span></td>
+            <td>
+              <select id="formVerification" onchange="toggleVerificationFields()" required>
+                <option value="manual">Manual Review by Advertiser</option>
+                <option value="auto">Auto-Verify by System</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Manual:</b> You review each proof personally.<br>
+                  <b>Auto:</b> System auto-approves if keyword matches.<br>
+                  Not recommended for high-value tasks.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Task Description -->
+          <tr>
+            <td><b>Task Description</b> <span class="required">*</span></td>
+            <td colspan="2">
+              <div style="margin-bottom:5px">
+                <span class="bb-code" title="Bold" onclick="insertBBCode('formDesc','[b]','[/b]')">B</span>
+                <span class="bb-code" title="Italic" onclick="insertBBCode('formDesc','[i]','[/i]')">I</span>
+                <span class="bb-code" title="Underline" onclick="insertBBCode('formDesc','[u]','[/u]')">U</span>
+                <span class="bb-code" title="URL" onclick="insertBBCode('formDesc','[url]','[/url]')">URL</span>
+                <span style="float:right;font-size:12px;color:#94a3b8"><span id="descCount">4000</span> chars left</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td colspan="2">
+              <textarea id="formDesc" maxlength="4000" onkeyup="updateCharCount('formDesc','descCount')" placeholder="Detailed instructions for executors..."></textarea>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Description</b> - Max 4000 characters.<br>
+                  Be informative and clear. Use proper grammar.<br>
+                  Don't use ALL CAPS or excessive punctuation.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Proof Requirements -->
+          <tr class="section-divider"><td colspan="3"><b>What executor must submit as proof</b> <span class="required">*</span></td></tr>
+          <tr>
+            <td colspan="2">
+              <textarea id="formProofReq" maxlength="3000" placeholder="Example: 'Send your Telegram ID' or 'Paste the confirmation code here'..."></textarea>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Proof Requirements</b> - Max 3000 characters.<br>
+                  Clearly state what the user must submit to prove completion.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Auto-Verify Keyword (hidden by default) -->
+          <tr id="autoKeywordRow" style="display:none;background:#1e293b">
+            <td colspan="3" style="padding:10px;color:#facc15">
+              ⚠️ <b>Auto-Verify Mode:</b> The keyword below will be used to auto-approve proofs. Make it unique and simple.
+            </td>
+          </tr>
+          <tr id="keywordRow" style="display:none">
+            <td>Verification Keyword</td>
+            <td><input type="text" id="formKeyword" placeholder="e.g., CONFIRM123"></td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Single code that executors must include in their proof for auto-approval.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Target URL -->
+          <tr>
+            <td><b>Target URL</b> (with https://) <span class="required">*</span></td>
+            <td><input type="url" id="formUrl" maxlength="1100" placeholder="https://example.com/page" required></td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Must start with https:// and be max 1100 characters.<br>
+                  No HTML tags or JavaScript allowed.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Reward per Execution -->
+          <tr>
+            <td>Reward per Execution <span class="required">*</span></td>
+            <td>
+              <input type="number" id="formReward" step="0.001" min="0.001" value="0.01" oninput="calculateTotalCost()" style="width:100px"> 
+              <span style="color:#22c55e;font-weight:600">$</span> 
+              <span style="font-size:12px;color:#94a3b8">Min $0.001</span>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Amount ($) paid to executor per successful completion.<br>
+                  Fair pricing improves your reputation and task completion rate.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Target Audience -->
+          <tr>
+            <td>Target Audience</td>
+            <td>
+              <select id="formAudience">
+                <option value="all">All Executors</option>
+                <option value="favorites">Favorites List Only</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Limit task to specific users or open to everyone.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Delivery Interval -->
+          <tr>
+            <td>Delivery Interval</td>
+            <td>
+              <select id="formInterval" onchange="toggleIntervalFields()">
+                <option value="none">No Interval (Continuous)</option>
+                <option value="hourly">Hourly Limits</option>
+                <option value="fixed">Fixed Delay</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Fixed:</b> Delay between task assignments.<br>
+                  <b>Hourly:</b> Set max completions per hour of day.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Fixed Interval Input -->
+          <tr id="fixedIntervalRow" style="display:none">
+            <td>Delay Between Assignments</td>
+            <td colspan="2">
+              <input type="number" id="formDelayHours" min="0" max="23" value="0" style="width:60px"> hours 
+              <input type="number" id="formDelayMinutes" min="0" max="59" value="5" style="width:60px"> minutes
+            </td>
+          </tr>
+
+          <!-- Hourly Limits Grid -->
+          <tr id="hourlyGridRow" style="display:none">
+            <td colspan="3">
+              <div class="interval-grid">
+                <div>00-01<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>01-02<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>02-03<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>03-04<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>04-05<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>05-06<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>06-07<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>07-08<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>08-09<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>09-10<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>10-11<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>11-12<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>12-13<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>13-14<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>14-15<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>15-16<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>16-17<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>17-18<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>18-19<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>19-20<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>20-21<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>21-22<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>22-23<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+                <div>23-00<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Execution Type -->
+          <tr>
+            <td>Execution Type<br><span style="color:#ef4444;font-size:12px">Cannot be changed later</span></td>
+            <td>
+              <select id="formExecType" onchange="toggleExecTypeFields()">
+                <option value="once">One User — One Completion</option>
+                <option value="multiple">Multiple Completions Allowed</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Once:</b> Each user can complete task only once.<br>
+                  <b>Multiple:</b> Users can re-complete after approval/rejection.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Multiple Execution Interval -->
+          <tr id="multiIntervalRow" style="display:none">
+            <td>Cooldown Between Re-completions</td>
+            <td>
+              <select id="formMultiInterval">
+                <option value="0">Immediately after approval</option>
+                <option value="3600">1 hour after previous report</option>
+                <option value="10800">3 hours after previous report</option>
+                <option value="21600">6 hours after previous report</option>
+                <option value="43200">12 hours after previous report</option>
+                <option value="86400">1 day after previous report</option>
+                <option value="172800">2 days after previous report</option>
+                <option value="259200">3 days after previous report</option>
+                <option value="432000">5 days after previous report</option>
+                <option value="604800">7 days after previous report</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Time users must wait before re-completing the task.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Max Completion Time -->
+          <tr>
+            <td>Max Completion Time <span class="required">*</span></td>
+            <td>
+              <select id="formMaxTime" required>
+                <option value="1800">30 minutes</option>
+                <option value="3600">1 hour</option>
+                <option value="7200">2 hours</option>
+                <option value="21600">6 hours</option>
+                <option value="43200">12 hours</option>
+                <option value="86400" selected>1 day</option>
+                <option value="172800">2 days</option>
+                <option value="259200">3 days</option>
+                <option value="604800">7 days</option>
+                <option value="1209600">14 days</option>
+                <option value="2592000">30 days</option>
+              </select>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Maximum time allowed for a user to complete the task after accepting.<br>
+                  If exceeded, the application is cancelled.
+                </span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Budget & Cost Display -->
+          <tr class="section-divider">
+            <td colspan="3"><b>Budget & Cost Summary</b></td>
+          </tr>
+          <tr>
+            <td>Cost per Completion (incl. 20% fee)</td>
+            <td class="price-display"><span id="costPerCompletion">$0.012</span></td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>$0.01 reward</b> + <b>$0.002 admin fee (20%)</b> = <b>$0.012 total</b><br>
+                  This amount is deducted from your task budget per completion.
+                </span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td>Initial Budget <span class="required">*</span></td>
+            <td>
+              <input type="number" id="formBudget" step="0.01" min="0.10" value="1.00" oninput="calculateTotalCost()" style="width:100px"> 
+              <span style="color:#22c55e;font-weight:600">$</span>
+            </td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  Total budget for this task. Must cover at least 10 completions.<br>
+                  Remaining funds can be withdrawn later.
+                </span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td>Estimated Completions</td>
+            <td><span id="estimatedCompletions">83</span> completions</td>
+            <td></td>
+          </tr>
+
+          <!-- Submit Button -->
+          <tr>
+            <th colspan="3" style="padding:20px 0;background:transparent">
+              <button type="submit" class="btn btn-success" style="width:200px">
+                🚀 Create Task
+              </button>
+            </th>
+          </tr>
+        </table>
+        
+        <input type="hidden" name="func" value="task">
+      </form>
     </div>
-    <div class="input-group">
-      <label>Task Title *</label>
-      <input type="text" id="taskTitle" placeholder="Example: Subscribe to my YouTube channel">
-    </div>
-    <div class="input-group">
-      <label>Task Description & Instructions *</label>
-      <textarea id="taskDesc" rows="4" placeholder="Explain in detail what the executor must do..."></textarea>
-    </div>
-    <div class="input-group">
-      <label>Reward per Execution (USD) *</label>
-      <input type="number" id="taskPrice" step="0.01" min="0.01" placeholder="0.50">
-      <div class="commission-info">💡 Executor gets 80%, 20% admin commission</div>
-    </div>
-    <div class="input-group">
-      <label>Total Task Budget *</label>
-      <input type="number" id="taskBudget" step="0.01" min="0.10" placeholder="10.00">
-    </div>
-    <div class="input-group">
-      <label>Execution Duration (seconds) - Optional</label>
-      <input type="number" id="taskDuration" placeholder="86400 (1 day)">
-    </div>
-    <button class="btn btn-success" onclick="createTask()">🚀 Create Task</button>
   </div>
-</div>
 
-<!-- Proofs Modal -->
-<div id="proofsModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>📋 Execution Proofs</h3>
-      <button class="modal-close" onclick="closeModal('proofsModal')">&times;</button>
+  <!-- Proofs Modal -->
+  <div id="proofsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📋 Execution Proofs</h3>
+        <button class="modal-close" onclick="closeModal('proofsModal')">&times;</button>
+      </div>
+      <div id="proofsList"></div>
     </div>
-    <div id="proofsList"></div>
   </div>
-</div>
 
-<!-- Submit Proof Modal -->
-<div id="submitProofModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>📤 Submit Execution Proof</h3>
-      <button class="modal-close" onclick="closeModal('submitProofModal')">&times;</button>
+  <!-- Submit Proof Modal -->
+  <div id="submitProofModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📤 Submit Execution Proof</h3>
+        <button class="modal-close" onclick="closeModal('submitProofModal')">&times;</button>
+      </div>
+      <div class="input-group">
+        <label>Execution Proof (link, text, or description) <span class="required">*</span></label>
+        <textarea id="proofText" rows="5" placeholder="Attach the link or describe what you did..."></textarea>
+      </div>
+      <button class="btn btn-success" onclick="submitProof()">✅ Submit Proof</button>
     </div>
-    <div class="input-group">
-      <label>Execution Proof (link, text, or description) *</label>
-      <textarea id="proofText" rows="5" placeholder="Attach the link or describe what you did..."></textarea>
-    </div>
-    <button class="btn btn-success" onclick="submitProof()">✅ Submit Proof</button>
   </div>
-</div>
 
-<!-- Dispute Modal -->
-<div id="disputeModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>⚠️ Create Dispute</h3>
-      <button class="modal-close" onclick="closeModal('disputeModal')">&times;</button>
+  <!-- Dispute Modal -->
+  <div id="disputeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚠️ Create Dispute</h3>
+        <button class="modal-close" onclick="closeModal('disputeModal')">&times;</button>
+      </div>
+      <div class="alert alert-info">Your dispute will be reviewed by admin. Please explain the issue in detail.</div>
+      <div class="input-group">
+        <label>Reason for Dispute <span class="required">*</span></label>
+        <textarea id="disputeReason" rows="4" placeholder="Explain the problem you encountered..."></textarea>
+      </div>
+      <button class="btn btn-warning" onclick="createDispute()">📤 Submit Dispute</button>
     </div>
-    <div class="alert alert-info">Your dispute will be reviewed by admin. Please explain the issue in detail.</div>
-    <div class="input-group">
-      <label>Reason for Dispute *</label>
-      <textarea id="disputeReason" rows="4" placeholder="Explain the problem you encountered..."></textarea>
-    </div>
-    <button class="btn btn-warning" onclick="createDispute()">📤 Submit Dispute</button>
   </div>
 </div>
 
@@ -197,26 +572,24 @@ let currentProof = null;
 window.addEventListener('load', async () => {
   let telegramId = null;
   
-  // 🔹 أولاً: محاولة جلب user_id من رابط الصفحة (الأولوية)
+  // 🔹 First: Try to get user_id from URL
   const urlParams = new URLSearchParams(window.location.search);
   const userIdFromUrl = urlParams.get('user_id');
   
   if (userIdFromUrl && /^\d+$/.test(userIdFromUrl.trim())) {
     telegramId = userIdFromUrl.trim();
-    // ✅ حفظ في localStorage للاستخدام لاحقاً
     localStorage.setItem('telegram_id', telegramId);
   }
   
-  // 🔹 ثانياً:fallback إلى localStorage إذا لم يوجد في الرابط
+  // 🔹 Fallback to localStorage
   if (!telegramId) {
     telegramId = localStorage.getItem('telegram_id');
   }
   
-  // 🔹 التحقق النهائي
+  // 🔹 Final validation
   if (!telegramId || !/^\d+$/.test(telegramId.trim())) {
     showAlert('⚠️ Please login first', 'error');
     setTimeout(() => {
-      // محاولة الرجوع للتطبيق الرئيسي
       if (window.parent && window.parent !== window) {
         window.parent.postMessage({ action: 'logout' }, '*');
       }
@@ -228,9 +601,8 @@ window.addEventListener('load', async () => {
   currentUser = telegramId;
   console.log('✅ Tasks page loaded for user:', currentUser);
   
-  // إخفاء تبويب النزاعات لغير الأدمن
-  const ADMIN_ID = process?.env?.ADMIN_ID || 'YOUR_ADMIN_ID_HERE';
-  if (currentUser !== ADMIN_ID) {
+  // Hide disputes tab for non-admin
+  if (currentUser !== (process?.env?.ADMIN_ID || 'YOUR_ADMIN_ID')) {
     const disputesTab = document.getElementById('disputesTab');
     if (disputesTab) disputesTab.style.display = 'none';
   }
@@ -241,6 +613,7 @@ window.addEventListener('load', async () => {
 // ================= UTILS =================
 function showAlert(msg, type) {
   const el = document.getElementById('alertBox');
+  if (!el) return;
   el.className = `alert alert-${type}`;
   el.textContent = msg;
   el.classList.remove('hidden');
@@ -299,6 +672,68 @@ function formatDate(date) {
   });
 }
 
+// ================= BB Code Helper =================
+function insertBBCode(fieldId, open, close) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  const start = field.selectionStart;
+  const end = field.selectionEnd;
+  const text = field.value;
+  const selected = text.substring(start, end);
+  field.value = text.substring(0, start) + open + selected + close + text.substring(end);
+  field.focus();
+  updateCharCount(fieldId, fieldId.replace('form', '') + 'Count');
+}
+
+function updateCharCount(fieldId, countId) {
+  const field = document.getElementById(fieldId);
+  const counter = document.getElementById(countId);
+  if (field && counter) {
+    const max = field.maxLength || 4000;
+    const remaining = max - field.value.length;
+    counter.textContent = remaining;
+  }
+}
+
+// ================= Form Field Toggles =================
+function toggleVerificationFields() {
+  const mode = document.getElementById('formVerification').value;
+  const autoRows = document.getElementById('autoKeywordRow');
+  const keywordRow = document.getElementById('keywordRow');
+  if (mode === 'auto') {
+    autoRows.style.display = '';
+    keywordRow.style.display = '';
+  } else {
+    autoRows.style.display = 'none';
+    keywordRow.style.display = 'none';
+  }
+}
+
+function toggleIntervalFields() {
+  const interval = document.getElementById('formInterval').value;
+  document.getElementById('fixedIntervalRow').style.display = interval === 'fixed' ? '' : 'none';
+  document.getElementById('hourlyGridRow').style.display = interval === 'hourly' ? '' : 'none';
+}
+
+function toggleExecTypeFields() {
+  const execType = document.getElementById('formExecType').value;
+  document.getElementById('multiIntervalRow').style.display = execType === 'multiple' ? '' : 'none';
+}
+
+function calculateTotalCost() {
+  const reward = parseFloat(document.getElementById('formReward').value) || 0.01;
+  const budget = parseFloat(document.getElementById('formBudget').value) || 1.00;
+  
+  // 20% admin fee on reward
+  const fee = reward * 0.20;
+  const totalPerCompletion = reward + fee;
+  
+  document.getElementById('costPerCompletion').textContent = '$' + totalPerCompletion.toFixed(4);
+  
+  const estimated = Math.floor(budget / totalPerCompletion);
+  document.getElementById('estimatedCompletions').textContent = estimated;
+}
+
 // ================= TASKS: AVAILABLE =================
 async function loadAvailableTasks() {
   const list = document.getElementById('availableTasksList');
@@ -320,14 +755,14 @@ async function loadAvailableTasks() {
           <span class="price-tag">${formatPrice(task.executor_reward)} per execution</span>
         </div>
         <p style="color:#cbd5e1;font-size:14px;margin:10px 0">${task.description}</p>
-        <div class="budget-bar"><div class="budget-fill" style="width:${(1 - task.remaining_budget/(task.budget-task.spent+task.remaining_budget))*100}%"></div></div>
+        <div class="budget-bar"><div class="budget-fill" style="width:${Math.min(100, (task.spent/task.budget)*100)}%"></div></div>
         <small style="color:#94a3b8">
-          💰 Remaining budget: ${formatPrice(task.remaining_budget)} | 
-          ✅ Completed: ${task.completed_count} times | 
-          ⏱️ Duration: ${Math.floor(task.duration_seconds/3600)} hours
+          💰 Remaining: ${formatPrice(task.remaining_budget)} | 
+          ✅ Completed: ${task.completed_count} | 
+          ⏱️ Duration: ${formatDuration(task.duration_seconds)}
         </small>
         <div class="proof-actions" style="margin-top:12px">
-          <button class="btn btn-success btn-sm" onclick="applyForTask(${task.id})">🚀 Apply for Task</button>
+          <button class="btn btn-success btn-sm" onclick="applyForTask(${task.id})">🚀 Apply</button>
           <button class="btn btn-primary btn-sm" onclick="viewTaskDetail(${task.id})">📋 Details</button>
         </div>
       </div>
@@ -336,6 +771,14 @@ async function loadAvailableTasks() {
     console.error(err);
     list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
   }
+}
+
+function formatDuration(secs) {
+  if (!secs) return 'Unspecified';
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs/60)}m`;
+  if (secs < 86400) return `${Math.floor(secs/3600)}h`;
+  return `${Math.floor(secs/86400)}d`;
 }
 
 async function applyForTask(taskId) {
@@ -361,17 +804,22 @@ async function applyForTask(taskId) {
   }
 }
 
-// ================= TASKS: MY TASKS =================
+// ================= TASKS: MY TASKS (Internal View - Aviso Style) =================
 async function loadMyTasks() {
   const list = document.getElementById('myTasksList');
-  list.innerHTML = '<div class="loading">Loading...</div>';
+  list.innerHTML = '<div class="loading">Loading your tasks...</div>';
   
   try {
     const res = await fetch(`${API}/api/tasks/my?user_id=${currentUser}`);
     const data = await res.json();
     
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">You haven\'t created any tasks yet</p>';
+      list.innerHTML = `
+        <div class="alert alert-info">
+          <strong>💡 No tasks yet</strong><br>
+          Click "➕ Add Task" above to create your first paid task.
+        </div>
+      `;
       return;
     }
     
@@ -379,37 +827,57 @@ async function loadMyTasks() {
       const remaining = task.budget - task.spent;
       const canDelete = !task.total_executions || 
         (new Date() - new Date(task.created_at)) > 15*24*60*60*1000;
+      const statusClass = task.is_active ? 'status-approved' : 'status-rejected';
+      const statusText = task.is_active ? '🟢 Active' : '🔴 Paused';
       
       return `
       <div class="proof-item">
-        <div class="proof-header">
-          <strong>${task.title}</strong>
-          <span class="status-badge status-${task.is_active ? 'approved' : 'rejected'}">
-            ${task.is_active ? '🟢 Active' : '🔴 Inactive'}
-          </span>
-        </div>
-        <p style="color:#cbd5e1;font-size:14px;margin:10px 0">
-          💰 Executor reward: ${formatPrice(task.executor_reward)} | 
-          💵 Budget: ${formatPrice(task.budget)} | 
-          💸 Remaining: ${formatPrice(remaining)}
-        </p>
-        <small style="color:#94a3b8">
-          📊 Total executions: ${task.total_executions} | 
-          ✅ Approved: ${task.approved_count} | 
-          📅 Created: ${formatDate(task.created_at)}
-        </small>
-        <div class="proof-actions" style="margin-top:12px">
-          <button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
-          <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
-          ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="fundTask(${task.id})">➕ Add Funds</button>` : ''}
-          ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="withdrawTaskFunds(${task.id})">↩️ Withdraw ${formatPrice(remaining)}</button>` : ''}
-          ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete</button>` : ''}
-        </div>
+        <table class="task-form-table" style="margin:0;border:none">
+          <tr>
+            <td colspan="3" style="border:none;padding-bottom:5px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <strong style="font-size:16px">${task.title}</strong>
+                <span class="status-badge ${statusClass}">${statusText}</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="border:none">💰 Reward to Executor:</td>
+            <td style="border:none;font-weight:600;color:#22c55e">${formatPrice(task.executor_reward)}</td>
+            <td style="border:none"></td>
+          </tr>
+          <tr>
+            <td style="border:none">💵 Budget / Remaining:</td>
+            <td style="border:none">${formatPrice(task.budget)} / <strong style="color:#facc15">${formatPrice(remaining)}</strong></td>
+            <td style="border:none"></td>
+          </tr>
+          <tr>
+            <td style="border:none">📊 Stats:</td>
+            <td style="border:none">Total: ${task.total_executions} | Approved: ${task.approved_count}</td>
+            <td style="border:none"></td>
+          </tr>
+          <tr>
+            <td style="border:none">📅 Created:</td>
+            <td style="border:none;color:#94a3b8">${formatDate(task.created_at)}</td>
+            <td style="border:none"></td>
+          </tr>
+          <tr>
+            <td colspan="3" style="border:none;padding-top:15px">
+              <div class="btn-group">
+                <button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
+                <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
+                ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="fundTask(${task.id})">➕ Add Funds</button>` : ''}
+                ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="withdrawTaskFunds(${task.id})">↩️ Withdraw ${formatPrice(remaining)}</button>` : ''}
+                ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete</button>` : ''}
+              </div>
+            </td>
+          </tr>
+        </table>
       </div>`;
     }).join('');
   } catch (err) {
     console.error(err);
-    list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
+    list.innerHTML = '<p class="alert alert-error">Failed to load your tasks</p>';
   }
 }
 
@@ -446,7 +914,7 @@ async function viewTaskDetail(taskId) {
         </div>
         <div style="display:flex;justify-content:space-between">
           <span>⏱️ Execution time:</span>
-          <strong>${Math.floor(data.task.duration_seconds/60)} minutes</strong>
+          <strong>${formatDuration(data.task.duration_seconds)}</strong>
         </div>
       </div>
     `;
@@ -688,8 +1156,7 @@ async function createDispute() {
 }
 
 async function loadDisputes() {
-  // Admin only
-  if (currentUser !== process.env.ADMIN_ID) return;
+  if (currentUser !== (process?.env?.ADMIN_ID || 'YOUR_ADMIN_ID')) return;
   
   const list = document.getElementById('disputesList');
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
@@ -754,56 +1221,102 @@ async function resolveDispute(disputeId) {
   }
 }
 
-// ================= CREATE TASK =================
-function openCreateTaskModal() {
-  document.getElementById('taskTitle').value = '';
-  document.getElementById('taskDesc').value = '';
-  document.getElementById('taskPrice').value = '';
-  document.getElementById('taskBudget').value = '';
-  document.getElementById('taskDuration').value = '';
-  openModal('createTaskModal');
+// ================= ADD TASK MODAL =================
+function openAddTaskModal() {
+  // Reset form
+  document.getElementById('addTaskForm').reset();
+  document.getElementById('descCount').textContent = '4000';
+  calculateTotalCost();
+  toggleVerificationFields();
+  toggleIntervalFields();
+  toggleExecTypeFields();
+  
+  // Open modal internally (not external)
+  openModal('addTaskModal');
 }
 
-async function createTask() {
-  const title = document.getElementById('taskTitle').value.trim();
-  const description = document.getElementById('taskDesc').value.trim();
-  const price = parseFloat(document.getElementById('taskPrice').value);
-  const budget = parseFloat(document.getElementById('taskBudget').value);
-  const duration = parseInt(document.getElementById('taskDuration').value) || 86400;
+async function createTaskFromForm(event) {
+  event.preventDefault();
   
-  if (!title || !description || !price || !budget) {
+  // Collect form data
+  const title = document.getElementById('formTitle').value.trim();
+  const category = document.getElementById('formCategory').value;
+  const verification = document.getElementById('formVerification').value;
+  const description = document.getElementById('formDesc').value.trim();
+  const proofReq = document.getElementById('formProofReq').value.trim();
+  const url = document.getElementById('formUrl').value.trim();
+  const reward = parseFloat(document.getElementById('formReward').value) || 0.01;
+  const audience = document.getElementById('formAudience').value;
+  const interval = document.getElementById('formInterval').value;
+  const execType = document.getElementById('formExecType').value;
+  const maxTime = parseInt(document.getElementById('formMaxTime').value) || 86400;
+  const budget = parseFloat(document.getElementById('formBudget').value) || 1.00;
+  
+  // Validation
+  if (!title || !category || !description || !proofReq || !url || !budget) {
     showAlert('⚠️ Please fill all required fields', 'error');
     return;
   }
-  if (price < 0.01 || budget < 0.10) {
-    showAlert('⚠️ Minimum: reward $0.01, budget $0.10', 'error');
+  if (reward < 0.001 || budget < 0.10) {
+    showAlert('⚠️ Minimum: reward $0.001, budget $0.10', 'error');
     return;
+  }
+  
+  // Build task data
+  const taskData = {
+    creator_id: currentUser,
+    title,
+    category,
+    verification_method: verification,
+    description,
+    proof_requirements: proofReq,
+    target_url: url,
+    reward_per_execution: reward,
+    audience,
+    delivery_interval: interval,
+    execution_type: execType,
+    max_completion_time: maxTime,
+    budget
+  };
+  
+  // Add optional fields
+  if (verification === 'auto') {
+    taskData.verification_keyword = document.getElementById('formKeyword').value.trim();
+  }
+  if (interval === 'fixed') {
+    taskData.delay_hours = parseInt(document.getElementById('formDelayHours').value) || 0;
+    taskData.delay_minutes = parseInt(document.getElementById('formDelayMinutes').value) || 5;
+  }
+  if (interval === 'hourly') {
+    const hourlyLimits = Array.from(document.querySelectorAll('.hourly-limit')).map(input => parseInt(input.value) || 0);
+    taskData.hourly_limits = hourlyLimits;
+  }
+  if (execType === 'multiple') {
+    taskData.multi_interval = parseInt(document.getElementById('formMultiInterval').value) || 0;
   }
   
   try {
     const res = await fetch(`${API}/api/tasks/create`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        creator_id: currentUser,
-        title, description,
-        price_per_execution: price,
-        budget, duration_seconds: duration
-      })
+      body: JSON.stringify(taskData)
     });
     const data = await res.json();
     
     if (data.success) {
       showAlert('✅ Task created successfully', 'success');
-      closeModal('createTaskModal');
+      closeModal('addTaskModal');
       switchTab('my');
       loadMyTasks();
     } else {
       showAlert('❌ ' + data.message, 'error');
     }
   } catch (err) {
+    console.error('Create task error:', err);
     showAlert('⚠️ Connection error', 'error');
   }
+  
+  return false;
 }
 </script>
 </body>
