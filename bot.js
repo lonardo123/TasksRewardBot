@@ -662,14 +662,17 @@ bot.action(/DEP_OK_(\d+)_(\d+)/, async (ctx) => {
 10.25`
     );
     
-    // إرسال إشعار للمستخدم
+   // إرسال إشعار للمستخدم (مع حماية)
+try {
     const userLangCode = userLang[userId] || autoDetectLang({ from: { id: Number(userId) } });
     await ctx.telegram.sendMessage(
-      userId,
-      t(userLangCode, "deposit_approved")
+        userId,
+        t(userLangCode, "deposit_approved")
     );
-    
-    await ctx.answerCbQuery('✅ أرسل المبلغ الآن');
+} catch (notifyErr) {
+    console.warn(`⚠️ فشل إشعار المستخدم ${userId} بالموافقة:`, notifyErr.message);
+}
+await ctx.answerCbQuery('✅ أرسل المبلغ الآن');
     
   } catch (err) {
     console.error('❌ خطأ في الموافقة على الإيداع:', err);
@@ -837,12 +840,16 @@ bot.action(/DEP_NO_(\d+)_(\d+)/, async (ctx) => {
     
     await ctx.editMessageText(`❌ تم رفض الطلب #${requestId}`);
     
-    // إرسال إشعار للمستخدم
+    // إرسال إشعار للمستخدم (مع حماية)
+try {
     const userLangCode = userLang[userId] || autoDetectLang({ from: { id: userId } });
     await ctx.telegram.sendMessage(
-      userId,
-      t(userLangCode, "deposit_rejected")
+        userId,
+        t(userLangCode, "deposit_rejected")
     );
+} catch (notifyErr) {
+    console.warn(`⚠️ فشل إشعار المستخدم ${userId} بالرفض:`, notifyErr.message);
+}
     
   } catch (err) {
     console.error('❌ خطأ في رفض الإيداع:', err);
@@ -2342,12 +2349,17 @@ bot.command('reply', async (ctx) => {
         [replyText, msgId]
     );
 
+    try {
     await bot.telegram.sendMessage(
         userId,
-        `📩 رد الإدارة:\n\n${replyText}`
+        `📩 رد الإدارة:
+        ${replyText}`
     );
-
     await ctx.reply('✅ تم إرسال الرد للمستخدم.');
+} catch (e) {
+    console.error(`❌ فشل إرسال الرد للمستخدم ${userId}:`, e.message);
+    await ctx.reply(`⚠️ تم حفظ الرد في القاعدة، لكن فشل الإرسال للمستخدم (قد يكون البوت محظوراً).`);
+}
 });
 
 // ==================== التشغيل النهائي ====================
