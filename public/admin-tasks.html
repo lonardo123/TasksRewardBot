@@ -188,8 +188,8 @@ tr:hover{background:#1e293b/50}
 // ================= CONFIG =================
 const API = "https://perceptive-victory-production.up.railway.app";
 const REQUIRED_ADMIN_ID = "7171208519"; // 🔐 Hard-coded required admin ID
-const ADMIN_SECRET = process?.env?.ADMIN_SECRET || "your_admin_secret_here";
-let currentDispute = null;
+// ✅ تم إزالة process.env لأنه لا يعمل في المتصفح
+// ملاحظة: التحقق الحقيقي يتم في السيرفر عبر isAdminAuthenticated middleware
 
 // ================= 🔐 ACCESS CONTROL - URL PARAMETER CHECK =================
 function checkAdminAccess() {
@@ -429,7 +429,7 @@ async function loadDisputes() {
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
   
   try {
-    const res = await fetch(`${API}/api/admin/task-disputes?admin_key=${ADMIN_SECRET}`);
+    const res = await fetch(`${API}/api/admin/task-disputes?user_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
     
     // Update counter
@@ -483,11 +483,10 @@ async function submitResolution() {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        admin_key: ADMIN_SECRET,
-        admin_id: REQUIRED_ADMIN_ID,
-        payout_to: payout,
-        resolution
-      })
+      admin_id: REQUIRED_ADMIN_ID,
+      payout_to: payout,
+      resolution
+    })
     });
     const data = await res.json();
     
