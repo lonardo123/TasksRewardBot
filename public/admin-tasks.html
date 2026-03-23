@@ -193,30 +193,47 @@ let currentDispute = null;
 
 // ================= 🔐 ACCESS CONTROL - URL PARAMETER CHECK =================
 function checkAdminAccess() {
-  // 🔹 Get admin_id from URL parameter
-  const urlParams = new URLSearchParams(window.location.search);
-  const adminIdFromUrl = urlParams.get('admin_id');
+  const REQUIRED_ADMIN_ID = "7171208519";
+  
+  // 🔹 Get admin_id from full URL using regex (most reliable method)
+  const url = window.location.href;
+  let adminIdFromUrl = null;
+  
+  // Extract admin_id using regex from full URL
+  const match = url.match(/[?&]admin_id=([^&]+)/);
+  if (match && match[1]) {
+    adminIdFromUrl = decodeURIComponent(match[1].trim());
+  }
+  
+  // 🔹 Debug logging (remove in production if needed)
+  console.log('🔍 Admin Check Debug:');
+  console.log('  Full URL:', url);
+  console.log('  Extracted admin_id:', adminIdFromUrl);
+  console.log('  Required admin_id:', REQUIRED_ADMIN_ID);
   
   // 🔹 Strict validation: must exist AND match exactly
-  if (!adminIdFromUrl || adminIdFromUrl.trim() !== REQUIRED_ADMIN_ID) {
+  if (!adminIdFromUrl || adminIdFromUrl.toString() !== REQUIRED_ADMIN_ID) {
     console.error('🔐 Access denied: Invalid admin_id parameter');
-    console.log('Expected:', REQUIRED_ADMIN_ID);
-    console.log('Received:', adminIdFromUrl);
     
     // Show access denied page, hide admin content
-    document.getElementById('accessDenied').style.display = 'flex';
-    document.getElementById('adminContent').classList.add('hidden');
+    const deniedEl = document.getElementById('accessDenied');
+    const contentEl = document.getElementById('adminContent');
+    if (deniedEl) deniedEl.style.display = 'flex';
+    if (contentEl) contentEl.classList.add('hidden');
     
-    // Prevent any further execution
     return false;
   }
   
   // ✅ Access granted
   console.log('✅ Admin access granted for ID:', adminIdFromUrl);
-  document.getElementById('accessDenied').style.display = 'none';
-  document.getElementById('adminContent').classList.remove('hidden');
   
-  // Also save to localStorage for session persistence (optional)
+  // Hide access denied, show admin content
+  const deniedEl = document.getElementById('accessDenied');
+  const contentEl = document.getElementById('adminContent');
+  if (deniedEl) deniedEl.style.display = 'none';
+  if (contentEl) contentEl.classList.remove('hidden');
+  
+  // Save to localStorage for session persistence
   localStorage.setItem('admin_verified', 'true');
   localStorage.setItem('admin_id', REQUIRED_ADMIN_ID);
   
