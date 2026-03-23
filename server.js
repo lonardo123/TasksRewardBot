@@ -2224,6 +2224,95 @@ app.get("/api/withdraw/history", async (req, res) => {
     res.json({ success: false, message: "Failed to load history" });
   }
 });
+
+/* =========================
+   CONTACT - Submit Message (من التطبيق)
+========================= */
+app.post("/api/contact/submit", async (req, res) => {
+  try {
+    const { user_id, message } = req.body;
+    
+    if (!user_id || !message || message.trim().length < 5) {
+      return res.json({ success: false, message: "Invalid message" });
+    }
+    
+    // حفظ الرسالة في قاعدة البيانات
+    const result = await pool.query(
+      `INSERT INTO admin_messages (user_id, message, replied, created_at)
+       VALUES ($1, $2, false, NOW())
+       RETURNING id`,
+      [user_id, message.trim()]
+    );
+    
+    const messageId = result.rows[0].id;
+    
+    // إرسال إشعار للأدمن في البوت
+    const ADMIN_ID = process.env.ADMIN_ID;
+    if (ADMIN_ID && typeof bot !== 'undefined' && bot?.telegram) {
+      try {
+        await bot.telegram.sendMessage(
+          ADMIN_ID,
+          `📩 رسالة جديدة #${messageId} من التطبيق
+👤 المستخدم: ${user_id}
+📝 الرسالة:
+${message.trim()}`
+        );
+      } catch (notifyErr) {
+        console.error(`❌ Failed to send contact notification: ${notifyErr.message}`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: "Message submitted",
+      message_id: messageId
+    });
+    
+  } catch (err) {
+    console.error("Contact submit error:", err);
+    res.json({ success: false, message: "Failed to submit message" });
+  }
+});
+
+/* =========================
+   CONTACT - User History (جلب سجل رسائل المستخدم)
+========================= */
+app.get("/api/contact/history", async (req, res) => {
+  try {
+    const { id } = req.query;
+    
+    if (!id || !/^\d+$/.test(id)) {
+      return res.json({ success: false, message: "Invalid user id" });
+    }
+    
+    const telegramId = Number(id);
+    
+    // جلب سجل رسائل المستخدم
+    const result = await pool.query(
+      `SELECT id, message, admin_reply, replied, created_at
+       FROM admin_messages
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [telegramId]
+    );
+    
+    res.json({
+      success: true,
+      data: result.rows.map(row => ({
+        id: row.id,
+        message: row.message,
+        admin_reply: row.admin_reply,
+        replied: row.replied,
+        created_at: row.created_at
+      }))
+    });
+    
+  } catch (err) {
+    console.error("Contact history error:", err);
+    res.json({ success: false, message: "Failed to load history" });
+  }
+});
 /* =========================
    REFERRAL - Distribute Commission (5% من الأرباح غير الإيداع)
    ✅ مصحح لاستخدام telegram_id بشكل متسق
