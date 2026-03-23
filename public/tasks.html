@@ -195,17 +195,44 @@ let currentProof = null;
 
 // ================= INIT =================
 window.addEventListener('load', async () => {
-  const telegramId = localStorage.getItem('telegram_id');
-  if (!telegramId || !/^\d+$/.test(telegramId)) {
+  let telegramId = null;
+  
+  // 🔹 أولاً: محاولة جلب user_id من رابط الصفحة (الأولوية)
+  const urlParams = new URLSearchParams(window.location.search);
+  const userIdFromUrl = urlParams.get('user_id');
+  
+  if (userIdFromUrl && /^\d+$/.test(userIdFromUrl.trim())) {
+    telegramId = userIdFromUrl.trim();
+    // ✅ حفظ في localStorage للاستخدام لاحقاً
+    localStorage.setItem('telegram_id', telegramId);
+  }
+  
+  // 🔹 ثانياً:fallback إلى localStorage إذا لم يوجد في الرابط
+  if (!telegramId) {
+    telegramId = localStorage.getItem('telegram_id');
+  }
+  
+  // 🔹 التحقق النهائي
+  if (!telegramId || !/^\d+$/.test(telegramId.trim())) {
     showAlert('⚠️ Please login first', 'error');
-    setTimeout(() => window.location.href = '/', 2000);
+    setTimeout(() => {
+      // محاولة الرجوع للتطبيق الرئيسي
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ action: 'logout' }, '*');
+      }
+      window.location.href = '/';
+    }, 2000);
     return;
   }
-  currentUser = telegramId;
   
-  // Hide disputes tab for non-admin users
-  if (currentUser !== process.env.ADMIN_ID) {
-    document.getElementById('disputesTab').style.display = 'none';
+  currentUser = telegramId;
+  console.log('✅ Tasks page loaded for user:', currentUser);
+  
+  // إخفاء تبويب النزاعات لغير الأدمن
+  const ADMIN_ID = process?.env?.ADMIN_ID || 'YOUR_ADMIN_ID_HERE';
+  if (currentUser !== ADMIN_ID) {
+    const disputesTab = document.getElementById('disputesTab');
+    if (disputesTab) disputesTab.style.display = 'none';
   }
   
   await loadAvailableTasks();
