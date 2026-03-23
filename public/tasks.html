@@ -81,6 +81,11 @@ tr:hover{background:#1e293b/50}
 .form-actions{text-align:center;padding:20px;border-top:1px solid #334155;margin-top:10px}
 .required{color:#ef4444}*
 .section-divider{border-top:1px dashed #475569;margin:15px 0;padding-top:15px}
+/* === Countdown Timer === */
+.countdown{font-weight:600;color:#facc15;font-size:14px}
+.countdown.expired{color:#ef4444}
+/* === Reserved Slot Badge === */
+.reserved-badge{background:#8b5cf620;color:#8b5cf6;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600}
 @media(max-width:768px){
   .btn-group{flex-direction:column}
   th,td{padding:8px;font-size:13px}
@@ -104,7 +109,7 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 
-  <!-- Alert Messages (inside page) -->
+  <!-- Alert Messages (inside page - NO external alerts) -->
   <div id="alertBox" class="alert hidden"></div>
 
   <!-- Tabs -->
@@ -296,7 +301,7 @@ tr:hover{background:#1e293b/50}
             </td>
           </tr>
 
-          <!-- Reward per Execution -->
+          <!-- Reward per Execution - NEW PAYMENT SYSTEM -->
           <tr>
             <td>Reward per Execution <span class="required">*</span></td>
             <td>
@@ -466,18 +471,42 @@ tr:hover{background:#1e293b/50}
             </td>
           </tr>
 
-          <!-- Budget & Cost Display -->
+          <!-- Budget & Cost Display - NEW PAYMENT SYSTEM -->
           <tr class="section-divider">
             <td colspan="3"><b>Budget & Cost Summary</b></td>
           </tr>
           <tr>
-            <td>Cost per Completion (incl. 20% fee)</td>
-            <td class="price-display"><span id="costPerCompletion">$0.012</span></td>
+            <td>Executor Reward (100%)</td>
+            <td class="price-display" id="executorRewardDisplay">$0.0100</td>
             <td>
               <span class="hint-quest">ⓘ
                 <span class="tooltip">
-                  <b>$0.01 reward</b> + <b>$0.002 admin fee (20%)</b> = <b>$0.012 total</b><br>
-                  This amount is deducted from your task budget per completion.
+                  <b>100% of task price goes to executor</b><br>
+                  Example: $0.0100 task → Executor receives $0.0100
+                </span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td>Admin Commission (20%)</td>
+            <td class="price-display" style="color:#facc15" id="adminCommissionDisplay">$0.0020</td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>20% admin fee on top of executor reward</b><br>
+                  Example: $0.0100 × 20% = $0.0020 admin commission
+                </span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td><b>Total Cost per Completion</b></td>
+            <td class="price-display" style="color:#f87171" id="totalCostDisplay"><b>$0.0120</b></td>
+            <td>
+              <span class="hint-quest">ⓘ
+                <span class="tooltip">
+                  <b>Total deducted from your budget per completion:</b><br>
+                  Executor ($0.0100) + Admin ($0.0020) = $0.0120
                 </span>
               </span>
             </td>
@@ -518,6 +547,67 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 
+  <!-- 💰 Add Funds Modal (Internal - No External Alerts) -->
+  <div id="addFundsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>➕ Add Funds to Task</h3>
+        <button class="modal-close" onclick="closeModal('addFundsModal')">&times;</button>
+      </div>
+      <div class="alert alert-info">
+        💡 Funds will be deducted from your personal balance and added to the task budget.
+      </div>
+      <div class="input-group">
+        <label>Amount to Add (USD) <span class="required">*</span></label>
+        <input type="number" id="addFundsAmount" step="0.01" min="0.01" placeholder="Enter amount">
+      </div>
+      <div class="alert alert-info" id="addFundsPreview" style="display:none">
+        <strong>Preview:</strong><br>
+        • Your balance will be reduced by: <span id="fundsPreviewDebit" style="color:#ef4444"></span><br>
+        • Task budget will increase by: <span id="fundsPreviewCredit" style="color:#22c55e"></span>
+      </div>
+      <button class="btn btn-success" onclick="confirmAddFunds()">✅ Confirm & Add Funds</button>
+    </div>
+  </div>
+
+  <!-- ↩️ Withdraw Funds Modal (Internal - No External Alerts) -->
+  <div id="withdrawFundsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>↩️ Withdraw Remaining Funds</h3>
+        <button class="modal-close" onclick="closeModal('withdrawFundsModal')">&times;</button>
+      </div>
+      <div class="alert alert-info">
+        ⚠️ This will return all unused funds to your balance and deactivate the task.<br>
+        <strong>Cannot withdraw if there are pending executions.</strong>
+      </div>
+      <div id="withdrawPreview">
+        <p><strong>Task:</strong> <span id="withdrawTaskTitle"></span></p>
+        <p><strong>Remaining Budget:</strong> <span id="withdrawAmount" style="color:#22c55e;font-weight:600"></span></p>
+        <p><strong>Pending Executions:</strong> <span id="withdrawPendingCount"></span></p>
+      </div>
+      <button class="btn btn-warning" onclick="confirmWithdrawFunds()">✅ Confirm Withdraw</button>
+    </div>
+  </div>
+
+  <!-- 📤 Submit Proof Modal (Internal) -->
+  <div id="submitProofModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📤 Submit Execution Proof</h3>
+        <button class="modal-close" onclick="closeModal('submitProofModal')">&times;</button>
+      </div>
+      <div class="alert alert-info">
+        ⏱️ <strong>Time Remaining:</strong> <span id="submitProofCountdown" class="countdown"></span>
+      </div>
+      <div class="input-group">
+        <label>Execution Proof (link, text, or description) <span class="required">*</span></label>
+        <textarea id="proofText" rows="5" placeholder="Attach the link or describe what you did..."></textarea>
+      </div>
+      <button class="btn btn-success" onclick="submitProof()">✅ Submit Proof</button>
+    </div>
+  </div>
+
   <!-- Proofs Modal -->
   <div id="proofsModal" class="modal">
     <div class="modal-content">
@@ -526,21 +616,6 @@ tr:hover{background:#1e293b/50}
         <button class="modal-close" onclick="closeModal('proofsModal')">&times;</button>
       </div>
       <div id="proofsList"></div>
-    </div>
-  </div>
-
-  <!-- Submit Proof Modal -->
-  <div id="submitProofModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📤 Submit Execution Proof</h3>
-        <button class="modal-close" onclick="closeModal('submitProofModal')">&times;</button>
-      </div>
-      <div class="input-group">
-        <label>Execution Proof (link, text, or description) <span class="required">*</span></label>
-        <textarea id="proofText" rows="5" placeholder="Attach the link or describe what you did..."></textarea>
-      </div>
-      <button class="btn btn-success" onclick="submitProof()">✅ Submit Proof</button>
     </div>
   </div>
 
@@ -567,6 +642,9 @@ const API = "https://perceptive-victory-production.up.railway.app";
 let currentUser = null;
 let currentTask = null;
 let currentProof = null;
+let currentFundTaskId = null;
+let currentWithdrawTaskId = null;
+let countdownTimers = {}; // Store countdown intervals
 
 // ================= INIT =================
 window.addEventListener('load', async () => {
@@ -602,10 +680,14 @@ window.addEventListener('load', async () => {
   console.log('✅ Tasks page loaded for user:', currentUser);
   
   // Hide disputes tab for non-admin
-  if (currentUser !== (process?.env?.ADMIN_ID || 'YOUR_ADMIN_ID')) {
+  const ADMIN_ID = '7171208519';
+  if (currentUser !== ADMIN_ID) {
     const disputesTab = document.getElementById('disputesTab');
     if (disputesTab) disputesTab.style.display = 'none';
   }
+  
+  // Start auto-check for expired applications
+  startExpiredApplicationsChecker();
   
   await loadAvailableTasks();
 });
@@ -672,6 +754,25 @@ function formatDate(date) {
   });
 }
 
+function formatDuration(secs) {
+  if (!secs) return 'Unspecified';
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs/60)}m`;
+  if (secs < 86400) return `${Math.floor(secs/3600)}h`;
+  return `${Math.floor(secs/86400)}d`;
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return 'EXPIRED';
+  const totalSeconds = Math.ceil(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
 // ================= BB Code Helper =================
 function insertBBCode(fieldId, open, close) {
   const field = document.getElementById(fieldId);
@@ -720,17 +821,22 @@ function toggleExecTypeFields() {
   document.getElementById('multiIntervalRow').style.display = execType === 'multiple' ? '' : 'none';
 }
 
+// ================= NEW PAYMENT SYSTEM CALCULATIONS =================
 function calculateTotalCost() {
   const reward = parseFloat(document.getElementById('formReward').value) || 0.01;
   const budget = parseFloat(document.getElementById('formBudget').value) || 1.00;
   
-  // 20% admin fee on reward
-  const fee = reward * 0.20;
-  const totalPerCompletion = reward + fee;
+  // NEW SYSTEM: 100% to executor + 20% admin commission ON TOP
+  const executorReward = reward;  // 100% to executor
+  const adminCommission = reward * 0.20;  // 20% admin fee on top
+  const totalCostPerExecution = executorReward + adminCommission;  // Total: reward + 20%
   
-  document.getElementById('costPerCompletion').textContent = '$' + totalPerCompletion.toFixed(4);
+  // Update displays
+  document.getElementById('executorRewardDisplay').textContent = '$' + executorReward.toFixed(4);
+  document.getElementById('adminCommissionDisplay').textContent = '$' + adminCommission.toFixed(4);
+  document.getElementById('totalCostDisplay').innerHTML = '<b>$' + totalCostPerExecution.toFixed(4) + '</b>';
   
-  const estimated = Math.floor(budget / totalPerCompletion);
+  const estimated = Math.floor(budget / totalCostPerExecution);
   document.getElementById('estimatedCompletions').textContent = estimated;
 }
 
@@ -748,7 +854,13 @@ async function loadAvailableTasks() {
       return;
     }
     
-    list.innerHTML = data.data.map(task => `
+    list.innerHTML = data.data.map(task => {
+      const remainingBudget = parseFloat(task.remaining_budget);
+      const reward = parseFloat(task.executor_reward);
+      const totalCost = reward * 1.20; // 100% + 20%
+      const availableSlots = Math.floor(remainingBudget / totalCost);
+      
+      return `
       <div class="proof-item">
         <div class="proof-header">
           <strong>${task.title}</strong>
@@ -759,28 +871,22 @@ async function loadAvailableTasks() {
         <small style="color:#94a3b8">
           💰 Remaining: ${formatPrice(task.remaining_budget)} | 
           ✅ Completed: ${task.completed_count} | 
-          ⏱️ Duration: ${formatDuration(task.duration_seconds)}
+          ⏱️ Duration: ${formatDuration(task.duration_seconds)} |
+          🎯 Available Slots: <strong style="color:#22c55e">${availableSlots}</strong>
         </small>
         <div class="proof-actions" style="margin-top:12px">
           <button class="btn btn-success btn-sm" onclick="applyForTask(${task.id})">🚀 Apply</button>
           <button class="btn btn-primary btn-sm" onclick="viewTaskDetail(${task.id})">📋 Details</button>
         </div>
       </div>
-    `).join('');
+    `}).join('');
   } catch (err) {
     console.error(err);
     list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
   }
 }
 
-function formatDuration(secs) {
-  if (!secs) return 'Unspecified';
-  if (secs < 60) return `${secs}s`;
-  if (secs < 3600) return `${Math.floor(secs/60)}m`;
-  if (secs < 86400) return `${Math.floor(secs/3600)}h`;
-  return `${Math.floor(secs/86400)}d`;
-}
-
+// ================= APPLY FOR TASK WITH RESERVATION =================
 async function applyForTask(taskId) {
   try {
     const res = await fetch(`${API}/api/tasks/${taskId}/apply`, {
@@ -791,7 +897,10 @@ async function applyForTask(taskId) {
     const data = await res.json();
     
     if (data.success) {
-      showAlert('✅ Applied for task. Go to "My Tasks" to submit proof', 'success');
+      showAlert('✅ Applied for task. One slot reserved for you.', 'success');
+      // Refresh the list to show updated available slots
+      loadAvailableTasks();
+      // Switch to My Tasks to show the applied task
       setTimeout(() => {
         switchTab('my');
         loadMyTasks();
@@ -804,7 +913,7 @@ async function applyForTask(taskId) {
   }
 }
 
-// ================= TASKS: MY TASKS (Internal View - Aviso Style) =================
+// ================= TASKS: MY TASKS =================
 async function loadMyTasks() {
   const list = document.getElementById('myTasksList');
   list.innerHTML = '<div class="loading">Loading your tasks...</div>';
@@ -866,8 +975,8 @@ async function loadMyTasks() {
               <div class="btn-group">
                 <button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
                 <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
-                ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="fundTask(${task.id})">➕ Add Funds</button>` : ''}
-                ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="withdrawTaskFunds(${task.id})">↩️ Withdraw ${formatPrice(remaining)}</button>` : ''}
+                ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
+                ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw ${formatPrice(remaining)}</button>` : ''}
                 ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete</button>` : ''}
               </div>
             </td>
@@ -878,6 +987,119 @@ async function loadMyTasks() {
   } catch (err) {
     console.error(err);
     list.innerHTML = '<p class="alert alert-error">Failed to load your tasks</p>';
+  }
+}
+
+// ================= 💰 ADD FUNDS MODAL (Internal - No External Alerts) =================
+function openAddFundsModal(taskId) {
+  currentFundTaskId = taskId;
+  document.getElementById('addFundsAmount').value = '';
+  document.getElementById('addFundsPreview').style.display = 'none';
+  openModal('addFundsModal');
+  
+  // Preview update on input
+  document.getElementById('addFundsAmount').oninput = function() {
+    const amount = parseFloat(this.value) || 0;
+    if (amount > 0) {
+      document.getElementById('fundsPreviewDebit').textContent = formatPrice(amount);
+      document.getElementById('fundsPreviewCredit').textContent = formatPrice(amount);
+      document.getElementById('addFundsPreview').style.display = 'block';
+    } else {
+      document.getElementById('addFundsPreview').style.display = 'none';
+    }
+  };
+}
+
+async function confirmAddFunds() {
+  const amount = parseFloat(document.getElementById('addFundsAmount').value);
+  if (!amount || amount <= 0) {
+    showAlert('⚠️ Please enter a valid amount', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentFundTaskId}/fund`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, amount: amount })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Funds added successfully', 'success');
+      closeModal('addFundsModal');
+      loadMyTasks(); // Refresh the list
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= ↩️ WITHDRAW FUNDS MODAL (Internal - No External Alerts) =================
+async function openWithdrawFundsModal(taskId) {
+  currentWithdrawTaskId = taskId;
+  
+  try {
+    // Fetch task details for preview
+    const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
+    const data = await res.json();
+    
+    if (!data.success) {
+      showAlert('❌ Failed to load task details', 'error');
+      return;
+    }
+    
+    const task = data.task;
+    const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+    
+    // Check for pending executions
+    const pendingRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
+    const pendingData = await pendingRes.json();
+    const pendingCount = pendingData.success ? pendingData.data.filter(p => p.status === 'pending').length : 0;
+    
+    document.getElementById('withdrawTaskTitle').textContent = task.title;
+    document.getElementById('withdrawAmount').textContent = formatPrice(remaining);
+    document.getElementById('withdrawPendingCount').textContent = pendingCount > 0 ? 
+      `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : 'None';
+    
+    // Disable button if there are pending executions
+    const btn = document.querySelector('#withdrawFundsModal .btn-warning');
+    if (pendingCount > 0) {
+      btn.disabled = true;
+      btn.textContent = '⚠️ Cannot withdraw (pending executions)';
+    } else {
+      btn.disabled = false;
+      btn.textContent = '✅ Confirm Withdraw';
+    }
+    
+    openModal('withdrawFundsModal');
+  } catch (err) {
+    showAlert('⚠️ Failed to load task details', 'error');
+  }
+}
+
+async function confirmWithdrawFunds() {
+  if (!confirm('Are you sure you want to withdraw the remaining funds?')) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentWithdrawTaskId}/withdraw`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert(`✅ Withdrawn ${formatPrice(data.amount)}`, 'success');
+      closeModal('withdrawFundsModal');
+      loadMyTasks(); // Refresh the list
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
   }
 }
 
@@ -894,7 +1116,7 @@ async function viewTaskDetail(taskId) {
     
     currentTask = data.task;
     const isCreator = data.is_creator;
-    const myExec = data.my_execution;
+    const myExecution = data.my_execution;
     
     document.getElementById('availableTasks').classList.add('hidden');
     document.getElementById('taskDetail').classList.remove('hidden');
@@ -922,23 +1144,41 @@ async function viewTaskDetail(taskId) {
     if (isCreator) {
       content += `
         <div class="btn-group" style="margin-bottom:20px">
-          <button class="btn btn-success btn-sm" onclick="fundTask(${data.task.id})">➕ Add Funds</button>
-          <button class="btn btn-warning btn-sm" onclick="withdrawTaskFunds(${data.task.id})">↩️ Withdraw Funds</button>
+          <button class="btn btn-success btn-sm" onclick="openAddFundsModal(${data.task.id})">➕ Add Funds</button>
+          <button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${data.task.id})">↩️ Withdraw Funds</button>
           <button class="btn btn-primary btn-sm" onclick="viewTaskProofs(${data.task.id})">📋 Review Proofs</button>
         </div>
       `;
-    } else if (myExec) {
-      if (myExec.status === 'pending') {
-        content += `
-          <div class="alert alert-info">📝 Your status: Pending</div>
-          <button class="btn btn-primary" onclick="openSubmitProofModal(${data.task.id})">📤 Submit Execution Proof</button>
-        `;
-      } else if (myExec.status === 'approved') {
-        content += `<div class="alert alert-success">✅ Your execution was approved! ${formatPrice(myExec.payment_amount * 0.8)} added to your balance</div>`;
-      } else if (myExec.status === 'rejected') {
+    } else if (myExecution) {
+      if (myExecution.status === 'pending') {
+        // Calculate countdown
+        const appliedAt = new Date(myExecution.created_at || myExecution.submitted_at);
+        const deadline = new Date(appliedAt.getTime() + (data.task.duration_seconds * 1000));
+        const now = new Date();
+        const remaining = deadline - now;
+        
+        if (remaining > 0) {
+          content += `
+            <div class="alert alert-info">
+              📝 Your status: Pending<br>
+              ⏱️ Time remaining: <span id="detailCountdown" class="countdown">${formatCountdown(remaining)}</span>
+            </div>
+            <button class="btn btn-primary" onclick="openSubmitProofModal(${data.task.id}, ${myExecution.id}, ${data.task.duration_seconds * 1000}, '${myExecution.created_at || myExecution.submitted_at}')">📤 Submit Execution Proof</button>
+          `;
+          // Start countdown for this task
+          startCountdown('detailCountdown', remaining, () => {
+            document.getElementById('detailCountdown').textContent = 'EXPIRED';
+            document.getElementById('detailCountdown').classList.add('expired');
+          });
+        } else {
+          content += `<div class="alert alert-error">⏰ Time expired. Your reservation has been released.</div>`;
+        }
+      } else if (myExecution.status === 'approved') {
+        content += `<div class="alert alert-success">✅ Your execution was approved! ${formatPrice(myExecution.payment_amount)} added to your balance</div>`;
+      } else if (myExecution.status === 'rejected') {
         content += `<div class="alert alert-error">❌ Your execution was rejected</div>
-        <button class="btn btn-warning" onclick="openDisputeModal(${data.task.id}, ${myExec.id})">⚠️ Create Dispute</button>`;
-      } else if (myExec.status === 'disputed') {
+        <button class="btn btn-warning" onclick="openDisputeModal(${data.task.id}, ${myExecution.id})">⚠️ Create Dispute</button>`;
+      } else if (myExecution.status === 'disputed') {
         content += `<div class="alert alert-info">⏳ Dispute under admin review</div>`;
       }
     } else {
@@ -956,41 +1196,6 @@ async function manageTask(taskId) {
   viewTaskDetail(taskId);
 }
 
-async function fundTask(taskId) {
-  const amount = prompt('Enter amount to add (USD):');
-  if (!amount || isNaN(amount) || amount <= 0) return;
-  
-  try {
-    const res = await fetch(`${API}/api/tasks/${taskId}/fund`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_id: currentUser, amount: parseFloat(amount) })
-    });
-    const data = await res.json();
-    showAlert(data.success ? '✅ Funds added' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) loadMyTasks();
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
-}
-
-async function withdrawTaskFunds(taskId) {
-  if (!confirm('Do you want to withdraw the remaining funds for this task?')) return;
-  
-  try {
-    const res = await fetch(`${API}/api/tasks/${taskId}/withdraw`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_id: currentUser })
-    });
-    const data = await res.json();
-    showAlert(data.success ? `✅ Withdrawn ${formatPrice(data.amount)}` : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) loadMyTasks();
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
-}
-
 async function deleteTask(taskId) {
   if (!confirm('⚠️ Are you sure you want to delete this task? Remaining funds will be refunded.')) return;
   
@@ -1006,6 +1211,128 @@ async function deleteTask(taskId) {
   } catch (err) {
     showAlert('⚠️ Connection error', 'error');
   }
+}
+
+// ================= 📤 SUBMIT PROOF WITH COUNTDOWN =================
+function openSubmitProofModal(taskId, executionId, durationMs, appliedAtStr) {
+  currentTask = { id: taskId };
+  currentProof = { id: executionId };
+  document.getElementById('proofText').value = '';
+  
+  // Calculate and display countdown
+  const appliedAt = new Date(appliedAtStr);
+  const deadline = new Date(appliedAt.getTime() + durationMs);
+  const now = new Date();
+  const remaining = deadline - now;
+  
+  const countdownEl = document.getElementById('submitProofCountdown');
+  countdownEl.textContent = formatCountdown(remaining);
+  countdownEl.className = 'countdown';
+  
+  if (remaining <= 0) {
+    countdownEl.textContent = 'EXPIRED';
+    countdownEl.classList.add('expired');
+    showAlert('⚠️ Time expired. Please re-apply for the task.', 'error');
+    return;
+  }
+  
+  // Start countdown timer
+  startCountdown('submitProofCountdown', remaining, () => {
+    countdownEl.textContent = 'EXPIRED';
+    countdownEl.classList.add('expired');
+    showAlert('⏰ Time expired. Your reservation has been released.', 'error');
+    closeModal('submitProofModal');
+  });
+  
+  openModal('submitProofModal');
+}
+
+function startCountdown(elementId, initialMs, onExpire) {
+  // Clear any existing timer for this element
+  if (countdownTimers[elementId]) {
+    clearInterval(countdownTimers[elementId]);
+  }
+  
+  let remaining = initialMs;
+  const el = document.getElementById(elementId);
+  
+  countdownTimers[elementId] = setInterval(() => {
+    remaining -= 1000;
+    if (remaining <= 0) {
+      clearInterval(countdownTimers[elementId]);
+      delete countdownTimers[elementId];
+      if (onExpire) onExpire();
+    } else if (el) {
+      el.textContent = formatCountdown(remaining);
+    }
+  }, 1000);
+}
+
+async function submitProof() {
+  const proof = document.getElementById('proofText').value.trim();
+  if (!proof || proof.length < 10) {
+    showAlert('⚠️ Please provide a detailed execution proof (at least 10 characters)', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentTask.id}/submit-proof`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, proof })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Proof submitted successfully. Waiting for review.', 'success');
+      closeModal('submitProofModal');
+      // Clear the countdown timer
+      if (countdownTimers['submitProofCountdown']) {
+        clearInterval(countdownTimers['submitProofCountdown']);
+        delete countdownTimers['submitProofCountdown'];
+      }
+      setTimeout(() => viewTaskDetail(currentTask.id), 1000);
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= AUTO-CHECK EXPIRED APPLICATIONS =================
+function startExpiredApplicationsChecker() {
+  // Check every 30 seconds for expired applications
+  setInterval(async () => {
+    try {
+      const res = await fetch(`${API}/api/tasks/my?user_id=${currentUser}`);
+      const data = await res.json();
+      if (!data.success || !data.data) return;
+      
+      for (const task of data.data) {
+        // Check each execution for this task
+        const proofsRes = await fetch(`${API}/api/tasks/${task.id}/proofs?user_id=${currentUser}`);
+        const proofsData = await proofsRes.json();
+        if (!proofsData.success || !proofsData.data) continue;
+        
+        for (const proof of proofsData.data) {
+          if (proof.status === 'pending' && proof.executor_id?.toString() === currentUser) {
+            const appliedAt = new Date(proof.submitted_at || proof.created_at);
+            const deadline = new Date(appliedAt.getTime() + (task.duration_seconds * 1000));
+            const now = new Date();
+            
+            if (now >= deadline) {
+              // Time expired - release the reservation (server handles this via cron or we can call an endpoint)
+              console.log(`⏰ Expired application for task ${task.id}, execution ${proof.id}`);
+              // Optionally call an endpoint to release: /api/tasks/:id/proofs/:proofId/release
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Expired applications check error:', err);
+    }
+  }, 30000);
 }
 
 // ================= PROOFS =================
@@ -1033,7 +1360,7 @@ async function viewTaskProofs(taskId) {
         ${proof.proof ? `<div class="proof-content">${proof.proof}</div>` : ''}
         ${proof.status === 'pending' ? `
           <div class="proof-actions">
-            <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount * 0.8)}</button>
+            <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
             <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
           </div>
         ` : proof.status === 'disputed' ? `
@@ -1086,40 +1413,6 @@ async function rejectProof(taskId, proofId) {
   }
 }
 
-// ================= SUBMIT PROOF =================
-function openSubmitProofModal(taskId) {
-  currentTask = { id: taskId };
-  document.getElementById('proofText').value = '';
-  openModal('submitProofModal');
-}
-
-async function submitProof() {
-  const proof = document.getElementById('proofText').value.trim();
-  if (!proof || proof.length < 10) {
-    showAlert('⚠️ Please provide a detailed execution proof (at least 10 characters)', 'error');
-    return;
-  }
-  
-  try {
-    const res = await fetch(`${API}/api/tasks/${currentTask.id}/submit-proof`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_id: currentUser, proof })
-    });
-    const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Proof submitted successfully', 'success');
-      closeModal('submitProofModal');
-      setTimeout(() => viewTaskDetail(currentTask.id), 1000);
-    } else {
-      showAlert('❌ ' + data.message, 'error');
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
-}
-
 // ================= DISPUTES =================
 function openDisputeModal(taskId, proofId) {
   currentTask = { id: taskId };
@@ -1156,7 +1449,8 @@ async function createDispute() {
 }
 
 async function loadDisputes() {
-  if (currentUser !== (process?.env?.ADMIN_ID || 'YOUR_ADMIN_ID')) return;
+  const ADMIN_ID = '7171208519';
+  if (currentUser !== ADMIN_ID) return;
   
   const list = document.getElementById('disputesList');
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
@@ -1318,6 +1612,12 @@ async function createTaskFromForm(event) {
   
   return false;
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  // Clear all countdown timers
+  Object.values(countdownTimers).forEach(timer => clearInterval(timer));
+});
 </script>
 </body>
 </html>
