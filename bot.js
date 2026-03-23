@@ -1769,7 +1769,7 @@ bot.action(/WITHDRAW_OK_(\d+)_(\d+)/, async (ctx) => {
   }
 });
 
-// ✅ معالجة زر رفض السحب - مصحح لإرجاع المبلغ
+// ✅ معالجة زر رفض السحب - إرجاع المبلغ الكامل قبل خصم العمولة
 bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
   if (!isAdmin(ctx)) return ctx.answerCbQuery('❌ غير مصرح');
   
@@ -1788,8 +1788,13 @@ bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
     }
     
     const withdrawal = withdrawalRes.rows[0];
-    const amount = parseFloat(withdrawal.amount);
+    const netAmount = parseFloat(withdrawal.amount); // ← هذا هو المبلغ بعد خصم العمولة (95%)
     const wallet = withdrawal.payeer_wallet;
+    
+    // ✅ حساب المبلغ الأصلي المطلوب قبل خصم العمولة (100%)
+    // المعادلة: netAmount = requestedAmount × 0.95
+    // إذن: requestedAmount = netAmount ÷ 0.95
+    const requestedAmount = netAmount / 0.95;
     
     // ✅ ثانياً: تحديث حالة السحب إلى "مرفوض"
     await pool.query(
@@ -1797,10 +1802,10 @@ bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
       ['rejected', withdrawId]
     );
     
-    // ✅ ✅ ✅ ثالثاً: إرجاع المبلغ لرصيد المستخدم ← هذا هو التعديل المطلوب ✅ ✅ ✅
+    // ✅ ثالثاً: إرجاع المبلغ الكامل (قبل خصم العمولة) لرصيد المستخدم ← هذا هو المطلوب
     await pool.query(
       'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
-      [amount, userId]
+      [requestedAmount, userId]
     );
     
     // ✅ رابعاً: تعديل رسالة الزر
@@ -1815,21 +1820,23 @@ bot.action(/WITHDRAW_NO_(\d+)_(\d+)/, async (ctx) => {
       await ctx.telegram.sendMessage(
         userId,
         `❌ تم رفض طلب السحب الخاص بك.
-💰 المبلغ: ${amount.toFixed(2)}$
+💰 المبلغ الأصلي: ${requestedAmount.toFixed(2)}$
+💰 المبلغ المسجل: ${netAmount.toFixed(2)}$ (بعد خصم 5%)
 💳 المحفظة: ${wallet}
-🔄 تم إرجاع المبلغ إلى رصيدك.`
+🔄 تم إرجاع المبلغ الكامل إلى رصيدك.`
       );
     } catch (e) {
       console.error('❌ خطأ عند إرسال رسالة للمستخدم:', e);
     }
     
-    await ctx.answerCbQuery('❌ تم رفض الطلب وإرجاع المبلغ');
+    await ctx.answerCbQuery('❌ تم رفض الطلب وإرجاع المبلغ الكامل');
     
   } catch (err) {
     console.error('❌ WITHDRAW_NO error:', err);
     await ctx.answerCbQuery('حدث خطأ');
   }
 });
+
 // ➕ إضافة مهمة جديدة
 bot.hears('➕ إضافة مهمة جديدة', async (ctx) => {
   if (!isAdmin(ctx)) return;
