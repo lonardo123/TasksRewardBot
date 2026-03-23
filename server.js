@@ -2322,6 +2322,7 @@ function isAdminAuthenticated(req, res, next) {
   const { admin_id: bodyAdminId } = req.body; // ✅ جديد: التحقق من body
   const ADMIN_ID = process.env.ADMIN_ID || '7171208519';
   
+  // التحقق من أي من المصدرين
   const userIdToCheck = queryUserId || bodyAdminId;
   
   if (userIdToCheck?.toString() === ADMIN_ID || admin_key === process.env.ADMIN_SECRET) {
