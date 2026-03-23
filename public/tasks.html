@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>📝 Tasks </title>
+<style>
+/* === Base Styles === */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#0f172a;color:#fff;min-height:100vh;line-height:1.6}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+.card{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #334155}
+.card h3{color:#60a5fa;margin-bottom:15px;font-size:18px}
+.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:all 0.2s}
+.btn-primary{background:#3b82f6;color:white}.btn-primary:hover{background:#2563eb}
+.btn-success{background:#22c55e;color:white}.btn-success:hover{background:#16a34a}
+.btn-danger{background:#ef4444;color:white}.btn-danger:hover{background:#dc2626}
+.btn-warning{background:#f59e0b;color:white}.btn-warning:hover{background:#d97706}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-group{display:flex;gap:10px;flex-wrap:wrap}
+.input-group{margin-bottom:15px}
+.input-group label{display:block;margin-bottom:5px;color:#94a3b8}
+.input-group input,.input-group textarea,.input-group select{
+  width:100%;padding:12px;border:1px solid #475569;border-radius:8px;
+  background:#1e293b;color:white;font-size:14px
+}
+.input-group input:focus,.input-group textarea:focus{outline:none;border-color:#3b82f6}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:12px;border-bottom:1px solid #334151;text-align:left}
+th{background:#1e293b;color:#94a3b8;font-weight:600}
+tr:hover{background:#1e293b/50}
+.status-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.status-pending{background:#f59e0b20;color:#f59e0b}
+.status-approved{background:#22c55e20;color:#22c55e}
+.status-rejected{background:#ef444420;color:#ef4444}
+.status-disputed{background:#8b5cf620;color:#8b5cf6}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal.active{display:flex}
+.modal-content{background:#1e293b;border-radius:12px;padding:25px;width:90%;max-width:600px;max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #334155}
+.modal-close{background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer}
+.modal-close:hover{color:white}
+.alert{padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px}
+.alert-success{background:#22c55e20;color:#22c55e;border:1px solid #22c55e40}
+.alert-error{background:#ef444420;color:#ef4444;border:1px solid #ef444440}
+.alert-info{background:#3b82f620;color:#60a5fa;border:1px solid #3b82f640}
+.tabs{display:flex;gap:5px;margin-bottom:20px;border-bottom:1px solid #334155;padding-bottom:10px}
+.tab{padding:10px 20px;border-radius:8px 8px 0 0;cursor:pointer;background:#1e293b;color:#94a3b8}
+.tab.active{background:#3b82f6;color:white}
+.proof-item{background:#1e293b;border-radius:8px;padding:15px;margin-bottom:10px;border:1px solid #334155}
+.proof-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.proof-content{color:#cbd5e1;font-size:14px;white-space:pre-wrap;background:#0f172a;padding:12px;border-radius:6px}
+.proof-actions{display:flex;gap:10px;margin-top:10px}
+.budget-bar{height:8px;background:#334155;border-radius:4px;overflow:hidden;margin:10px 0}
+.budget-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#22c55e);transition:width 0.3s}
+.price-tag{background:#22c55e20;color:#22c55e;padding:4px 10px;border-radius:6px;font-weight:600;font-size:13px}
+.commission-info{font-size:12px;color:#94a3b8;margin-top:5px}
+.loading{text-align:center;padding:40px;color:#94a3b8}
+.hidden{display:none!important}
+@media(max-width:768px){
+  .btn-group{flex-direction:column}
+  th,td{padding:8px;font-size:13px}
+  .modal-content{width:95%;padding:20px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Navigation Bar -->
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <h2>📝 Tasks Center</h2>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="openCreateTaskModal()">➕ Create New Task</button>
+      <button class="btn btn-success" onclick="loadAvailableTasks()">🔍 Browse Tasks</button>
+      <button class="btn btn-warning" onclick="loadMyTasks()">📋 My Tasks</button>
+      <button class="btn btn-primary" onclick="goBack()">⬅️ Back</button>
+    </div>
+  </div>
+
+  <!-- Alert Messages -->
+  <div id="alertBox" class="alert hidden"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="available" onclick="switchTab('available')">🔍 Available Tasks</div>
+    <div class="tab" data-tab="my" onclick="switchTab('my')">📋 My Tasks</div>
+    <div class="tab" data-tab="disputes" onclick="switchTab('disputes')" id="disputesTab">⚠️ Disputes</div>
+  </div>
+
+  <!-- Available Tasks Section -->
+  <div id="availableTasks" class="card">
+    <h3>🔍 Available Tasks for Execution</h3>
+    <div id="availableTasksList"></div>
+  </div>
+
+  <!-- My Tasks Section -->
+  <div id="myTasks" class="card hidden">
+    <h3>📋 Tasks You Created</h3>
+    <div id="myTasksList"></div>
+  </div>
+
+  <!-- Disputes Section (Admin Only) -->
+  <div id="disputesSection" class="card hidden">
+    <h3>⚠️ Dispute Management</h3>
+    <div id="disputesList"></div>
+  </div>
+
+  <!-- Task Details -->
+  <div id="taskDetail" class="card hidden">
+    <button class="btn btn-primary btn-sm" onclick="showSection('list')">⬅️ Back to List</button>
+    <div id="taskDetailContent"></div>
+  </div>
+</div>
+
+<!-- Create Task Modal -->
+<div id="createTaskModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>➕ Create New Task</h3>
+      <button class="modal-close" onclick="closeModal('createTaskModal')">&times;</button>
+    </div>
+    <div class="input-group">
+      <label>Task Title *</label>
+      <input type="text" id="taskTitle" placeholder="Example: Subscribe to my YouTube channel">
+    </div>
+    <div class="input-group">
+      <label>Task Description & Instructions *</label>
+      <textarea id="taskDesc" rows="4" placeholder="Explain in detail what the executor must do..."></textarea>
+    </div>
+    <div class="input-group">
+      <label>Reward per Execution (USD) *</label>
+      <input type="number" id="taskPrice" step="0.01" min="0.01" placeholder="0.50">
+      <div class="commission-info">💡 Executor gets 80%, 20% admin commission</div>
+    </div>
+    <div class="input-group">
+      <label>Total Task Budget *</label>
+      <input type="number" id="taskBudget" step="0.01" min="0.10" placeholder="10.00">
+    </div>
+    <div class="input-group">
+      <label>Execution Duration (seconds) - Optional</label>
+      <input type="number" id="taskDuration" placeholder="86400 (1 day)">
+    </div>
+    <button class="btn btn-success" onclick="createTask()">🚀 Create Task</button>
+  </div>
+</div>
+
+<!-- Proofs Modal -->
+<div id="proofsModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📋 Execution Proofs</h3>
+      <button class="modal-close" onclick="closeModal('proofsModal')">&times;</button>
+    </div>
+    <div id="proofsList"></div>
+  </div>
+</div>
+
+<!-- Submit Proof Modal -->
+<div id="submitProofModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📤 Submit Execution Proof</h3>
+      <button class="modal-close" onclick="closeModal('submitProofModal')">&times;</button>
+    </div>
+    <div class="input-group">
+      <label>Execution Proof (link, text, or description) *</label>
+      <textarea id="proofText" rows="5" placeholder="Attach the link or describe what you did..."></textarea>
+    </div>
+    <button class="btn btn-success" onclick="submitProof()">✅ Submit Proof</button>
+  </div>
+</div>
+
+<!-- Dispute Modal -->
+<div id="disputeModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>⚠️ Create Dispute</h3>
+      <button class="modal-close" onclick="closeModal('disputeModal')">&times;</button>
+    </div>
+    <div class="alert alert-info">Your dispute will be reviewed by admin. Please explain the issue in detail.</div>
+    <div class="input-group">
+      <label>Reason for Dispute *</label>
+      <textarea id="disputeReason" rows="4" placeholder="Explain the problem you encountered..."></textarea>
+    </div>
+    <button class="btn btn-warning" onclick="createDispute()">📤 Submit Dispute</button>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const API = "https://perceptive-victory-production.up.railway.app";
+let currentUser = null;
+let currentTask = null;
+let currentProof = null;
+
+// ================= INIT =================
+window.addEventListener('load', async () => {
+  const telegramId = localStorage.getItem('telegram_id');
+  if (!telegramId || !/^\d+$/.test(telegramId)) {
+    showAlert('⚠️ Please login first', 'error');
+    setTimeout(() => window.location.href = '/', 2000);
+    return;
+  }
+  currentUser = telegramId;
+  
+  // Hide disputes tab for non-admin users
+  if (currentUser !== process.env.ADMIN_ID) {
+    document.getElementById('disputesTab').style.display = 'none';
+  }
+  
+  await loadAvailableTasks();
+});
+
+// ================= UTILS =================
+function showAlert(msg, type) {
+  const el = document.getElementById('alertBox');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  
+  document.getElementById('availableTasks').classList.add('hidden');
+  document.getElementById('myTasks').classList.add('hidden');
+  document.getElementById('disputesSection').classList.add('hidden');
+  document.getElementById('taskDetail').classList.add('hidden');
+  
+  if (tab === 'available') {
+    document.getElementById('availableTasks').classList.remove('hidden');
+    loadAvailableTasks();
+  } else if (tab === 'my') {
+    document.getElementById('myTasks').classList.remove('hidden');
+    loadMyTasks();
+  } else if (tab === 'disputes') {
+    document.getElementById('disputesSection').classList.remove('hidden');
+    loadDisputes();
+  }
+}
+
+function showSection(section) {
+  if (section === 'list') {
+    document.getElementById('taskDetail').classList.add('hidden');
+    document.getElementById('availableTasks').classList.remove('hidden');
+  }
+}
+
+function goBack() {
+  if (window.history.length > 1) window.history.back();
+  else window.location.href = '/';
+}
+
+function formatPrice(amount) {
+  return '$' + parseFloat(amount).toFixed(4);
+}
+
+function formatDate(date) {
+  return new Date(date).toLocaleString('en-US', { 
+    year:'numeric', month:'short', day:'numeric', 
+    hour:'2-digit', minute:'2-digit' 
+  });
+}
+
+// ================= TASKS: AVAILABLE =================
+async function loadAvailableTasks() {
+  const list = document.getElementById('availableTasksList');
+  list.innerHTML = '<div class="loading">Loading tasks...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/available?user_id=${currentUser}`);
+    const data = await res.json();
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No tasks available at the moment</p>';
+      return;
+    }
+    
+    list.innerHTML = data.data.map(task => `
+      <div class="proof-item">
+        <div class="proof-header">
+          <strong>${task.title}</strong>
+          <span class="price-tag">${formatPrice(task.executor_reward)} per execution</span>
+        </div>
+        <p style="color:#cbd5e1;font-size:14px;margin:10px 0">${task.description}</p>
+        <div class="budget-bar"><div class="budget-fill" style="width:${(1 - task.remaining_budget/(task.budget-task.spent+task.remaining_budget))*100}%"></div></div>
+        <small style="color:#94a3b8">
+          💰 Remaining budget: ${formatPrice(task.remaining_budget)} | 
+          ✅ Completed: ${task.completed_count} times | 
+          ⏱️ Duration: ${Math.floor(task.duration_seconds/3600)} hours
+        </small>
+        <div class="proof-actions" style="margin-top:12px">
+          <button class="btn btn-success btn-sm" onclick="applyForTask(${task.id})">🚀 Apply for Task</button>
+          <button class="btn btn-primary btn-sm" onclick="viewTaskDetail(${task.id})">📋 Details</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
+  }
+}
+
+async function applyForTask(taskId) {
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/apply`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Applied for task. Go to "My Tasks" to submit proof', 'success');
+      setTimeout(() => {
+        switchTab('my');
+        loadMyTasks();
+      }, 1500);
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= TASKS: MY TASKS =================
+async function loadMyTasks() {
+  const list = document.getElementById('myTasksList');
+  list.innerHTML = '<div class="loading">Loading...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/my?user_id=${currentUser}`);
+    const data = await res.json();
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">You haven\'t created any tasks yet</p>';
+      return;
+    }
+    
+    list.innerHTML = data.data.map(task => {
+      const remaining = task.budget - task.spent;
+      const canDelete = !task.total_executions || 
+        (new Date() - new Date(task.created_at)) > 15*24*60*60*1000;
+      
+      return `
+      <div class="proof-item">
+        <div class="proof-header">
+          <strong>${task.title}</strong>
+          <span class="status-badge status-${task.is_active ? 'approved' : 'rejected'}">
+            ${task.is_active ? '🟢 Active' : '🔴 Inactive'}
+          </span>
+        </div>
+        <p style="color:#cbd5e1;font-size:14px;margin:10px 0">
+          💰 Executor reward: ${formatPrice(task.executor_reward)} | 
+          💵 Budget: ${formatPrice(task.budget)} | 
+          💸 Remaining: ${formatPrice(remaining)}
+        </p>
+        <small style="color:#94a3b8">
+          📊 Total executions: ${task.total_executions} | 
+          ✅ Approved: ${task.approved_count} | 
+          📅 Created: ${formatDate(task.created_at)}
+        </small>
+        <div class="proof-actions" style="margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
+          <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
+          ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="fundTask(${task.id})">➕ Add Funds</button>` : ''}
+          ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="withdrawTaskFunds(${task.id})">↩️ Withdraw ${formatPrice(remaining)}</button>` : ''}
+          ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
+  }
+}
+
+// ================= TASK: DETAIL & MANAGEMENT =================
+async function viewTaskDetail(taskId) {
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
+    const data = await res.json();
+    
+    if (!data.success) {
+      showAlert('❌ ' + data.message, 'error');
+      return;
+    }
+    
+    currentTask = data.task;
+    const isCreator = data.is_creator;
+    const myExec = data.my_execution;
+    
+    document.getElementById('availableTasks').classList.add('hidden');
+    document.getElementById('taskDetail').classList.remove('hidden');
+    
+    let content = `
+      <h3 style="margin-bottom:15px">${data.task.title}</h3>
+      <p style="color:#cbd5e1;margin-bottom:20px">${data.task.description}</p>
+      
+      <div style="background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+          <span>💰 Execution reward:</span>
+          <strong style="color:#22c55e">${formatPrice(data.task.executor_reward)}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+          <span>💵 Remaining budget:</span>
+          <strong>${formatPrice(data.task.budget - data.task.spent)}</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          <span>⏱️ Execution time:</span>
+          <strong>${Math.floor(data.task.duration_seconds/60)} minutes</strong>
+        </div>
+      </div>
+    `;
+    
+    if (isCreator) {
+      content += `
+        <div class="btn-group" style="margin-bottom:20px">
+          <button class="btn btn-success btn-sm" onclick="fundTask(${data.task.id})">➕ Add Funds</button>
+          <button class="btn btn-warning btn-sm" onclick="withdrawTaskFunds(${data.task.id})">↩️ Withdraw Funds</button>
+          <button class="btn btn-primary btn-sm" onclick="viewTaskProofs(${data.task.id})">📋 Review Proofs</button>
+        </div>
+      `;
+    } else if (myExec) {
+      if (myExec.status === 'pending') {
+        content += `
+          <div class="alert alert-info">📝 Your status: Pending</div>
+          <button class="btn btn-primary" onclick="openSubmitProofModal(${data.task.id})">📤 Submit Execution Proof</button>
+        `;
+      } else if (myExec.status === 'approved') {
+        content += `<div class="alert alert-success">✅ Your execution was approved! ${formatPrice(myExec.payment_amount * 0.8)} added to your balance</div>`;
+      } else if (myExec.status === 'rejected') {
+        content += `<div class="alert alert-error">❌ Your execution was rejected</div>
+        <button class="btn btn-warning" onclick="openDisputeModal(${data.task.id}, ${myExec.id})">⚠️ Create Dispute</button>`;
+      } else if (myExec.status === 'disputed') {
+        content += `<div class="alert alert-info">⏳ Dispute under admin review</div>`;
+      }
+    } else {
+      content += `<button class="btn btn-success" onclick="applyForTask(${data.task.id})">🚀 Apply for Task</button>`;
+    }
+    
+    document.getElementById('taskDetailContent').innerHTML = content;
+  } catch (err) {
+    console.error(err);
+    showAlert('⚠️ Failed to load task details', 'error');
+  }
+}
+
+async function manageTask(taskId) {
+  viewTaskDetail(taskId);
+}
+
+async function fundTask(taskId) {
+  const amount = prompt('Enter amount to add (USD):');
+  if (!amount || isNaN(amount) || amount <= 0) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/fund`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, amount: parseFloat(amount) })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '✅ Funds added' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) loadMyTasks();
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+async function withdrawTaskFunds(taskId) {
+  if (!confirm('Do you want to withdraw the remaining funds for this task?')) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/withdraw`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser })
+    });
+    const data = await res.json();
+    showAlert(data.success ? `✅ Withdrawn ${formatPrice(data.amount)}` : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) loadMyTasks();
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+async function deleteTask(taskId) {
+  if (!confirm('⚠️ Are you sure you want to delete this task? Remaining funds will be refunded.')) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}`, {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser })
+    });
+    const data = await res.json();
+    showAlert(data.success ? `✅ Task deleted. ${data.refunded > 0 ? 'Refunded ' + formatPrice(data.refunded) : ''}` : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) loadMyTasks();
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= PROOFS =================
+async function viewTaskProofs(taskId) {
+  openModal('proofsModal');
+  const list = document.getElementById('proofsList');
+  list.innerHTML = '<div class="loading">Loading...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
+    const data = await res.json();
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No proofs to review</p>';
+      return;
+    }
+    
+    list.innerHTML = data.data.map(proof => `
+      <div class="proof-item">
+        <div class="proof-header">
+          <strong>👤 @${proof.executor_username || proof.executor_id}</strong>
+          <span class="status-badge status-${proof.status}">${getStatusText(proof.status)}</span>
+        </div>
+        <small style="color:#94a3b8">📅 ${formatDate(proof.submitted_at)}</small>
+        ${proof.proof ? `<div class="proof-content">${proof.proof}</div>` : ''}
+        ${proof.status === 'pending' ? `
+          <div class="proof-actions">
+            <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount * 0.8)}</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
+          </div>
+        ` : proof.status === 'disputed' ? `
+          <div class="alert alert-info" style="margin-top:10px">⚠️ This execution is under dispute - waiting for admin review</div>
+        ` : ''}
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load proofs</p>';
+  }
+}
+
+function getStatusText(status) {
+  const map = { pending: '⏳ Pending', approved: '✅ Approved', rejected: '❌ Rejected', disputed: '⚠️ Disputed' };
+  return map[status] || status;
+}
+
+async function approveProof(taskId, proofId) {
+  if (!confirm('✅ Confirm approving this proof and sending payment?')) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) viewTaskProofs(taskId);
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+async function rejectProof(taskId, proofId) {
+  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, reason })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) viewTaskProofs(taskId);
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= SUBMIT PROOF =================
+function openSubmitProofModal(taskId) {
+  currentTask = { id: taskId };
+  document.getElementById('proofText').value = '';
+  openModal('submitProofModal');
+}
+
+async function submitProof() {
+  const proof = document.getElementById('proofText').value.trim();
+  if (!proof || proof.length < 10) {
+    showAlert('⚠️ Please provide a detailed execution proof (at least 10 characters)', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentTask.id}/submit-proof`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, proof })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Proof submitted successfully', 'success');
+      closeModal('submitProofModal');
+      setTimeout(() => viewTaskDetail(currentTask.id), 1000);
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= DISPUTES =================
+function openDisputeModal(taskId, proofId) {
+  currentTask = { id: taskId };
+  currentProof = { id: proofId };
+  document.getElementById('disputeReason').value = '';
+  openModal('disputeModal');
+}
+
+async function createDispute() {
+  const reason = document.getElementById('disputeReason').value.trim();
+  if (!reason || reason.length < 20) {
+    showAlert('⚠️ Please explain the dispute in detail (at least 20 characters)', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentTask.id}/proofs/${currentProof.id}/dispute`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, reason })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Dispute created. Admin will review and get back to you', 'success');
+      closeModal('disputeModal');
+      setTimeout(() => viewTaskDetail(currentTask.id), 1500);
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+async function loadDisputes() {
+  // Admin only
+  if (currentUser !== process.env.ADMIN_ID) return;
+  
+  const list = document.getElementById('disputesList');
+  list.innerHTML = '<div class="loading">Loading disputes...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/task-disputes?admin_key=${process.env.ADMIN_SECRET}`);
+    const data = await res.json();
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No open disputes</p>';
+      return;
+    }
+    
+    list.innerHTML = data.data.map(d => `
+      <div class="proof-item">
+        <div class="proof-header">
+          <strong>⚠️ Dispute #${d.id}</strong>
+          <span class="status-badge status-disputed">Open</span>
+        </div>
+        <p><strong>Task:</strong> ${d.task_title} (#${d.task_id})</p>
+        <p><strong>Executor:</strong> @${d.executor_username || d.executor_id}</p>
+        <p><strong>Task Creator:</strong> @${d.creator_username || d.creator_id}</p>
+        <p><strong>Amount:</strong> ${formatPrice(d.payment_amount)}</p>
+        <div class="proof-content" style="margin:10px 0">${d.reason}</div>
+        <div class="input-group">
+          <label>Admin Decision:</label>
+          <select id="resolve-${d.id}">
+            <option value="executor">✅ Pay executor</option>
+            <option value="none">❌ No payment (refund to creator)</option>
+          </select>
+          <textarea id="resolution-${d.id}" placeholder="Decision note..." style="margin-top:10px"></textarea>
+        </div>
+        <button class="btn btn-success btn-sm" onclick="resolveDispute(${d.id})">✅ Resolve Dispute</button>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
+  }
+}
+
+async function resolveDispute(disputeId) {
+  const payout = document.getElementById(`resolve-${disputeId}`).value;
+  const resolution = document.getElementById(`resolution-${disputeId}`).value || 'Resolved by admin';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/task-disputes/${disputeId}/resolve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        admin_key: process.env.ADMIN_SECRET,
+        admin_id: process.env.ADMIN_ID,
+        payout_to: payout,
+        resolution
+      })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '✅ Dispute resolved' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) loadDisputes();
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= CREATE TASK =================
+function openCreateTaskModal() {
+  document.getElementById('taskTitle').value = '';
+  document.getElementById('taskDesc').value = '';
+  document.getElementById('taskPrice').value = '';
+  document.getElementById('taskBudget').value = '';
+  document.getElementById('taskDuration').value = '';
+  openModal('createTaskModal');
+}
+
+async function createTask() {
+  const title = document.getElementById('taskTitle').value.trim();
+  const description = document.getElementById('taskDesc').value.trim();
+  const price = parseFloat(document.getElementById('taskPrice').value);
+  const budget = parseFloat(document.getElementById('taskBudget').value);
+  const duration = parseInt(document.getElementById('taskDuration').value) || 86400;
+  
+  if (!title || !description || !price || !budget) {
+    showAlert('⚠️ Please fill all required fields', 'error');
+    return;
+  }
+  if (price < 0.01 || budget < 0.10) {
+    showAlert('⚠️ Minimum: reward $0.01, budget $0.10', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/create`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        creator_id: currentUser,
+        title, description,
+        price_per_execution: price,
+        budget, duration_seconds: duration
+      })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Task created successfully', 'success');
+      closeModal('createTaskModal');
+      switchTab('my');
+      loadMyTasks();
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+</script>
+</body>
+</html>
