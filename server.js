@@ -2316,12 +2316,15 @@ app.get("/api/contact/history", async (req, res) => {
 
 // ======================= 📝 TASKS SYSTEM API - UPDATED =======================
 
-// ✅ Middleware: Admin Authentication
+// ✅ Middleware: Admin Authentication - محدث للتحقق من query و body
 function isAdminAuthenticated(req, res, next) {
-  const { user_id, admin_key } = req.query;
+  const { user_id: queryUserId, admin_key } = req.query;
+  const { admin_id: bodyAdminId } = req.body; // ✅ جديد: التحقق من body
   const ADMIN_ID = process.env.ADMIN_ID || '7171208519';
   
-  if (user_id?.toString() === ADMIN_ID || admin_key === process.env.ADMIN_SECRET) {
+  const userIdToCheck = queryUserId || bodyAdminId;
+  
+  if (userIdToCheck?.toString() === ADMIN_ID || admin_key === process.env.ADMIN_SECRET) {
     next();
   } else {
     res.status(403).json({ success: false, message: "Unauthorized: Admin access required" });
