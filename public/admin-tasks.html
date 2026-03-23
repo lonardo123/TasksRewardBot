@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>⚙️ Admin Tasks Panel</title>
+<style>
+/* === Base Styles === */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:#0f172a;color:#fff;min-height:100vh;line-height:1.6}
+.container{max-width:1400px;margin:0 auto;padding:20px}
+.card{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #334155}
+.card h3{color:#60a5fa;margin-bottom:15px;font-size:18px}
+.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:all 0.2s}
+.btn-primary{background:#3b82f6;color:white}.btn-primary:hover{background:#2563eb}
+.btn-success{background:#22c55e;color:white}.btn-success:hover{background:#16a34a}
+.btn-danger{background:#ef4444;color:white}.btn-danger:hover{background:#dc2626}
+.btn-warning{background:#f59e0b;color:white}.btn-warning:hover{background:#d97706}
+.btn-sm{padding:6px 12px;font-size:13px}
+.btn-group{display:flex;gap:10px;flex-wrap:wrap}
+.input-group{margin-bottom:15px}
+.input-group label{display:block;margin-bottom:5px;color:#94a3b8;font-size:14px}
+.input-group input,.input-group textarea,.input-group select{
+  width:100%;padding:12px;border:1px solid #475569;border-radius:8px;
+  background:#1e293b;color:white;font-size:14px
+}
+.input-group input:focus,.input-group textarea:focus{outline:none;border-color:#3b82f6}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:12px;border-bottom:1px solid #334151;text-align:left}
+th{background:#1e293b;color:#94a3b8;font-weight:600}
+tr:hover{background:#1e293b/50}
+.status-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.status-pending{background:#f59e0b20;color:#f59e0b}
+.status-approved{background:#22c55e20;color:#22c55e}
+.status-rejected{background:#ef444420;color:#ef4444}
+.status-disputed{background:#8b5cf620;color:#8b5cf6}
+.alert{padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px}
+.alert-success{background:#22c55e20;color:#22c55e;border:1px solid #22c55e40}
+.alert-error{background:#ef444420;color:#ef4444;border:1px solid #ef444440}
+.alert-info{background:#3b82f620;color:#60a5fa;border:1px solid #3b82f640}
+.proof-item{background:#1e293b;border-radius:8px;padding:15px;margin-bottom:10px;border:1px solid #334155}
+.proof-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.proof-content{color:#cbd5e1;font-size:14px;white-space:pre-wrap;background:#0f172a;padding:12px;border-radius:6px}
+.proof-actions{display:flex;gap:10px;margin-top:10px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:20px}
+.stat-card{background:#1e293b;padding:20px;border-radius:12px;text-align:center;border:1px solid #334155}
+.stat-card h4{color:#94a3b8;font-size:14px;margin-bottom:5px}
+.stat-card .value{font-size:24px;font-weight:600;color:#22c55e}
+.stat-card .value.warning{color:#facc15}
+.stat-card .value.danger{color:#ef4444}
+.loading{text-align:center;padding:40px;color:#94a3b8}
+.hidden{display:none!important}
+.tabs{display:flex;gap:5px;margin-bottom:20px;border-bottom:1px solid #334155;padding-bottom:10px}
+.tab{padding:10px 20px;border-radius:8px 8px 0 0;cursor:pointer;background:#1e293b;color:#94a3b8}
+.tab.active{background:#3b82f6;color:white}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal.active{display:flex}
+.modal-content{background:#1e293b;border-radius:12px;padding:25px;width:90%;max-width:800px;max-height:90vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #334155}
+.modal-close{background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer}
+.modal-close:hover{color:white}
+@media(max-width:768px){
+  .btn-group{flex-direction:column}
+  th,td{padding:8px;font-size:13px}
+  .stats-grid{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- Admin Header -->
+  <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <h2>⚙️ Admin Tasks Management</h2>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="refreshAll()">🔄 Refresh All</button>
+      <button class="btn btn-danger" onclick="logout()">🚪 Logout</button>
+    </div>
+  </div>
+
+  <!-- Alert Messages (Internal - No External Alerts) -->
+  <div id="alertBox" class="alert hidden"></div>
+
+  <!-- Stats Dashboard -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <h4>📋 Pending Proofs</h4>
+      <div class="value warning" id="pendingProofsCount">0</div>
+    </div>
+    <div class="stat-card">
+      <h4>⚠️ Open Disputes</h4>
+      <div class="value danger" id="openDisputesCount">0</div>
+    </div>
+    <div class="stat-card">
+      <h4>✅ Approved Today</h4>
+      <div class="value" id="approvedTodayCount">0</div>
+    </div>
+    <div class="stat-card">
+      <h4>💰 Admin Commission</h4>
+      <div class="value" id="adminCommissionTotal">$0.00</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
+    <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
+    <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
+  </div>
+
+  <!-- Pending Proofs Section -->
+  <div id="proofsSection" class="card">
+    <h3>📋 Pending Proofs Review</h3>
+    <div id="pendingProofsList"></div>
+  </div>
+
+  <!-- Disputes Section -->
+  <div id="disputesSection" class="card hidden">
+    <h3>⚠️ Open Disputes</h3>
+    <div id="disputesList"></div>
+  </div>
+
+  <!-- Statistics Section -->
+  <div id="statsSection" class="card hidden">
+    <h3>📊 Commission Statistics</h3>
+    <div id="statsContent"></div>
+  </div>
+</div>
+
+<!-- Resolve Dispute Modal -->
+<div id="resolveModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>⚖️ Resolve Dispute #<span id="resolveDisputeId"></span></h3>
+      <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
+    </div>
+    <div class="alert alert-info">Review the proof and decide the outcome.</div>
+    <div id="resolveProofContent" style="margin:15px 0"></div>
+    <div class="input-group">
+      <label>Decision:</label>
+      <select id="resolveDecision">
+        <option value="executor">✅ Pay executor (full amount)</option>
+        <option value="none">❌ No payment (refund to creator)</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Resolution Note:</label>
+      <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
+    </div>
+    <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const API = "https://perceptive-victory-production.up.railway.app";
+const ADMIN_ID = "7171208519"; // 🔐 Admin Telegram ID - HARD CODED
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "your_admin_secret_here";
+let currentDispute = null;
+
+// ================= INIT =================
+window.addEventListener('load', async () => {
+  // 🔐 Admin Authentication Check - STRICT
+  const telegramId = localStorage.getItem('telegram_id');
+  
+  if (!telegramId || telegramId !== ADMIN_ID) {
+    document.body.innerHTML = `
+      <div style="display:flex;justify-content:center;align-items:center;min-height:100vh;background:#0f172a;color:white">
+        <div style="text-align:center;padding:40px;background:#1e293b;border-radius:12px;border:1px solid #ef4444;max-width:500px">
+          <h2 style="color:#ef4444;margin-bottom:15px">🔐 Access Denied</h2>
+          <p>This page is restricted to admin only.</p>
+          <p style="margin-top:10px;color:#94a3b8">Required Admin ID: <strong>${ADMIN_ID}</strong></p>
+          <p style="margin-top:5px;color:#94a3b8;font-size:13px">Your ID: ${telegramId || 'Not logged in'}</p>
+          <button class="btn btn-primary" onclick="window.location.href='/'" style="margin-top:20px">⬅️ Back to App</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  await refreshAll();
+});
+
+// ================= UTILS =================
+function showAlert(msg, type) {
+  const el = document.getElementById('alertBox');
+  if (!el) return;
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  
+  document.getElementById('proofsSection').classList.add('hidden');
+  document.getElementById('disputesSection').classList.add('hidden');
+  document.getElementById('statsSection').classList.add('hidden');
+  
+  if (tab === 'proofs') {
+    document.getElementById('proofsSection').classList.remove('hidden');
+    loadPendingProofs();
+  } else if (tab === 'disputes') {
+    document.getElementById('disputesSection').classList.remove('hidden');
+    loadDisputes();
+  } else if (tab === 'stats') {
+    document.getElementById('statsSection').classList.remove('hidden');
+    loadStats();
+  }
+}
+
+function formatPrice(amount) {
+  return '$' + parseFloat(amount).toFixed(4);
+}
+
+function formatDate(date) {
+  return new Date(date).toLocaleString('en-US', { 
+    year:'numeric', month:'short', day:'numeric', 
+    hour:'2-digit', minute:'2-digit' 
+  });
+}
+
+function logout() {
+  localStorage.removeItem('telegram_id');
+  window.location.href = '/';
+}
+
+// ================= REFRESH ALL =================
+async function refreshAll() {
+  await loadPendingProofs();
+  await loadDisputes();
+  await loadStats();
+  showAlert('🔄 Data refreshed', 'success');
+}
+
+// ================= PENDING PROOFS =================
+async function loadPendingProofs() {
+  const list = document.getElementById('pendingProofsList');
+  list.innerHTML = '<div class="loading">Loading pending proofs...</div>';
+  
+  try {
+    // Get all active tasks first (created by anyone, admin can review all)
+    const tasksRes = await fetch(`${API}/api/tasks/my?user_id=${ADMIN_ID}`);
+    const tasksData = await tasksRes.json();
+    
+    let allProofs = [];
+    
+    if (tasksData.success && tasksData.data?.length) {
+      // Fetch proofs for each task created by admin
+      for (const task of tasksData.data) {
+        const proofsRes = await fetch(`${API}/api/tasks/${task.id}/proofs?user_id=${ADMIN_ID}`);
+        const proofsData = await proofsRes.json();
+        if (proofsData.success && proofsData.data) {
+          const pending = proofsData.data.filter(p => p.status === 'pending');
+          allProofs = allProofs.concat(pending.map(p => ({...p, task_id: task.id, task_title: task.title, task_description: task.description, task_reward: task.executor_reward})));
+        }
+      }
+    }
+    
+    // Also fetch proofs from tasks created by other users (admin can review all pending proofs)
+    // This requires a new endpoint or we can fetch all tasks and filter
+    // For now, we'll show proofs from admin's tasks only
+    
+    // Update counter
+    document.getElementById('pendingProofsCount').textContent = allProofs.length;
+    
+    if (allProofs.length === 0) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs to review</p>';
+      return;
+    }
+    
+    list.innerHTML = allProofs.map(proof => `
+      <div class="proof-item">
+        <div class="proof-header">
+          <div>
+            <strong>📋 ${proof.task_title}</strong>
+            <span style="color:#94a3b8;font-size:12px;margin-left:10px">#${proof.task_id}</span>
+          </div>
+          <span class="status-badge status-pending">⏳ Pending</span>
+        </div>
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+          👤 Executor: @${proof.executor_username || proof.executor_id} | 
+          📅 ${formatDate(proof.submitted_at)}
+        </p>
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+          💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong>
+        </p>
+        <p style="color:#cbd5e1;font-size:13px;margin:5px 0">
+          📝 Task Description: ${proof.task_description?.substring(0, 100)}${proof.task_description?.length > 100 ? '...' : ''}
+        </p>
+        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>` : ''}
+        <div class="proof-actions">
+          <button class="btn btn-success btn-sm" onclick="approveProof(${proof.task_id}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectProof(${proof.task_id}, ${proof.id})">❌ Reject</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load proofs</p>';
+  }
+}
+
+async function approveProof(taskId, proofId) {
+  if (!confirm('✅ Confirm approving this proof and sending payment?')) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: ADMIN_ID })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) loadPendingProofs();
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+async function rejectProof(taskId, proofId) {
+  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: ADMIN_ID, reason })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) loadPendingProofs();
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= DISPUTES =================
+async function loadDisputes() {
+  const list = document.getElementById('disputesList');
+  list.innerHTML = '<div class="loading">Loading disputes...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/task-disputes?admin_key=${ADMIN_SECRET}`);
+    const data = await res.json();
+    
+    // Update counter
+    const count = data.success && data.data ? data.data.length : 0;
+    document.getElementById('openDisputesCount').textContent = count;
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No open disputes</p>';
+      return;
+    }
+    
+    list.innerHTML = data.data.map(d => `
+      <div class="proof-item">
+        <div class="proof-header">
+          <strong>⚠️ Dispute #${d.id}</strong>
+          <span class="status-badge status-disputed">Open</span>
+        </div>
+        <p><strong>Task:</strong> ${d.task_title} (#${d.task_id})</p>
+        <p><strong>Executor:</strong> @${d.executor_username || d.executor_id}</p>
+        <p><strong>Creator:</strong> @${d.creator_username || d.creator_id}</p>
+        <p><strong>Amount:</strong> ${formatPrice(d.payment_amount)}</p>
+        <p><strong>Reason:</strong></p>
+        <div class="proof-content" style="margin:10px 0">${d.reason}</div>
+        <div class="proof-actions">
+          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.id}, ${d.execution_id})">⚖️ Review & Resolve</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
+  }
+}
+
+function openResolveModal(disputeId, executionId) {
+  currentDispute = { id: disputeId, executionId };
+  document.getElementById('resolveDisputeId').textContent = disputeId;
+  document.getElementById('resolveDecision').value = 'executor';
+  document.getElementById('resolveNote').value = '';
+  openModal('resolveModal');
+}
+
+async function submitResolution() {
+  const payout = document.getElementById('resolveDecision').value;
+  const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
+  
+  if (!currentDispute) return;
+  
+  try {
+    const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        admin_key: ADMIN_SECRET,
+        admin_id: ADMIN_ID,
+        payout_to: payout,
+        resolution
+      })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Dispute resolved', 'success');
+      closeModal('resolveModal');
+      loadDisputes();
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+// ================= STATISTICS =================
+async function loadStats() {
+  const content = document.getElementById('statsContent');
+  content.innerHTML = '<div class="loading">Loading statistics...</div>';
+  
+  try {
+    // Fetch commission stats (placeholder for now)
+    content.innerHTML = `
+      <div style="display:grid;gap:15px">
+        <div class="card">
+          <h4>💰 Today's Commission</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p>
+        </div>
+        <div class="card">
+          <h4>📊 This Week</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
+        </div>
+        <div class="card">
+          <h4>📈 This Month</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
+        </div>
+        <div class="card">
+          <h4>🏆 All Time</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    console.error(err);
+    content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
+  }
+}
+</script>
+</body>
+</html>
