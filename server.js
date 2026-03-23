@@ -1694,9 +1694,9 @@ app.post("/login", async (req, res) => {
 });
 
 
-// =========================
-// ✅ USER DASHBOARD 
-// =========================
+/* =========================
+   USER DASHBOARD - مع حساب Total Withdrawn
+========================= */
 app.get("/user/dashboard", async (req, res) => {
     try {
         const idParam = req.query.id;
@@ -1720,15 +1720,16 @@ app.get("/user/dashboard", async (req, res) => {
         
         const user = userQuery.rows[0];
         
-        // ✅ حساب المسحوبات المكتملة فقط
+        // ✅ ✅ ✅ حساب إجمالي المسحوبات المكتملة فقط ← هذا هو المطلوب ✅ ✅ ✅
+        // نجمع فقط الطلبات التي حالتها 'paid' أو 'done' (تم تنفيذها بنجاح)
         const withdrawQuery = await pool.query(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawals WHERE user_id=$1 AND status='done'",
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawals WHERE user_id=$1 AND (status='paid' OR status='done')",
             [telegramId]
         );
         
         const totalWithdrawn = parseFloat(withdrawQuery.rows[0].total) || 0;
         
-        // ✅ إرسال الاستجابة
+        // ✅ إرسال الاستجابة مع totalWithdrawn
         res.json({
             success: true,
             telegram_id: user.telegram_id,
@@ -1736,7 +1737,7 @@ app.get("/user/dashboard", async (req, res) => {
             name: user.name,
             balance: parseFloat(user.balance) || 0,
             payeer_wallet: user.payeer_wallet,
-            totalWithdrawn: totalWithdrawn,
+            totalWithdrawn: totalWithdrawn,  // ← ✅ هذا هو الحقل الذي يعرض في الداشبورد
             timestamp: new Date().toISOString()
         });
         
