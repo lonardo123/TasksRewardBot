@@ -2361,6 +2361,49 @@ app.get('/api/tasks/available', async (req, res) => {
   }
 });
 
+// ✅ مسار جلب مهام المستخدم (المنشأة من قبله)
+app.get('/api/tasks/my', async (req, res) => {
+  try {
+    const userId = req.query.user_id;
+    
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'user_id is required' });
+    }
+
+    // استعلام يجلب المهام مع حساب الإحصائيات من جدول task_executions
+    const query = `
+      SELECT 
+        t.id,
+        t.title,
+        t.budget,
+        t.spent,
+        t.executor_reward,
+        t.is_active,
+        t.created_at,
+        t.duration_seconds,
+        COUNT(te.id) AS total_executions,
+        COUNT(CASE WHEN te.status = 'approved' THEN 1 END) AS approved_count
+      FROM tasks t
+      LEFT JOIN task_executions te ON t.id = te.task_id
+      WHERE t.creator_id = $1 
+        AND t.deleted_at IS NULL
+      GROUP BY t.id
+      ORDER BY t.created_at DESC
+    `;
+    
+    const result = await pool.query(query, [userId]);
+
+    res.json({
+      success: true,
+      data: result.rows
+    });
+
+  } catch (err) {
+    console.error('Error in /api/tasks/my:', err);
+    res.status(500).json({ success: false, message: 'Server error', error: err.message });
+  }
+});
+
 // ✅ إنشاء مهمة جديدة - نظام الدفع الجديد (100% + 20%)
 app.post('/api/tasks/create', async (req, res) => {
   const client = await pool.connect();
