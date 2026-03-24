@@ -2449,7 +2449,6 @@ app.get('/api/tasks/my', async (req, res) => {
 
 // ======================= 🔍 TASK: DETAILS =======================
 
-// ✅ GET /api/tasks/:id - جلب تفاصيل مهمة واحدة (مطلوب للـ frontend)
 app.get('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -2485,7 +2484,7 @@ app.get('/api/tasks/:id', async (req, res) => {
         `SELECT id, task_id, executor_id, proof, status, submitted_at, created_at, payment_amount, commission_amount
          FROM task_executions 
          WHERE task_id = $1 AND executor_id = $2 
-         ORDER BY created_at DESC LIMIT 1`,
+         ORDER BY submitted_at DESC LIMIT 1`,
         [id, user_id]
       );
       if (exec.rows.length > 0) myExecution = exec.rows[0];
@@ -2669,21 +2668,19 @@ app.post('/api/tasks/create', async (req, res) => {
 });
 
 // ======================= 🚀 APPLY FOR TASK =======================
-
-// ✅ POST /api/tasks/:id/apply - التقديم على مهمة مع حجز مكان
 app.post('/api/tasks/:id/apply', async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     const { user_id } = req.body;
     
-    if (!id || !user_id || !/^\d+$/.test(user_id.toString())) {
+    if (!id || !user_id) {
       return res.json({ success: false, message: "Invalid task ID or user ID" });
     }
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من وجود تنفيذ سابق معلق أو مقبول
+    // التحقق من وجود تنفيذ سابق
     const existing = await client.query(
       `SELECT id, status FROM task_executions 
        WHERE task_id = $1 AND executor_id = $2 AND status IN ('pending', 'approved')`,
@@ -2692,14 +2689,12 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     
     if (existing.rows.length > 0) {
       await client.query('ROLLBACK');
-      const statusText = existing.rows[0].status === 'approved' ? 'already completed' : 'already applied';
-      return res.json({ success: false, message: `You have ${statusText} for this task` });
+      return res.json({ success: false, message: "You already have an active execution for this task" });
     }
     
-    // ✅ التحقق من وجود المهمة وميزانيتها
+    // التحقق من المهمة
     const task = await client.query(
-      `SELECT budget, spent, executor_reward, duration_seconds, is_active, deleted_at 
-       FROM tasks WHERE id = $1`, 
+      `SELECT budget, spent, executor_reward, is_active, deleted_at FROM tasks WHERE id = $1`, 
       [id]
     );
     
@@ -2708,7 +2703,7 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       return res.json({ success: false, message: "Task not found or inactive" });
     }
     
-    const executorReward = parseFloat(task.rows[0].executor_reward || task.rows[0].price || 0.01);
+    const executorReward = parseFloat(task.rows[0].executor_reward || 0.01);
     const adminCommission = executorReward * 0.20;
     const totalCost = executorReward + adminCommission;
     const remaining = parseFloat(task.rows[0].budget) - parseFloat(task.rows[0].spent);
@@ -2718,10 +2713,10 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       return res.json({ success: false, message: "Task has insufficient budget" });
     }
     
-    // ✅ تسجيل التقديم مع حجز المكان
+    // ✅ تسجيل التقديم - استخدام submitted_at بدلاً من created_at
     await client.query(
       `INSERT INTO task_executions (
-         task_id, executor_id, status, payment_amount, commission_amount, created_at
+         task_id, executor_id, status, payment_amount, commission_amount, submitted_at
        ) VALUES ($1, $2, 'pending', $3, $4, NOW())`,
       [id, user_id, executorReward, adminCommission]
     );
@@ -2787,7 +2782,7 @@ app.post('/api/tasks/:id/submit-proof', async (req, res) => {
 
 // ======================= 📋 TASK PROOFS =======================
 
-// ✅ GET /api/tasks/:id/proofs - جلب براهين التنفيذ لمهمة (مطلوب للـ frontend)
+// ✅ GET /api/tasks/:id/proofs - جلب براهين التنفيذ
 app.get('/api/tasks/:id/proofs', async (req, res) => {
   try {
     const { id } = req.params;
@@ -2797,7 +2792,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
       return res.json({ success: false, message: "Task ID required" });
     }
     
-    // ✅ التحقق من صلاحية الوصول: المنشئ يرى الكل، المنفذ يرى براهينه فقط
+    // التحقق من صلاحية الوصول
     const task = await pool.query('SELECT creator_id, deleted_at FROM tasks WHERE id = $1', [id]);
     if (task.rows.length === 0 || task.rows[0].deleted_at) {
       return res.json({ success: false, message: "Task not found" });
@@ -2808,7 +2803,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     let query, params;
     
     if (isCreator) {
-      // المنشئ يرى كل البراهين مع بيانات المنفذ
+      // المنشئ يرى كل البراهين
       query = `
         SELECT 
           te.id, te.proof, te.status, te.submitted_at, te.created_at,
@@ -2836,7 +2831,6 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     }
     
     const proofs = await pool.query(query, params);
-    
     res.json({ success: true, data: proofs.rows });
     
   } catch (err) {
@@ -3166,44 +3160,57 @@ app.post('/api/tasks/:id/fund', async (req, res) => {
   }
 });
 
-// ✅ POST /api/tasks/:id/withdraw - سحب الرصيد المتبقي من مهمة
+// ======================= 💰 tasks & WITHDRAW =======================
 app.post('/api/tasks/:id/withdraw', async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const { user_id, amount } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.json({ success: false, message: "Invalid amount" });
+    }
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من الصلاحية
+    // التحقق من الصلاحية
     const task = await client.query('SELECT * FROM tasks WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
       return res.json({ success: false, message: "Unauthorized" });
     }
     
-    // ✅ التحقق من عدم وجود تنفيذ معلق
+    // التحقق من عدم وجود تنفيذ معلق أو نزاع
     const pending = await client.query(
-      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status = $2',
-      [id, 'pending']
+      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status IN ($2, $3)',
+      [id, 'pending', 'disputed']
     );
     if (parseInt(pending.rows[0].count) > 0) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Cannot withdraw: pending executions exist" });
+      return res.json({ success: false, message: "Cannot withdraw: pending or disputed executions exist" });
     }
     
     const remaining = parseFloat(task.rows[0].budget) - parseFloat(task.rows[0].spent);
+    if (amount > remaining) {
+      await client.query('ROLLBACK');
+      return res.json({ success: false, message: "Amount exceeds remaining budget" });
+    }
     if (remaining <= 0) {
       await client.query('ROLLBACK');
       return res.json({ success: false, message: "No funds to withdraw" });
     }
     
-    // ✅ إرجاع الرصيد وإيقاف المهمة
-    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [remaining, user_id]);
-    await client.query('UPDATE tasks SET is_active = false, budget = spent WHERE id = $1', [id]);
+    // ✅ إرجاع الرصيد الجزئي
+    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [amount, user_id]);
+    await client.query('UPDATE tasks SET budget = budget - $1 WHERE id = $2', [amount, id]);
+    
+    // إذا سحب كل الرصيد، أوقف المهمة
+    if (amount >= remaining - 0.001) {
+      await client.query('UPDATE tasks SET is_active = false WHERE id = $1', [id]);
+    }
     
     await client.query('COMMIT');
-    res.json({ success: true, message: "Funds withdrawn successfully", amount: remaining });
+    res.json({ success: true, message: "Funds withdrawn successfully", amount: amount });
     
   } catch (err) {
     await client.query('ROLLBACK');
@@ -3214,7 +3221,8 @@ app.post('/api/tasks/:id/withdraw', async (req, res) => {
   }
 });
 
-// ✅ DELETE /api/tasks/:id - حذف مهمة
+// ======================= ✅ tasks & DELETE =======================
+
 app.delete('/api/tasks/:id', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -3223,11 +3231,21 @@ app.delete('/api/tasks/:id', async (req, res) => {
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من الصلاحية
+    // التحقق من الصلاحية
     const task = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
       return res.json({ success: false, message: "Unauthorized" });
+    }
+    
+    // التحقق من عدم وجود تنفيذ معلق أو نزاع
+    const pending = await client.query(
+      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status IN ($2, $3)',
+      [id, 'pending', 'disputed']
+    );
+    if (parseInt(pending.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return res.json({ success: false, message: "Cannot delete: pending or disputed executions exist" });
     }
     
     // ✅ حساب الرصيد المتبقي
@@ -3238,7 +3256,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
       await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [remaining, user_id]);
     }
     
-    // ✅ وضع علامة حذف ناعم (Soft Delete)
+    // ✅ حذف المهمة (Soft Delete)
     await client.query('UPDATE tasks SET is_active = false, deleted_at = NOW() WHERE id = $1', [id]);
     
     await client.query('COMMIT');
