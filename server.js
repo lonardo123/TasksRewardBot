@@ -2506,138 +2506,158 @@ app.get('/api/tasks/:id', async (req, res) => {
 
 // ======================= ➕ CREATE TASK =======================
 
-// ✅ POST /api/tasks/create - إنشاء مهمة جديدة (متوافق مع الحقول المرسلة من frontend)
 app.post('/api/tasks/create', async (req, res) => {
   const client = await pool.connect();
+  
   try {
-    // ✅ استخدام نفس أسماء الحقول التي يرسلها frontend
+    console.log('📥 Create task request:', { 
+      creator_id: req.body.creator_id, 
+      title: req.body.title,
+      reward: req.body.reward_per_execution,
+      budget: req.body.budget 
+    });
+    
+    // ✅ 1. استقبال البيانات (نفس أسماء الحقول من frontend)
     const { 
-      creator_id, 
-      title, 
-      description, 
-      reward_per_execution,  // ✅ frontend يرسل هذا الاسم
-      duration_seconds, 
-      budget,
-      // الحقول الإضافية (تُخزن في settings JSONB)
-      category,
-      verification_method,
-      proof_requirements,
-      target_url,
-      audience,
-      delivery_interval,
-      execution_type,
-      max_completion_time,
-      verification_keyword,
-      delay_hours,
-      delay_minutes,
-      hourly_limits,
-      multi_interval
+      creator_id, title, description, reward_per_execution,
+      duration_seconds, budget, target_url,
+      category, verification_method, proof_requirements,
+      audience, delivery_interval, execution_type, max_completion_time,
+      verification_keyword, delay_hours, delay_minutes, hourly_limits, multi_interval
     } = req.body;
     
-    // ✅ التحقق من الحقول الإلزامية
-    if (!creator_id || !title || !reward_per_execution || !budget) {
-      return res.json({ success: false, message: "Missing required fields: creator_id, title, reward_per_execution, budget" });
+    // ✅ 2. التحقق من الحقول الإلزامية
+    if (!creator_id || !title || reward_per_execution === undefined || !budget) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Missing required fields",
+        required: ["creator_id", "title", "reward_per_execution", "budget"]
+      });
     }
     
-    if (!/^\d+$/.test(creator_id.toString())) {
-      return res.json({ success: false, message: "Invalid creator_id" });
-    }
-    
-    // ✅ نظام الدفع: 100% للمنفذ + 20% عمولة إدارية
+    // ✅ 3. التحقق من صحة الأرقام
     const executorReward = parseFloat(reward_per_execution);
-    if (isNaN(executorReward) || executorReward < 0.001) {
-      return res.json({ success: false, message: "Invalid reward amount. Minimum: $0.001" });
-    }
-    
-    const adminCommission = executorReward * 0.20;
-    const totalCostPerExecution = executorReward + adminCommission;
     const totalBudget = parseFloat(budget);
     
+    if (isNaN(executorReward) || executorReward < 0.001) {
+      return res.status(400).json({ success: false, message: "Invalid reward: min $0.001" });
+    }
     if (isNaN(totalBudget) || totalBudget < 0.10) {
-      return res.json({ success: false, message: "Invalid budget. Minimum: $0.10" });
+      return res.status(400).json({ success: false, message: "Invalid budget: min $0.10" });
     }
     
-    // ✅ التحقق من رصيد المستخدم
-    const userRes = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [creator_id]);
+    // ✅ 4. حساب التكلفة (100% منفذ + 20% إدارة)
+    const adminCommission = executorReward * 0.20;
+    const totalCostPerExecution = executorReward + adminCommission;
+    
+    // ✅ 5. التحقق من رصيد المستخدم
+    const userRes = await client.query(
+      'SELECT balance FROM users WHERE telegram_id = $1', 
+      [BigInt(creator_id)]  // ✅ تحويل صريح لـ bigint
+    );
+    
     if (userRes.rows.length === 0) {
-      return res.json({ success: false, message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
     
     const userBalance = parseFloat(userRes.rows[0].balance || 0);
     if (userBalance < totalBudget) {
-      return res.json({ 
+      return res.status(400).json({ 
         success: false, 
-        message: `Insufficient balance. Required: $${totalBudget.toFixed(4)}, Available: $${userBalance.toFixed(4)}` 
+        message: `Insufficient balance. Need: $${totalBudget.toFixed(4)}, Have: $${userBalance.toFixed(4)}` 
       });
     }
     
+    // ✅ 6. بدء المعاملة
     await client.query('BEGIN');
     
-    // ✅ خصم الميزانية من رصيد المستخدم
-    await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [totalBudget, creator_id]);
-    
-    // ✅ تجميع الحقول الإضافية في كائن settings
-    const settings = {
-      category: category || 'other',
-      verification_method: verification_method || 'manual',
-      proof_requirements: proof_requirements || '',
-      audience: audience || 'all',
-      delivery_interval: delivery_interval || 'none',
-      execution_type: execution_type || 'once',
-      verification_keyword: verification_keyword || '',
-      delay_hours: delay_hours || 0,
-      delay_minutes: delay_minutes || 5,
-      hourly_limits: hourly_limits || [],
-      multi_interval: multi_interval || 0
-    };
-    
-    // ✅ إنشاء المهمة
-    const result = await client.query(`
-      INSERT INTO tasks (
-        title, 
-        description, 
-        price, 
-        executor_reward, 
-        duration_seconds, 
-        budget, 
-        spent, 
-        creator_id, 
-        is_active,
-        target_url,
-        settings
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, 0, $7, true, $8, $9)
-      RETURNING id, title, created_at, executor_reward, budget, settings
-    `, [
-      title, 
-      description, 
-      reward_per_execution,  // price = reward_per_execution
-      executorReward, 
-      duration_seconds || max_completion_time || 86400, 
-      totalBudget, 
-      creator_id,
-      target_url || '',
-      JSON.stringify(settings)
-    ]);
-    
-    await client.query('COMMIT');
-    
-    res.json({ 
-      success: true, 
-      message: "Task created successfully", 
-      task: result.rows[0],
-      payment_info: {
-        executor_reward: executorReward.toFixed(4),
-        admin_commission: adminCommission.toFixed(4),
-        total_cost_per_execution: totalCostPerExecution.toFixed(4),
-        estimated_completions: Math.floor(totalBudget / totalCostPerExecution)
-      }
-    });
+    try {
+      // ✅ 7. خصم الميزانية
+      await client.query(
+        'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', 
+        [totalBudget, BigInt(creator_id)]
+      );
+      
+      // ✅ 8. تجميع الإعدادات (ككائن - ليس نص)
+      const settings = {
+        category: category || 'other',
+        verification_method: verification_method || 'manual',
+        proof_requirements: proof_requirements || '',
+        audience: audience || 'all',
+        delivery_interval: delivery_interval || 'none',
+        execution_type: execution_type || 'once',
+        verification_keyword: verification_keyword || '',
+        delay_hours: delay_hours || 0,
+        delay_minutes: delay_minutes || 5,
+        hourly_limits: hourly_limits || [],
+        multi_interval: multi_interval || 0
+      };
+      
+      // ✅ 9. معالجة duration_seconds مع fallback صحيح
+      const finalDuration = parseInt(duration_seconds) || parseInt(max_completion_time) || 86400;
+      
+      // ✅ 10. إنشاء المهمة - استعلام متوافق 100%
+      const result = await client.query(`
+        INSERT INTO tasks (
+          title, description, price, executor_reward, duration_seconds,
+          budget, spent, creator_id, is_active, target_url, settings
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 0, $7, true, $8, $9)
+        RETURNING id, title, created_at, executor_reward, budget, spent, is_active, settings
+      `, [
+        title,
+        description,
+        executorReward,              // ✅ price = executor_reward (نفس القيمة)
+        executorReward,              // ✅ executor_reward
+        finalDuration,               // ✅ duration_seconds مع fallback
+        totalBudget,
+        BigInt(creator_id),          // ✅ تحويل صريح لـ bigint
+        target_url || '',            // ✅ fallback للنص
+        settings                     // ✅ كائن مباشر لـ jsonb (بدون JSON.stringify)
+      ]);
+      
+      // ✅ 11. تأكيد المعاملة
+      await client.query('COMMIT');
+      
+      console.log('✅ Task created:', result.rows[0].id);
+      
+      res.json({ 
+        success: true, 
+        message: "Task created successfully", 
+        task: result.rows[0],
+        payment_info: {
+          executor_reward: executorReward.toFixed(4),
+          admin_commission: adminCommission.toFixed(4),
+          total_cost_per_execution: totalCostPerExecution.toFixed(4),
+          estimated_completions: Math.floor(totalBudget / totalCostPerExecution)
+        }
+      });
+      
+    } catch (dbErr) {
+      // ✅ rollback عند أي خطأ في قاعدة البيانات
+      await client.query('ROLLBACK');
+      console.error('❌ DB Error:', dbErr);
+      throw dbErr;
+    }
     
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ /api/tasks/create:', err);
-    res.status(500).json({ success: false, message: "Failed to create task: " + err.message });
+    // ✅ rollback احتياطي
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    
+    console.error('❌ CRITICAL /api/tasks/create:', {
+      message: err.message,
+      code: err.code,      // مثل: "42703" = عمود غير موجود
+      detail: err.detail,  // تفاصيل خطأ PostgreSQL
+      hint: err.hint
+    });
+    
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to create task", 
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+      code: err.code
+    });
+    
   } finally {
     client.release();
   }
