@@ -2553,7 +2553,7 @@ app.post('/api/tasks/create', async (req, res) => {
     // ✅ 5. التحقق من رصيد المستخدم
     const userRes = await client.query(
       'SELECT balance FROM users WHERE telegram_id = $1', 
-      [BigInt(creator_id)]  // ✅ تحويل صريح لـ bigint
+      [creator_id]  // ✅ PostgreSQL يتعامل مع bigint تلقائياً
     );
     
     if (userRes.rows.length === 0) {
@@ -2575,10 +2575,10 @@ app.post('/api/tasks/create', async (req, res) => {
       // ✅ 7. خصم الميزانية
       await client.query(
         'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', 
-        [totalBudget, BigInt(creator_id)]
+        [totalBudget, creator_id]
       );
       
-      // ✅ 8. تجميع الإعدادات (ككائن - ليس نص)
+      // ✅ 8. تجميع الإعدادات (ككائن لـ jsonb)
       const settings = {
         category: category || 'other',
         verification_method: verification_method || 'manual',
@@ -2593,27 +2593,30 @@ app.post('/api/tasks/create', async (req, res) => {
         multi_interval: multi_interval || 0
       };
       
-      // ✅ 9. معالجة duration_seconds مع fallback صحيح
+      // ✅ 9. معالجة duration_seconds مع fallback
       const finalDuration = parseInt(duration_seconds) || parseInt(max_completion_time) || 86400;
       
-      // ✅ 10. إنشاء المهمة - استعلام متوافق 100%
+      // ✅ 10. إنشاء المهمة - استعلام متوافق 100% مع الهيكل
+      // ⚠️ ملاحظة: القيم الثابتة (0, true) توضع مباشرة في VALUES وليست ضمن العد
       const result = await client.query(`
         INSERT INTO tasks (
           title, description, price, executor_reward, duration_seconds,
           budget, spent, creator_id, is_active, target_url, settings
         )
         VALUES ($1, $2, $3, $4, $5, $6, 0, $7, true, $8, $9)
-        RETURNING id, title, created_at, executor_reward, budget, spent, is_active, settings
+        RETURNING id, title, created_at, executor_reward, budget, spent, is_active, settings, target_url
       `, [
-        title,
-        description,
-        executorReward,              // ✅ price = executor_reward (نفس القيمة)
-        executorReward,              // ✅ executor_reward
-        finalDuration,               // ✅ duration_seconds مع fallback
-        totalBudget,
-        BigInt(creator_id),          // ✅ تحويل صريح لـ bigint
-        target_url || '',            // ✅ fallback للنص
-        settings                     // ✅ كائن مباشر لـ jsonb (بدون JSON.stringify)
+        title,                           // $1
+        description,                     // $2
+        executorReward,                  // $3: price
+        executorReward,                  // $4: executor_reward
+        finalDuration,                   // $5: duration_seconds
+        totalBudget,                     // $6: budget
+        // 0,                            // spent: قيمة ثابتة في الاستعلام
+        creator_id,                      // $7: creator_id (bigint)
+        // true,                         // is_active: قيمة ثابتة في الاستعلام
+        target_url || '',                // $8: target_url
+        settings                         // $9: settings (jsonb - كائن مباشر)
       ]);
       
       // ✅ 11. تأكيد المعاملة
@@ -2634,20 +2637,22 @@ app.post('/api/tasks/create', async (req, res) => {
       });
       
     } catch (dbErr) {
-      // ✅ rollback عند أي خطأ في قاعدة البيانات
       await client.query('ROLLBACK');
-      console.error('❌ DB Error:', dbErr);
+      console.error('❌ DB Error:', {
+        message: dbErr.message,
+        code: dbErr.code,
+        detail: dbErr.detail
+      });
       throw dbErr;
     }
     
   } catch (err) {
-    // ✅ rollback احتياطي
     try { await client.query('ROLLBACK'); } catch (_) {}
     
     console.error('❌ CRITICAL /api/tasks/create:', {
       message: err.message,
-      code: err.code,      // مثل: "42703" = عمود غير موجود
-      detail: err.detail,  // تفاصيل خطأ PostgreSQL
+      code: err.code,
+      detail: err.detail,
       hint: err.hint
     });
     
