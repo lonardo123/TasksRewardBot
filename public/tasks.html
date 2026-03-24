@@ -1031,20 +1031,11 @@ async function loadMyTasks() {
 }
 
 // ================= 💰 ADD FUNDS MODAL (Internal - No External Alerts) =================
-// ================= ADD TASK MODAL =================
-function openAddTaskModal() {
-  // Reset form
-  document.getElementById('addTaskForm').reset();
-  clearFormMessage();  // ✅ أضف هذا السطر: مسح الرسائل القديمة
-  document.getElementById('descCount').textContent = '4000';
-  calculateTotalCost();
-  toggleVerificationFields();
-  toggleIntervalFields();
-  toggleExecTypeFields();
-  // Open modal internally (not external)
-  openModal('addTaskModal');
-}
-  
+function openAddFundsModal(taskId) {
+  currentFundTaskId = taskId;
+  document.getElementById('addFundsAmount').value = '';
+  document.getElementById('addFundsPreview').style.display = 'none';
+  openModal('addFundsModal');
   // Preview update on input
   document.getElementById('addFundsAmount').oninput = function() {
     const amount = parseFloat(this.value) || 0;
@@ -1064,7 +1055,6 @@ async function confirmAddFunds() {
     showAlert('⚠️ Please enter a valid amount', 'error');
     return;
   }
-  
   try {
     const res = await fetch(`${API}/api/tasks/${currentFundTaskId}/fund`, {
       method: 'POST',
@@ -1072,11 +1062,10 @@ async function confirmAddFunds() {
       body: JSON.stringify({ user_id: currentUser, amount: amount })
     });
     const data = await res.json();
-    
     if (data.success) {
       showAlert('✅ Funds added successfully', 'success');
       closeModal('addFundsModal');
-      loadMyTasks(); // Refresh the list
+      loadMyTasks();
     } else {
       showAlert('❌ ' + data.message, 'error');
     }
@@ -1084,6 +1073,7 @@ async function confirmAddFunds() {
     showAlert('⚠️ Connection error', 'error');
   }
 }
+
 
 // ================= ↩️ WITHDRAW FUNDS MODAL (Internal - No External Alerts) =================
 async function openWithdrawFundsModal(taskId) {
@@ -1567,13 +1557,13 @@ async function resolveDispute(disputeId) {
 function openAddTaskModal() {
   // Reset form
   document.getElementById('addTaskForm').reset();
+  clearFormMessage();  // ✅ مسح الرسائل القديمة
   document.getElementById('descCount').textContent = '4000';
   calculateTotalCost();
   toggleVerificationFields();
   toggleIntervalFields();
   toggleExecTypeFields();
-  
-  // Open modal internally (not external)
+  // Open modal internally
   openModal('addTaskModal');
 }
 
@@ -1597,11 +1587,11 @@ async function createTaskFromForm(event) {
   
   // Validation
   if (!title || !category || !description || !proofReq || !url || !budget) {
-    showFormMessage('⚠️ Please fill all required fields', 'error'); // ✅ تظهر قرب الزر
+    showFormMessage('⚠️ Please fill all required fields', 'error');
     return;
   }
   if (reward < 0.001 || budget < 0.10) {
-    showFormMessage('⚠️ Minimum: reward $0.001, budget $0.10', 'error'); // ✅ تظهر قرب الزر
+    showFormMessage('⚠️ Minimum: reward $0.001, budget $0.10', 'error');
     return;
   }
   
@@ -1649,24 +1639,22 @@ async function createTaskFromForm(event) {
     if (data.success) {
       // ✅ نجاح: اعرض رسالة ثم أغلق النافذة
       showFormMessage('✅ Task created successfully', 'success');
-      
       setTimeout(() => {
-        closeModal('addTaskModal');      // ✅ إغلاق النافذة المنبثقة
-        clearFormMessage();              // ✅ مسح الرسالة
-        switchTab('my');                 // ✅ الانتقال لتبويب "مهامي"
-        loadMyTasks();                   // ✅ تحديث القائمة
-      }, 1000);                          // انتظر ثانية لإظهار الرسالة
+        closeModal('addTaskModal');
+        clearFormMessage();
+        switchTab('my');
+        loadMyTasks();
+      }, 1000);
     } else {
       // ✅ خطأ: اعرض الرسالة من السيرفر قرب الزر
       showFormMessage('❌ ' + data.message, 'error');
     }
   } catch (err) {
     console.error('Create task error:', err);
-    showFormMessage('⚠️ Connection error. Please try again.', 'error'); // ✅ تظهر قرب الزر
+    showFormMessage('⚠️ Connection error. Please try again.', 'error');
   }
   return false;
 }
-
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
   // Clear all countdown timers
