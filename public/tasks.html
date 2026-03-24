@@ -80,6 +80,30 @@ tr:hover{background:#1e293b/50}
 .interval-grid input{width:100%;padding:4px;text-align:center}
 .form-actions{text-align:center;padding:20px;border-top:1px solid #334155;margin-top:10px}
 .required{color:#ef4444}*
+ /* === Form Messages inside Modal === */
+.form-message {
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-size: 14px;
+  text-align: center;
+  font-weight: 500;
+  animation: slideDown 0.2s ease;
+}
+.form-message.error {
+  background: #ef444420;
+  color: #ef4444;
+  border: 1px solid #ef444440;
+}
+.form-message.success {
+  background: #22c55e20;
+  color: #22c55e;
+  border: 1px solid #22c55e40;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+} 
 .section-divider{border-top:1px dashed #475569;margin:15px 0;padding-top:15px}
 /* === Countdown Timer === */
 .countdown{font-weight:600;color:#facc15;font-size:14px}
@@ -529,7 +553,10 @@ tr:hover{background:#1e293b/50}
             <td><span id="estimatedCompletions">83</span> completions</td>
             <td></td>
           </tr>
-
+          <!-- ✅ حاوية رسائل النموذج (توضع قبل زر الإنشاء مباشرة) -->
+          <tr>
+          <td colspan="3" id="formMessageContainer" style="padding:10px 12px"></td>
+          </tr>   
           <!-- Submit Button -->
           <tr>
             <th colspan="3" style="padding:20px 0;background:transparent">
@@ -699,7 +726,22 @@ function showAlert(msg, type) {
   el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 5000);
 }
+// ✅ عرض رسالة داخل نموذج إنشاء المهمة (بالقرب من الزر)
+function showFormMessage(msg, type) {
+  const container = document.getElementById('formMessageContainer');
+  if (!container) return;
+  container.innerHTML = `<div class="form-message ${type}">${msg}</div>`;
+  // إخفاء رسالة النجاح تلقائياً بعد 2 ثانية
+  if (type === 'success') {
+    setTimeout(() => { container.innerHTML = ''; }, 2000);
+  }
+}
 
+// ✅ مسح رسائل النموذج
+function clearFormMessage() {
+  const container = document.getElementById('formMessageContainer');
+  if (container) container.innerHTML = '';
+}
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
 }
@@ -989,11 +1031,19 @@ async function loadMyTasks() {
 }
 
 // ================= 💰 ADD FUNDS MODAL (Internal - No External Alerts) =================
-function openAddFundsModal(taskId) {
-  currentFundTaskId = taskId;
-  document.getElementById('addFundsAmount').value = '';
-  document.getElementById('addFundsPreview').style.display = 'none';
-  openModal('addFundsModal');
+// ================= ADD TASK MODAL =================
+function openAddTaskModal() {
+  // Reset form
+  document.getElementById('addTaskForm').reset();
+  clearFormMessage();  // ✅ أضف هذا السطر: مسح الرسائل القديمة
+  document.getElementById('descCount').textContent = '4000';
+  calculateTotalCost();
+  toggleVerificationFields();
+  toggleIntervalFields();
+  toggleExecTypeFields();
+  // Open modal internally (not external)
+  openModal('addTaskModal');
+}
   
   // Preview update on input
   document.getElementById('addFundsAmount').oninput = function() {
@@ -1529,6 +1579,7 @@ function openAddTaskModal() {
 
 async function createTaskFromForm(event) {
   event.preventDefault();
+  clearFormMessage(); // ✅ مسح الرسائل القديمة قبل البدء
   
   // Collect form data
   const title = document.getElementById('formTitle').value.trim();
@@ -1546,11 +1597,11 @@ async function createTaskFromForm(event) {
   
   // Validation
   if (!title || !category || !description || !proofReq || !url || !budget) {
-    showAlert('⚠️ Please fill all required fields', 'error');
+    showFormMessage('⚠️ Please fill all required fields', 'error'); // ✅ تظهر قرب الزر
     return;
   }
   if (reward < 0.001 || budget < 0.10) {
-    showAlert('⚠️ Minimum: reward $0.001, budget $0.10', 'error');
+    showFormMessage('⚠️ Minimum: reward $0.001, budget $0.10', 'error'); // ✅ تظهر قرب الزر
     return;
   }
   
@@ -1596,18 +1647,23 @@ async function createTaskFromForm(event) {
     const data = await res.json();
     
     if (data.success) {
-      showAlert('✅ Task created successfully', 'success');
-      closeModal('addTaskModal');
-      switchTab('my');
-      loadMyTasks();
+      // ✅ نجاح: اعرض رسالة ثم أغلق النافذة
+      showFormMessage('✅ Task created successfully', 'success');
+      
+      setTimeout(() => {
+        closeModal('addTaskModal');      // ✅ إغلاق النافذة المنبثقة
+        clearFormMessage();              // ✅ مسح الرسالة
+        switchTab('my');                 // ✅ الانتقال لتبويب "مهامي"
+        loadMyTasks();                   // ✅ تحديث القائمة
+      }, 1000);                          // انتظر ثانية لإظهار الرسالة
     } else {
-      showAlert('❌ ' + data.message, 'error');
+      // ✅ خطأ: اعرض الرسالة من السيرفر قرب الزر
+      showFormMessage('❌ ' + data.message, 'error');
     }
   } catch (err) {
     console.error('Create task error:', err);
-    showAlert('⚠️ Connection error', 'error');
+    showFormMessage('⚠️ Connection error. Please try again.', 'error'); // ✅ تظهر قرب الزر
   }
-  
   return false;
 }
 
