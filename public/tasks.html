@@ -138,7 +138,6 @@ tr:hover{background:#1e293b/50}
   <div class="tabs">
     <div class="tab active" data-tab="available" onclick="switchTab('available')">🔍 Available Tasks</div>
     <div class="tab" data-tab="my" onclick="switchTab('my')">📋 My Tasks</div>
-    <div class="tab" data-tab="disputes" onclick="switchTab('disputes')" id="disputesTab">⚠️ Disputes</div>
   </div>
 
   <!-- Available Tasks Section -->
@@ -1597,41 +1596,36 @@ async function createTaskFromForm(event) {
   
   // Build task data
   const taskData = {
-  creator_id: currentUser,
-  title,
-  description,
-  target_url: url,
-  executor_reward: reward,
-  duration_seconds: maxTime,
-  budget,
-  settings: {
+    creator_id: currentUser,
+    title,
     category,
     verification_method: verification,
+    description,
     proof_requirements: proofReq,
+    target_url: url,
+    reward_per_execution: reward,
     audience,
     delivery_interval: interval,
-    execution_type: execType
-  }
-};
+    execution_type: execType,
+    max_completion_time: maxTime,
+    budget
+  };
   
   // Add optional fields
   if (verification === 'auto') {
-  taskData.settings.verification_keyword = document.getElementById('formKeyword').value.trim();
-}
-
-if (interval === 'fixed') {
-  taskData.settings.delay_hours = parseInt(document.getElementById('formDelayHours').value) || 0;
-  taskData.settings.delay_minutes = parseInt(document.getElementById('formDelayMinutes').value) || 5;
-}
-
-if (interval === 'hourly') {
-  taskData.settings.hourly_limits = Array.from(document.querySelectorAll('.hourly-limit'))
-    .map(input => parseInt(input.value) || 0);
-}
-
-if (execType === 'multiple') {
-  taskData.settings.multi_interval = parseInt(document.getElementById('formMultiInterval').value) || 0;
-}
+    taskData.verification_keyword = document.getElementById('formKeyword').value.trim();
+  }
+  if (interval === 'fixed') {
+    taskData.delay_hours = parseInt(document.getElementById('formDelayHours').value) || 0;
+    taskData.delay_minutes = parseInt(document.getElementById('formDelayMinutes').value) || 5;
+  }
+  if (interval === 'hourly') {
+    const hourlyLimits = Array.from(document.querySelectorAll('.hourly-limit')).map(input => parseInt(input.value) || 0);
+    taskData.hourly_limits = hourlyLimits;
+  }
+  if (execType === 'multiple') {
+    taskData.multi_interval = parseInt(document.getElementById('formMultiInterval').value) || 0;
+  }
   
   try {
     const res = await fetch(`${API}/api/tasks/create`, {
