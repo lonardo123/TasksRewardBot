@@ -594,25 +594,36 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 
-  <!-- ↩️ Withdraw Funds Modal (Internal - No External Alerts) -->
-  <div id="withdrawFundsModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>↩️ Withdraw Remaining Funds</h3>
-        <button class="modal-close" onclick="closeModal('withdrawFundsModal')">&times;</button>
-      </div>
-      <div class="alert alert-info">
-        ⚠️ This will return all unused funds to your balance and deactivate the task.<br>
-        <strong>Cannot withdraw if there are pending executions.</strong>
-      </div>
-      <div id="withdrawPreview">
-        <p><strong>Task:</strong> <span id="withdrawTaskTitle"></span></p>
-        <p><strong>Remaining Budget:</strong> <span id="withdrawAmount" style="color:#22c55e;font-weight:600"></span></p>
-        <p><strong>Pending Executions:</strong> <span id="withdrawPendingCount"></span></p>
-      </div>
-      <button class="btn btn-warning" onclick="confirmWithdrawFunds()">✅ Confirm Withdraw</button>
+  <!-- ↩️ Withdraw Funds Modal (Partial Withdraw - Like Add Funds) -->
+<div id="withdrawFundsModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>↩️ Withdraw Funds from Task</h3>
+      <button class="modal-close" onclick="closeModal('withdrawFundsModal')">&times;</button>
     </div>
+    <div class="alert alert-info">
+      ⚠️ Withdraw funds from task budget back to your balance.<br>
+      <strong>Cannot withdraw if there are pending or disputed executions.</strong>
+    </div>
+    <div id="withdrawPreview">
+      <p><strong>Task:</strong> <span id="withdrawTaskTitle"></span></p>
+      <p><strong>Maximum Withdrawable:</strong> <span id="withdrawMaxAmount" style="color:#22c55e;font-weight:600"></span></p>
+      <p><strong>Pending Executions:</strong> <span id="withdrawPendingCount"></span></p>
+      <p><strong>Disputed Executions:</strong> <span id="withdrawDisputedCount"></span></p>
+    </div>
+    <div class="input-group">
+      <label>Amount to Withdraw (USD) <span class="required">*</span></label>
+      <input type="number" id="withdrawAmountInput" step="0.01" min="0.01" placeholder="Enter amount">
+    </div>
+    <div class="alert alert-info" id="withdrawPreview" style="display:none">
+      <strong>Preview:</strong><br>
+      • Amount to withdraw: <span id="withdrawPreviewDebit" style="color:#facc15"></span><br>
+      • Task budget remaining: <span id="withdrawPreviewRemaining" style="color:#ef4444"></span><br>
+      • Your balance will increase by: <span id="withdrawPreviewCredit" style="color:#22c55e"></span>
+    </div>
+    <button class="btn btn-warning" onclick="confirmWithdrawFunds()">✅ Confirm Withdraw</button>
   </div>
+</div>
 
   <!-- 📤 Submit Proof Modal (Internal) -->
   <div id="submitProofModal" class="modal">
@@ -1012,12 +1023,12 @@ async function loadMyTasks() {
           <tr>
             <td colspan="3" style="border:none;padding-top:15px">
               <div class="btn-group">
-                <button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
-                <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
-                ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
-                ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw ${formatPrice(remaining)}</button>` : ''}
-                ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete</button>` : ''}
-              </div>
+  <button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
+  <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
+  ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
+  ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
+  <button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete Task</button>
+</div>
             </td>
           </tr>
         </table>
@@ -1073,21 +1084,50 @@ async function confirmAddFunds() {
   }
 }
 
-
-// ================= ↩️ WITHDRAW FUNDS MODAL (Internal - No External Alerts) =================
+async function confirmWithdrawFunds() {
+  const amount = parseFloat(document.getElementById('withdrawAmountInput').value);
+  const maxAmount = window.maxWithdrawAmount || 0;
+  
+  if (!amount || amount <= 0) {
+    showAlert('⚠️ Please enter a valid amount', 'error');
+    return;
+  }
+  if (amount > maxAmount) {
+    showAlert(`⚠️ Amount exceeds maximum withdrawable (${formatPrice(maxAmount)})`, 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentWithdrawTaskId}/withdraw`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, amount: amount })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert(`✅ Withdrawn ${formatPrice(data.amount)}`, 'success');
+      closeModal('withdrawFundsModal');
+      loadMyTasks();
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    console.error('Withdraw error:', err);
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+// ================= ↩️ WITHDRAW FUNDS MODAL (Partial Withdraw - Like Add Funds) =================
 async function openWithdrawFundsModal(taskId) {
   currentWithdrawTaskId = taskId;
-  
   try {
     // Fetch task details for preview
     const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
     const data = await res.json();
-    
     if (!data.success) {
-      showAlert('❌ Failed to load task details', 'error');
+      showFormMessage('❌ Failed to load task details', 'error');
       return;
     }
-    
     const task = data.task;
     const remaining = parseFloat(task.budget) - parseFloat(task.spent);
     
@@ -1095,17 +1135,27 @@ async function openWithdrawFundsModal(taskId) {
     const pendingRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
     const pendingData = await pendingRes.json();
     const pendingCount = pendingData.success ? pendingData.data.filter(p => p.status === 'pending').length : 0;
+    const disputedCount = pendingData.success ? pendingData.data.filter(p => p.status === 'disputed').length : 0;
+    
+    // Store max withdrawable amount
+    window.maxWithdrawAmount = remaining;
     
     document.getElementById('withdrawTaskTitle').textContent = task.title;
-    document.getElementById('withdrawAmount').textContent = formatPrice(remaining);
-    document.getElementById('withdrawPendingCount').textContent = pendingCount > 0 ? 
+    document.getElementById('withdrawMaxAmount').textContent = formatPrice(remaining);
+    document.getElementById('withdrawPendingCount').textContent = pendingCount > 0 ?
       `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : 'None';
+    document.getElementById('withdrawDisputedCount').textContent = disputedCount > 0 ?
+      `<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : 'None';
     
-    // Disable button if there are pending executions
+    // Reset input
+    document.getElementById('withdrawAmountInput').value = '';
+    document.getElementById('withdrawPreview').style.display = 'none';
+    
+    // Disable button if there are pending/disputed executions
     const btn = document.querySelector('#withdrawFundsModal .btn-warning');
-    if (pendingCount > 0) {
+    if (pendingCount > 0 || disputedCount > 0) {
       btn.disabled = true;
-      btn.textContent = '⚠️ Cannot withdraw (pending executions)';
+      btn.textContent = '⚠️ Cannot withdraw (pending/disputed executions)';
     } else {
       btn.disabled = false;
       btn.textContent = '✅ Confirm Withdraw';
@@ -1113,32 +1163,26 @@ async function openWithdrawFundsModal(taskId) {
     
     openModal('withdrawFundsModal');
   } catch (err) {
-    showAlert('⚠️ Failed to load task details', 'error');
+    console.error('Withdraw modal error:', err);
+    showFormMessage('❌ Failed to load task details', 'error');
   }
 }
 
-async function confirmWithdrawFunds() {
-  if (!confirm('Are you sure you want to withdraw the remaining funds?')) return;
+// Preview update for withdraw amount
+document.getElementById('withdrawAmountInput').oninput = function() {
+  const amount = parseFloat(this.value) || 0;
+  const maxAmount = window.maxWithdrawAmount || 0;
+  const preview = document.getElementById('withdrawPreview');
   
-  try {
-    const res = await fetch(`${API}/api/tasks/${currentWithdrawTaskId}/withdraw`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_id: currentUser })
-    });
-    const data = await res.json();
-    
-    if (data.success) {
-      showAlert(`✅ Withdrawn ${formatPrice(data.amount)}`, 'success');
-      closeModal('withdrawFundsModal');
-      loadMyTasks(); // Refresh the list
-    } else {
-      showAlert('❌ ' + data.message, 'error');
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
+  if (amount > 0 && amount <= maxAmount) {
+    document.getElementById('withdrawPreviewDebit').textContent = formatPrice(amount);
+    document.getElementById('withdrawPreviewCredit').textContent = formatPrice(amount);
+    document.getElementById('withdrawPreviewRemaining').textContent = formatPrice(maxAmount - amount);
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
   }
-}
+};
 
 // ================= TASK: DETAIL & MANAGEMENT =================
 async function viewTaskDetail(taskId) {
@@ -1230,22 +1274,64 @@ async function viewTaskDetail(taskId) {
 }
 
 async function manageTask(taskId) {
-  viewTaskDetail(taskId);
+  try {
+    await viewTaskDetail(taskId);
+  } catch (err) {
+    console.error('Manage task error:', err);
+    showAlert('❌ Failed to load task details', 'error');
+  }
 }
 
 async function deleteTask(taskId) {
-  if (!confirm('⚠️ Are you sure you want to delete this task? Remaining funds will be refunded.')) return;
+  if (!confirm('⚠️ Are you sure you want to DELETE this task permanently?\n\nThis will:\n• Remove the task from database\n• Refund remaining funds to your balance\n• Cancel all pending executions\n\nThis action cannot be undone!')) return;
   
   try {
+    // First check if task can be deleted
+    const checkRes = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
+    const checkData = await checkRes.json();
+    
+    if (!checkData.success) {
+      showAlert('❌ Failed to load task details', 'error');
+      return;
+    }
+    
+    // Check for pending or disputed executions
+    const proofsRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
+    const proofsData = await proofsRes.json();
+    
+    if (proofsData.success && proofsData.data) {
+      const pendingCount = proofsData.data.filter(p => p.status === 'pending').length;
+      const disputedCount = proofsData.data.filter(p => p.status === 'disputed').length;
+      
+      if (pendingCount > 0) {
+        showAlert(`⚠️ Cannot delete: ${pendingCount} pending execution(s) must be resolved first`, 'error');
+        return;
+      }
+      if (disputedCount > 0) {
+        showAlert(`⚠️ Cannot delete: ${disputedCount} disputed execution(s) must be resolved by admin first`, 'error');
+        return;
+      }
+    }
+    
+    // Proceed with deletion
     const res = await fetch(`${API}/api/tasks/${taskId}`, {
       method: 'DELETE',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ user_id: currentUser })
     });
     const data = await res.json();
-    showAlert(data.success ? `✅ Task deleted. ${data.refunded > 0 ? 'Refunded ' + formatPrice(data.refunded) : ''}` : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) loadMyTasks();
+    
+    showAlert(
+      data.success ? `✅ Task deleted. ${data.refunded > 0 ? 'Refunded ' + formatPrice(data.refunded) : ''}` : '❌ ' + data.message, 
+      data.success ? 'success' : 'error'
+    );
+    
+    if (data.success) {
+      closeModal('withdrawFundsModal');
+      loadMyTasks();
+    }
   } catch (err) {
+    console.error('Delete task error:', err);
     showAlert('⚠️ Connection error', 'error');
   }
 }
