@@ -3256,37 +3256,6 @@ setInterval(async () => {
   }
 }, 5 * 60 * 1000);
 
-// ======================= 🏁 SERVER START =======================
-
-// ✅ مسار health check لـ Railway
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// ✅ معالجة المسارات غير المعروفة (404)
-app.use((req, res) => {
-  // ⚠️ مهم: إرجاع JSON وليس HTML لتجنب خطأ "Unexpected token '<'"
-  res.status(404).json({ success: false, message: "Endpoint not found", path: req.path });
-});
-
-// ✅ معالجة الأخطاء العامة
-app.use((err, req, res, next) => {
-  console.error('❌ Global error:', err);
-  res.status(500).json({ success: false, message: "Internal server error", error: err.message });
-});
-
-// ✅ تشغيل السيرفر
-app.listen(PORT, () => {
-  console.log(`🚀 Tasks API server running on port ${PORT}`);
-  console.log(`📡 Health check: http://localhost:${PORT}/health`);
-});
-
-// ✅ التعامل مع إغلاق السيرفر بشكل نظيف
-process.on('SIGTERM', async () => {
-  console.log('🔄 SIGTERM received, shutting down gracefully');
-  await pool.end();
-  process.exit(0);
-});
 
 // ======================= END TASKS SYSTEM API =======================
 
