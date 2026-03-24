@@ -2513,13 +2513,13 @@ app.post('/api/tasks/create', async (req, res) => {
     console.log('📥 Create task request:', { 
       creator_id: req.body.creator_id, 
       title: req.body.title,
-      reward: req.body.executor_reward,
+      reward: req.body.reward_per_execution,
       budget: req.body.budget 
     });
     
     // ✅ 1. استقبال البيانات (نفس أسماء الحقول من frontend)
     const { 
-      creator_id, title, description, executor_reward,
+      creator_id, title, description, reward_per_execution,
       duration_seconds, budget, target_url,
       category, verification_method, proof_requirements,
       audience, delivery_interval, execution_type, max_completion_time,
@@ -2527,16 +2527,16 @@ app.post('/api/tasks/create', async (req, res) => {
     } = req.body;
     
     // ✅ 2. التحقق من الحقول الإلزامية
-    if (!creator_id || !title || executor_reward === undefined || !budget) {
+    if (!creator_id || !title || reward_per_execution === undefined || !budget) {
       return res.status(400).json({ 
         success: false, 
         message: "Missing required fields",
-        required: ["creator_id", "title", "executor_reward", "budget"]
+        required: ["creator_id", "title", "reward_per_execution", "budget"]
       });
     }
     
     // ✅ 3. التحقق من صحة الأرقام
-    const executorReward = parseFloat(executor_reward);
+    const executorReward = parseFloat(reward_per_execution);
     const totalBudget = parseFloat(budget);
     
     if (isNaN(executorReward) || executorReward < 0.001) {
@@ -2597,24 +2597,27 @@ app.post('/api/tasks/create', async (req, res) => {
       const finalDuration = parseInt(duration_seconds) || parseInt(max_completion_time) || 86400;
       
       // ✅ 10. إنشاء المهمة - استعلام متوافق 100% مع الهيكل
-     const result = await client.query(`
-  INSERT INTO tasks (
-    title, description, price, executor_reward, duration_seconds,
-    budget, spent, creator_id, is_active, target_url, settings
-  )
-  VALUES ($1, $2, $3, $4, $5, $6, 0, $7, true, $8, $9)
-  RETURNING *
-`, [
-  title,
-  description,
-  executorReward,
-  executorReward,
-  duration_seconds || 86400,
-  budget,
-  creator_id,
-  target_url || '',
-  settingsData
-]);
+      // ⚠️ ملاحظة: القيم الثابتة (0, true) توضع مباشرة في VALUES وليست ضمن العد
+      const result = await client.query(`
+        INSERT INTO tasks (
+          title, description, price, executor_reward, duration_seconds,
+          budget, spent, creator_id, is_active, target_url, settings
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 0, $7, true, $8, $9)
+        RETURNING id, title, created_at, executor_reward, budget, spent, is_active, settings, target_url
+      `, [
+        title,                           // $1
+        description,                     // $2
+        executorReward,                  // $3: price
+        executorReward,                  // $4: executor_reward
+        finalDuration,                   // $5: duration_seconds
+        totalBudget,                     // $6: budget
+        // 0,                            // spent: قيمة ثابتة في الاستعلام
+        creator_id,                      // $7: creator_id (bigint)
+        // true,                         // is_active: قيمة ثابتة في الاستعلام
+        target_url || '',                // $8: target_url
+        settings                         // $9: settings (jsonb - كائن مباشر)
+      ]);
       
       // ✅ 11. تأكيد المعاملة
       await client.query('COMMIT');
