@@ -2778,6 +2778,7 @@ app.post('/api/tasks/:id/submit-proof', async (req, res) => {
 
 // ======================= 📋 TASK PROOFS =======================
 
+// ✅ GET /api/tasks/:id/proofs - جلب براهين التنفيذ
 app.get('/api/tasks/:id/proofs', async (req, res) => {
   try {
     const { id } = req.params;
@@ -2787,6 +2788,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
       return res.status(400).json({ success: false, message: "Task ID required" });
     }
     
+    // التحقق من صلاحية الوصول
     const task = await pool.query('SELECT creator_id, deleted_at FROM tasks WHERE id = $1', [id]);
     if (task.rows.length === 0 || task.rows[0].deleted_at) {
       return res.status(404).json({ success: false, message: "Task not found" });
@@ -2797,6 +2799,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     let query, params;
     
     if (isCreator) {
+      // المنشئ يرى كل البراهين
       query = `
         SELECT 
           te.id, te.proof, te.status, te.submitted_at, te.created_at,
@@ -2809,6 +2812,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
       `;
       params = [id];
     } else if (user_id) {
+      // المنفذ يرى براهينه فقط
       query = `
         SELECT 
           te.id, te.proof, te.status, te.submitted_at, te.created_at,
@@ -2823,7 +2827,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     }
     
     const proofs = await pool.query(query, params);
-    res.json({ success: true,  proofs.rows });
+    res.json({ success: true, data: proofs.rows });  // ✅ تم الإصلاح هنا
     
   } catch (err) {
     console.error('❌ /api/tasks/:id/proofs:', err);
