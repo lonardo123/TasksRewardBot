@@ -100,6 +100,9 @@ tr:hover{background:#1e293b/50}
   color: #22c55e;
   border: 1px solid #22c55e40;
 }
+/* === Delete Modal Styles === */
+#deleteTaskInfo p { margin: 8px 0; color: #cbd5e1; }
+#withdrawPreview p { margin: 8px 0; color: #cbd5e1; }  
 @keyframes slideDown {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -594,7 +597,7 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 
-  <!-- ↩️ Withdraw Funds Modal (Partial Withdraw - Like Add Funds) -->
+ <!-- ↩️ Withdraw Funds Modal (Partial/Full Withdraw) -->
 <div id="withdrawFundsModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -605,7 +608,7 @@ tr:hover{background:#1e293b/50}
       ⚠️ Withdraw funds from task budget back to your balance.<br>
       <strong>Cannot withdraw if there are pending or disputed executions.</strong>
     </div>
-    <div id="withdrawPreview">
+    <div id="withdrawPreview" style="margin:15px 0;padding:15px;background:#1e293b;border-radius:8px">
       <p><strong>Task:</strong> <span id="withdrawTaskTitle"></span></p>
       <p><strong>Maximum Withdrawable:</strong> <span id="withdrawMaxAmount" style="color:#22c55e;font-weight:600"></span></p>
       <p><strong>Pending Executions:</strong> <span id="withdrawPendingCount"></span></p>
@@ -613,18 +616,20 @@ tr:hover{background:#1e293b/50}
     </div>
     <div class="input-group">
       <label>Amount to Withdraw (USD) <span class="required">*</span></label>
-      <input type="number" id="withdrawAmountInput" step="0.01" min="0.01" placeholder="Enter amount">
+      <input type="number" id="withdrawAmountInput" step="0.01" min="0.01" placeholder="Enter amount or leave empty for full withdrawal">
     </div>
-    <div class="alert alert-info" id="withdrawPreview" style="display:none">
+    <div class="alert alert-info" id="withdrawPreviewDetails" style="display:none">
       <strong>Preview:</strong><br>
       • Amount to withdraw: <span id="withdrawPreviewDebit" style="color:#facc15"></span><br>
       • Task budget remaining: <span id="withdrawPreviewRemaining" style="color:#ef4444"></span><br>
       • Your balance will increase by: <span id="withdrawPreviewCredit" style="color:#22c55e"></span>
     </div>
-    <button class="btn btn-warning" onclick="confirmWithdrawFunds()">✅ Confirm Withdraw</button>
+    <div class="btn-group" style="justify-content:center;margin-top:15px">
+      <button class="btn btn-warning" onclick="confirmWithdrawFunds()">✅ Confirm Withdraw</button>
+      <button class="btn btn-primary" onclick="closeModal('withdrawFundsModal')">❌ Cancel</button>
+    </div>
   </div>
 </div>
-
   <!-- 📤 Submit Proof Modal (Internal) -->
   <div id="submitProofModal" class="modal">
     <div class="modal-content">
@@ -670,7 +675,29 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 </div>
-
+<!-- 🗑️ Delete Task Confirmation Modal -->
+<div id="deleteTaskModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>🗑️ Delete Task Confirmation</h3>
+      <button class="modal-close" onclick="closeModal('deleteTaskModal')">&times;</button>
+    </div>
+    <div class="alert alert-error">
+      ⚠️ <strong>Warning:</strong> This action cannot be undone!<br>
+      • Task will be permanently deleted<br>
+      • Remaining funds will be refunded to your balance<br>
+      • All pending proofs will be cancelled
+    </div>
+    <div id="deleteTaskInfo" style="margin:15px 0;padding:15px;background:#1e293b;border-radius:8px">
+      <p><strong>Task:</strong> <span id="deleteTaskTitle"></span></p>
+      <p><strong>Refund Amount:</strong> <span id="deleteRefundAmount" style="color:#22c55e"></span></p>
+    </div>
+    <div class="btn-group" style="justify-content:center">
+      <button class="btn btn-danger" onclick="confirmDeleteTask()">🗑️ Yes, Delete Task</button>
+      <button class="btn btn-primary" onclick="closeModal('deleteTaskModal')">❌ Cancel</button>
+    </div>
+  </div>
+</div>
 <script>
 // ================= CONFIG =================
 const API = "https://perceptive-victory-production.up.railway.app";
@@ -679,6 +706,7 @@ let currentTask = null;
 let currentProof = null;
 let currentFundTaskId = null;
 let currentWithdrawTaskId = null;
+let windowMaxWithdrawAmount = 0;  
 let countdownTimers = {}; // Store countdown intervals
 
 // ================= INIT =================
@@ -752,6 +780,24 @@ function clearFormMessage() {
   const container = document.getElementById('formMessageContainer');
   if (container) container.innerHTML = '';
 }
+function showFormMessageInModal(modalId, msg, type) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  
+  let msgContainer = modal.querySelector('.form-message-container');
+  if (!msgContainer) {
+    msgContainer = document.createElement('div');
+    msgContainer.className = 'form-message-container';
+    msgContainer.style.cssText = 'margin:15px 0;';
+    const header = modal.querySelector('.modal-header');
+    header.parentNode.insertBefore(msgContainer, header.nextSibling);
+  }
+  
+  msgContainer.innerHTML = `<div class="form-message ${type}">${msg}</div>`;
+  if (type === 'success') {
+    setTimeout(() => { msgContainer.innerHTML = ''; }, 2000);
+  }
+}  
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
 }
@@ -947,10 +993,8 @@ async function applyForTask(taskId) {
     const data = await res.json();
     
     if (data.success) {
-      showAlert('✅ Applied for task. One slot reserved for you.', 'success');
-      // Refresh the list to show updated available slots
-      loadAvailableTasks();
-      // Switch to My Tasks to show the applied task
+      showAlert('✅ Applied for task. Slot reserved. Submit your proof before time expires.', 'success');
+      loadAvailableTasks(); // Refresh to show updated slots
       setTimeout(() => {
         switchTab('my');
         loadMyTasks();
@@ -959,6 +1003,7 @@ async function applyForTask(taskId) {
       showAlert('❌ ' + data.message, 'error');
     }
   } catch (err) {
+    console.error('Apply error:', err);
     showAlert('⚠️ Connection error', 'error');
   }
 }
@@ -1027,7 +1072,7 @@ async function loadMyTasks() {
   <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
   ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
   ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
-  <button class="btn btn-danger btn-sm" onclick="deleteTask(${task.id})">🗑️ Delete Task</button>
+  ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete Task</button>` : ''}
 </div>
             </td>
           </tr>
@@ -1117,41 +1162,36 @@ async function confirmWithdrawFunds() {
     showAlert('⚠️ Connection error', 'error');
   }
 }
-// ================= ↩️ WITHDRAW FUNDS MODAL (Partial Withdraw - Like Add Funds) =================
+// ================= ↩️ WITHDRAW FUNDS MODAL =================
+
 async function openWithdrawFundsModal(taskId) {
   currentWithdrawTaskId = taskId;
   try {
-    // Fetch task details for preview
     const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
     const data = await res.json();
     if (!data.success) {
-      showFormMessage('❌ Failed to load task details', 'error');
+      showFormMessageInModal('withdrawFundsModal', '❌ Failed to load task details', 'error');
       return;
     }
     const task = data.task;
     const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+    windowMaxWithdrawAmount = remaining;
     
-    // Check for pending executions
     const pendingRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
     const pendingData = await pendingRes.json();
     const pendingCount = pendingData.success ? pendingData.data.filter(p => p.status === 'pending').length : 0;
     const disputedCount = pendingData.success ? pendingData.data.filter(p => p.status === 'disputed').length : 0;
     
-    // Store max withdrawable amount
-    window.maxWithdrawAmount = remaining;
-    
     document.getElementById('withdrawTaskTitle').textContent = task.title;
     document.getElementById('withdrawMaxAmount').textContent = formatPrice(remaining);
-    document.getElementById('withdrawPendingCount').textContent = pendingCount > 0 ?
-      `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : 'None';
-    document.getElementById('withdrawDisputedCount').textContent = disputedCount > 0 ?
-      `<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : 'None';
+    document.getElementById('withdrawPendingCount').innerHTML = pendingCount > 0 ?
+      `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
+    document.getElementById('withdrawDisputedCount').innerHTML = disputedCount > 0 ?
+      `<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
     
-    // Reset input
     document.getElementById('withdrawAmountInput').value = '';
-    document.getElementById('withdrawPreview').style.display = 'none';
+    document.getElementById('withdrawPreviewDetails').style.display = 'none';
     
-    // Disable button if there are pending/disputed executions
     const btn = document.querySelector('#withdrawFundsModal .btn-warning');
     if (pendingCount > 0 || disputedCount > 0) {
       btn.disabled = true;
@@ -1164,25 +1204,60 @@ async function openWithdrawFundsModal(taskId) {
     openModal('withdrawFundsModal');
   } catch (err) {
     console.error('Withdraw modal error:', err);
-    showFormMessage('❌ Failed to load task details', 'error');
+    showFormMessageInModal('withdrawFundsModal', '❌ Failed to load task details', 'error');
   }
 }
 
-// Preview update for withdraw amount
 document.getElementById('withdrawAmountInput').oninput = function() {
   const amount = parseFloat(this.value) || 0;
-  const maxAmount = window.maxWithdrawAmount || 0;
-  const preview = document.getElementById('withdrawPreview');
+  const maxAmount = windowMaxWithdrawAmount || 0;
+  const preview = document.getElementById('withdrawPreviewDetails');
   
   if (amount > 0 && amount <= maxAmount) {
     document.getElementById('withdrawPreviewDebit').textContent = formatPrice(amount);
-    document.getElementById('withdrawPreviewCredit').textContent = formatPrice(amount);
     document.getElementById('withdrawPreviewRemaining').textContent = formatPrice(maxAmount - amount);
+    document.getElementById('withdrawPreviewCredit').textContent = formatPrice(amount);
     preview.style.display = 'block';
   } else {
     preview.style.display = 'none';
   }
 };
+
+async function confirmWithdrawFunds() {
+  const amountInput = parseFloat(document.getElementById('withdrawAmountInput').value);
+  const amount = amountInput > 0 ? amountInput : windowMaxWithdrawAmount;
+  
+  if (!amount || amount <= 0) {
+    showFormMessageInModal('withdrawFundsModal', '⚠️ Please enter a valid amount', 'error');
+    return;
+  }
+  if (amount > windowMaxWithdrawAmount) {
+    showFormMessageInModal('withdrawFundsModal', `⚠️ Amount exceeds maximum (${formatPrice(windowMaxWithdrawAmount)})`, 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${currentWithdrawTaskId}/withdraw`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: currentUser, amount: amount })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showFormMessageInModal('withdrawFundsModal', `✅ Withdrawn ${formatPrice(data.amount)}`, 'success');
+      setTimeout(() => {
+        closeModal('withdrawFundsModal');
+        loadMyTasks();
+      }, 1500);
+    } else {
+      showFormMessageInModal('withdrawFundsModal', '❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    console.error('Withdraw error:', err);
+    showFormMessageInModal('withdrawFundsModal', '⚠️ Connection error', 'error');
+  }
+}
 
 // ================= TASK: DETAIL & MANAGEMENT =================
 async function viewTaskDetail(taskId) {
@@ -1282,58 +1357,53 @@ async function manageTask(taskId) {
   }
 }
 
-async function deleteTask(taskId) {
-  if (!confirm('⚠️ Are you sure you want to DELETE this task permanently?\n\nThis will:\n• Remove the task from database\n• Refund remaining funds to your balance\n• Cancel all pending executions\n\nThis action cannot be undone!')) return;
-  
+let taskToDelete = null;
+
+async function openDeleteTaskModal(taskId) {
+  taskToDelete = taskId;
   try {
-    // First check if task can be deleted
-    const checkRes = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
-    const checkData = await checkRes.json();
-    
-    if (!checkData.success) {
+    const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
+    const data = await res.json();
+    if (!data.success) {
       showAlert('❌ Failed to load task details', 'error');
       return;
     }
+    const task = data.task;
+    const remaining = parseFloat(task.budget) - parseFloat(task.spent);
     
-    // Check for pending or disputed executions
-    const proofsRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
-    const proofsData = await proofsRes.json();
-    
-    if (proofsData.success && proofsData.data) {
-      const pendingCount = proofsData.data.filter(p => p.status === 'pending').length;
-      const disputedCount = proofsData.data.filter(p => p.status === 'disputed').length;
-      
-      if (pendingCount > 0) {
-        showAlert(`⚠️ Cannot delete: ${pendingCount} pending execution(s) must be resolved first`, 'error');
-        return;
-      }
-      if (disputedCount > 0) {
-        showAlert(`⚠️ Cannot delete: ${disputedCount} disputed execution(s) must be resolved by admin first`, 'error');
-        return;
-      }
-    }
-    
-    // Proceed with deletion
-    const res = await fetch(`${API}/api/tasks/${taskId}`, {
+    document.getElementById('deleteTaskTitle').textContent = task.title;
+    document.getElementById('deleteRefundAmount').textContent = formatPrice(remaining);
+    openModal('deleteTaskModal');
+  } catch (err) {
+    console.error('Delete modal error:', err);
+    showAlert('⚠️ Failed to load task details', 'error');
+  }
+}
+
+async function confirmDeleteTask() {
+  if (!taskToDelete) return;
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskToDelete}`, {
       method: 'DELETE',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ user_id: currentUser })
     });
     const data = await res.json();
     
-    showAlert(
-      data.success ? `✅ Task deleted. ${data.refunded > 0 ? 'Refunded ' + formatPrice(data.refunded) : ''}` : '❌ ' + data.message, 
-      data.success ? 'success' : 'error'
-    );
-    
     if (data.success) {
-      closeModal('withdrawFundsModal');
+      closeModal('deleteTaskModal');
+      showAlert(`✅ Task deleted. ${data.refunded > 0 ? 'Refunded ' + formatPrice(data.refunded) : ''}`, 'success');
       loadMyTasks();
+    } else {
+      closeModal('deleteTaskModal');
+      showAlert('❌ ' + data.message, 'error');
     }
   } catch (err) {
-    console.error('Delete task error:', err);
+    console.error('Delete error:', err);
+    closeModal('deleteTaskModal');
     showAlert('⚠️ Connection error', 'error');
   }
+  taskToDelete = null;
 }
 
 // ================= 📤 SUBMIT PROOF WITH COUNTDOWN =================
