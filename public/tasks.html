@@ -1,1659 +1,2557 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>📝 Tasks</title>
-<style>
-/* === Base Styles === */
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI',Tahoma,sans-serif;background:#0f172a;color:#fff;min-height:100vh;line-height:1.6}
-.container{max-width:1200px;margin:0 auto;padding:20px}
-.card{background:#1e293b;border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid #334155}
-.card h3{color:#60a5fa;margin-bottom:15px;font-size:18px}
-.btn{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:all 0.2s}
-.btn-primary{background:#3b82f6;color:white}.btn-primary:hover{background:#2563eb}
-.btn-success{background:#22c55e;color:white}.btn-success:hover{background:#16a34a}
-.btn-danger{background:#ef4444;color:white}.btn-danger:hover{background:#dc2626}
-.btn-warning{background:#f59e0b;color:white}.btn-warning:hover{background:#d97706}
-.btn-sm{padding:6px 12px;font-size:13px}
-.btn-group{display:flex;gap:10px;flex-wrap:wrap}
-.input-group{margin-bottom:15px}
-.input-group label{display:block;margin-bottom:5px;color:#94a3b8;font-size:14px}
-.input-group input,.input-group textarea,.input-group select{
-width:100%;padding:12px;border:1px solid #475569;border-radius:8px;
-background:#1e293b;color:white;font-size:14px
-}
-.input-group input:focus,.input-group textarea:focus{outline:none;border-color:#3b82f6}
-table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:12px;border-bottom:1px solid #334151;text-align:left}
-th{background:#1e293b;color:#94a3b8;font-weight:600}
-tr:hover{background:#1e293b/50}
-.status-badge{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600}
-.status-pending{background:#f59e0b20;color:#f59e0b}
-.status-approved{background:#22c55e20;color:#22c55e}
-.status-rejected{background:#ef444420;color:#ef4444}
-.status-disputed{background:#8b5cf620;color:#8b5cf6}
-.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
-.modal.active{display:flex}
-.modal-content{background:#1e293b;border-radius:12px;padding:25px;width:90%;max-width:900px;max-height:90vh;overflow-y:auto}
-.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #334155}
-.modal-close{background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer}
-.modal-close:hover{color:white}
-.alert{padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px}
-.alert-success{background:#22c55e20;color:#22c55e;border:1px solid #22c55e40}
-.alert-error{background:#ef444420;color:#ef4444;border:1px solid #ef444440}
-.alert-info{background:#3b82f620;color:#60a5fa;border:1px solid #3b82f640}
-.tabs{display:flex;gap:5px;margin-bottom:20px;border-bottom:1px solid #334155;padding-bottom:10px}
-.tab{padding:10px 20px;border-radius:8px 8px 0 0;cursor:pointer;background:#1e293b;color:#94a3b8}
-.tab.active{background:#3b82f6;color:white}
-.proof-item{background:#1e293b;border-radius:8px;padding:15px;margin-bottom:10px;border:1px solid #334155}
-.proof-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.proof-content{color:#cbd5e1;font-size:14px;white-space:pre-wrap;background:#0f172a;padding:12px;border-radius:6px}
-.proof-actions{display:flex;gap:10px;margin-top:10px}
-.budget-bar{height:8px;background:#334155;border-radius:4px;overflow:hidden;margin:10px 0}
-.budget-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#22c55e);transition:width 0.3s}
-.price-tag{background:#22c55e20;color:#22c55e;padding:4px 10px;border-radius:6px;font-weight:600;font-size:13px}
-.commission-info{font-size:12px;color:#94a3b8;margin-top:5px}
-.loading{text-align:center;padding:40px;color:#94a3b8}
-.hidden{display:none!important}
-/* === Form Styles (Aviso-style) === */
-.task-form-table{width:100%;border-collapse:collapse;font-size:14px}
-.task-form-table th{background:#1e293b;padding:12px;text-align:left;color:#94a3b8}
-.task-form-table td{padding:10px 12px;border-bottom:1px solid #334155;vertical-align:top}
-.task-form-table td:first-child{width:35%;color:#94a3b8}
-.task-form-table td:last-child{width:5%;text-align:center}
-.task-form-table input[type="text"],.task-form-table input[type="number"],.task-form-table textarea,.task-form-table select{
-width:100%;padding:8px;border:1px solid #475569;border-radius:4px;background:#0f172a;color:white;font-size:13px
-}
-.task-form-table textarea{min-height:100px;resize:vertical}
-.task-form-table .hint-quest{cursor:help;color:#60a5fa;font-size:12px}
-.task-form-table .hint-quest:hover{color:#3b82f6}
-.tooltip{position:absolute;background:#1e293b;border:1px solid #475569;padding:10px;border-radius:6px;z-index:100;max-width:300px;font-size:12px;color:#cbd5e1;display:none}
-.tooltip b{color:#60a5fa}
-.hint-quest{position:relative}
-.hint-quest:hover .tooltip{display:block}
-.bb-code{display:inline-block;padding:2px 8px;background:#334155;border-radius:4px;margin-right:5px;cursor:pointer;font-size:12px}
-.bb-code:hover{background:#475569}
-.price-display{font-size:18px;font-weight:600;color:#22c55e}
-.interval-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;font-size:11px}
-.interval-grid input{width:100%;padding:4px;text-align:center}
-.form-actions{text-align:center;padding:20px;border-top:1px solid #334155;margin-top:10px}
-.required{color:#ef4444}*
-/* === Form Messages inside Modal === */
-.form-message {
-padding: 10px 15px;
-border-radius: 8px;
-margin: 10px 0;
-font-size: 14px;
-text-align: center;
-font-weight: 500;
-animation: slideDown 0.2s ease;
-}
-.form-message.error {
-background: #ef444420;
-color: #ef4444;
-border: 1px solid #ef444440;
-}
-.form-message.success {
-background: #22c55e20;
-color: #22c55e;
-border: 1px solid #22c55e40;
-}
-@keyframes slideDown {
-from { opacity: 0; transform: translateY(-10px); }
-to { opacity: 1; transform: translateY(0); }
-}
-.section-divider{border-top:1px dashed #475569;margin:15px 0;padding-top:15px}
-/* === Countdown Timer === */
-.countdown{font-weight:600;color:#facc15;font-size:14px}
-.countdown.expired{color:#ef4444}
-/* === Reserved Slot Badge === */
-.reserved-badge{background:#8b5cf620;color:#8b5cf6;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:600}
-@media(max-width:768px){
-.btn-group{flex-direction:column}
-th,td{padding:8px;font-size:13px}
-.modal-content{width:95%;padding:15px}
-.task-form-table td:first-child{width:100%;padding-bottom:5px}
-.task-form-table tr{display:block;margin-bottom:15px;border-bottom:1px solid #334155}
-.interval-grid{grid-template-columns:repeat(3,1fr)}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📝 Tasks Management - BitcoTasks</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --success-color: #16a34a;
+            --success-hover: #15803d;
+            --danger-color: #dc2626;
+            --danger-hover: #b91c1c;
+            --warning-color: #f59e0b;
+            --warning-hover: #d97706;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-color: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            --sidebar-width: 280px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* ==================== Header ==================== */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), #7c3aed);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-balance {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .user-id {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        /* ==================== Navigation Tabs ==================== */
+        .nav-tabs {
+            background: var(--card-bg);
+            padding: 15px 30px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .nav-tab {
+            padding: 12px 25px;
+            background: var(--bg-color);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-tab:hover {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .nav-tab.active {
+            background: var(--primary-color);
+            color: white;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+        }
+
+        /* ==================== Main Container ==================== */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* ==================== Cards ==================== */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 25px;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ==================== Buttons ==================== */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: var(--success-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: var(--danger-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: var(--warning-hover);
+        }
+
+        .btn-secondary {
+            background: var(--text-muted);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .btn-lg {
+            padding: 15px 30px;
+            font-size: 16px;
+        }
+
+        /* ==================== Task List ==================== */
+        .task-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .task-item {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .task-item:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .task-info {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .task-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 8px;
+        }
+
+        .task-description {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .task-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* ==================== Badges ==================== */
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .badge-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-approved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-rejected {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-disputed {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .badge-active {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        /* ==================== Forms ==================== */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-color);
+        }
+
+        .form-label .required {
+            color: var(--danger-color);
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 5px;
+        }
+
+        .form-error {
+            font-size: 12px;
+            color: var(--danger-color);
+            margin-top: 5px;
+        }
+
+        /* ==================== Timer ==================== */
+        .timer-container {
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            border: 2px solid var(--danger-color);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .timer-label {
+            font-size: 14px;
+            color: var(--danger-color);
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .timer-display {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--danger-color);
+            font-family: 'Courier New', monospace;
+            letter-spacing: 2px;
+        }
+
+        .timer-expired {
+            background: linear-gradient(135deg, #e5e7eb, #d1d5db);
+            border-color: var(--text-muted);
+        }
+
+        .timer-expired .timer-display {
+            color: var(--text-muted);
+        }
+
+        /* ==================== Modal ==================== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: modalSlideIn 0.3s ease;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-color);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+            transition: color 0.3s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--danger-color);
+        }
+
+        .modal-body {
+            margin-bottom: 25px;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        /* ==================== Alert Boxes ==================== */
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #93c5fd;
+        }
+
+        .alert-warning {
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #fcd34d;
+        }
+
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #6ee7b7;
+        }
+
+        /* ==================== Task Detail Page ==================== */
+        .task-detail-header {
+            background: linear-gradient(135deg, var(--primary-color), #7c3aed);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .task-detail-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .task-detail-meta {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            opacity: 0.9;
+        }
+
+        .task-detail-section {
+            margin-bottom: 25px;
+        }
+
+        .task-detail-section h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-color);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .task-detail-content {
+            font-size: 15px;
+            line-height: 1.8;
+            color: var(--text-muted);
+            white-space: pre-wrap;
+        }
+
+        .task-detail-url {
+            background: var(--bg-color);
+            padding: 15px;
+            border-radius: 8px;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+
+        .task-detail-url a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .task-detail-url a:hover {
+            text-decoration: underline;
+        }
+
+        /* ==================== Cost Summary ==================== */
+        .cost-summary {
+            background: var(--bg-color);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .cost-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 14px;
+        }
+
+        .cost-row:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--primary-color);
+            padding-top: 15px;
+            margin-top: 10px;
+        }
+
+        /* ==================== Progress Bar ==================== */
+        .progress-container {
+            margin: 15px 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 8px;
+            color: var(--text-muted);
+        }
+
+        .progress-bar {
+            height: 10px;
+            background: var(--border-color);
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), #7c3aed);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+
+        /* ==================== Empty State ==================== */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        /* ==================== Loading Spinner ==================== */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-text {
+            margin-top: 15px;
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        /* ==================== Responsive ==================== */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+
+            .nav-tabs {
+                justify-content: center;
+            }
+
+            .nav-tab {
+                padding: 10px 15px;
+                font-size: 13px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .task-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .task-actions {
+                justify-content: center;
+            }
+
+            .task-detail-meta {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .modal-content {
+                padding: 20px;
+            }
+        }
+
+        /* ==================== Utility Classes ==================== */
+        .hidden {
+            display: none !important;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-left {
+            text-align: left;
+        }
+
+        .mt-10 { margin-top: 10px; }
+        .mt-20 { margin-top: 20px; }
+        .mb-10 { margin-bottom: 10px; }
+        .mb-20 { margin-bottom: 20px; }
+
+        .flex { display: flex; }
+        .flex-between { justify-content: space-between; }
+        .flex-center { align-items: center; }
+        .flex-wrap { flex-wrap: wrap; }
+        .gap-10 { gap: 10px; }
+        .gap-20 { gap: 20px; }
+    </style>
 </head>
 <body>
-<div class="container">
-<!-- Navigation Bar -->
-<div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-<h2>📝 Tasks </h2>
-<div class="btn-group">
-<button class="btn btn-primary" onclick="openAddTaskModal()">➕ Add Task</button>
-</div>
-</div>
-<!-- Alert Messages (inside page - NO external alerts) -->
-<div id="alertBox" class="alert hidden"></div>
-<!-- Tabs -->
-<div class="tabs">
-<div class="tab active" data-tab="available" onclick="switchTab('available')">🔍 Available Tasks</div>
-<div class="tab" data-tab="my" onclick="switchTab('my')">📋 My Tasks</div>
-</div>
-<!-- Available Tasks Section -->
-<div id="availableTasks" class="card">
-<h3>🔍 Available Tasks for Execution</h3>
-<div id="availableTasksList"></div>
-</div>
-<!-- My Tasks Section -->
-<div id="myTasks" class="card hidden">
-<h3>📋 Tasks You Created</h3>
-<div id="myTasksList"></div>
-</div>
-<!-- Disputes Section (Admin Only) -->
-<div id="disputesSection" class="card hidden">
-<h3>⚠️ Dispute Management</h3>
-<div id="disputesList"></div>
-</div>
-<!-- Task Details -->
-<div id="taskDetail" class="card hidden">
-<button class="btn btn-primary btn-sm" onclick="showSection('list')">⬅️ Back to List</button>
-<div id="taskDetailContent"></div>
-</div>
-<!-- Add Task Internal Page (Modal) -->
-<div id="addTaskModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>➕ Create New Paid Task</h3>
-<button class="modal-close" onclick="closeModal('addTaskModal')">&times;</button>
-</div>
-<div class="alert alert-info">
-<strong>💡 Tip:</strong> There are many users willing to complete simple tasks for a small fee.
-How attractive and interesting your task is depends on you. Don't be stingy with the reward.
-Minimum price per task: <strong>$0.001</strong>
-</div>
-<form id="addTaskForm" onsubmit="return createTaskFromForm(event)">
-<table class="task-form-table">
-<tr><th colspan="3">New Task Details</th></tr>
-<!-- Task Title -->
-<tr>
-<td>Task Title <span class="required">*</span></td>
-<td><input type="text" id="formTitle" maxlength="55" placeholder="Short, clear title (max 55 chars)" required></td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Task Title</b> - Maximum 55 characters.<br>
-Title should be short and clear.<br>
-Use proper grammar. Poor writing will discourage users.<br>
-Don't write in ALL CAPS or use excessive punctuation like !!!!!!
-</span>
-</span>
-</td>
-</tr>
-<!-- Category -->
-<tr>
-<td>Task Category <span class="required">*</span></td>
-<td>
-<select id="formCategory" required>
-<option value="">-- Select Category --</option>
-<option value="registration">Registration Only</option>
-<option value="clicks">Clicks Only</option>
-<option value="youtube">YouTube</option>
-<option value="social">Social Media</option>
-<option value="posting">Posting/Comments</option>
-<option value="article">Write Article</option>
-<option value="review">Leave Review</option>
-<option value="vote">Vote/Poll</option>
-<option value="games">Play Games</option>
-<option value="download">Download Files</option>
-<option value="other">Other</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Task must be placed in the correct category for better visibility.
-</span>
-</span>
-</td>
-</tr>
-<!-- Verification Method -->
-<tr>
-<td>Verification Method<br><span style="color:#ef4444;font-size:12px">Cannot be changed later</span></td>
-<td>
-<select id="formVerification" onchange="toggleVerificationFields()" required>
-<option value="manual">Manual Review by Advertiser</option>
-<option value="auto">Auto-Verify by System</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Manual:</b> You review each proof personally.<br>
-<b>Auto:</b> System auto-approves if keyword matches.<br>
-Not recommended for high-value tasks.
-</span>
-</span>
-</td>
-</tr>
-<!-- Task Description -->
-<tr>
-<td><b>Task Description</b> <span class="required">*</span></td>
-<td colspan="2">
-<div style="margin-bottom:5px">
-<span class="bb-code" title="Bold" onclick="insertBBCode('formDesc','[b]','[/b]')">B</span>
-<span class="bb-code" title="Italic" onclick="insertBBCode('formDesc','[i]','[/i]')">I</span>
-<span class="bb-code" title="Underline" onclick="insertBBCode('formDesc','[u]','[/u]')">U</span>
-<span class="bb-code" title="URL" onclick="insertBBCode('formDesc','[url]','[/url]')">URL</span>
-<span style="float:right;font-size:12px;color:#94a3b8"><span id="descCount">4000</span> chars left</span>
-</div>
-</td>
-</tr>
-<tr>
-<td colspan="2">
-<textarea id="formDesc" maxlength="4000" onkeyup="updateCharCount('formDesc','descCount')" placeholder="Detailed instructions for executors..."></textarea>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Description</b> - Max 4000 characters.<br>
-Be informative and clear. Use proper grammar.<br>
-Don't use ALL CAPS or excessive punctuation.
-</span>
-</span>
-</td>
-</tr>
-<!-- Proof Requirements -->
-<tr class="section-divider"><td colspan="3"><b>What executor must submit as proof</b> <span class="required">*</span></td></tr>
-<tr>
-<td colspan="2">
-<textarea id="formProofReq" maxlength="3000" placeholder="Example: 'Send your Telegram ID' or 'Paste the confirmation code here'..."></textarea>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Proof Requirements</b> - Max 3000 characters.<br>
-Clearly state what the user must submit to prove completion.
-</span>
-</span>
-</td>
-</tr>
-<!-- Auto-Verify Keyword (hidden by default) -->
-<tr id="autoKeywordRow" style="display:none;background:#1e293b">
-<td colspan="3" style="padding:10px;color:#facc15">
-⚠️ <b>Auto-Verify Mode:</b> The keyword below will be used to auto-approve proofs. Make it unique and simple.
-</td>
-</tr>
-<tr id="keywordRow" style="display:none">
-<td>Verification Keyword</td>
-<td><input type="text" id="formKeyword" placeholder="e.g., CONFIRM123"></td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Single code that executors must include in their proof for auto-approval.
-</span>
-</span>
-</td>
-</tr>
-<!-- Target URL -->
-<tr>
-<td><b>Target URL</b> (with https://) <span class="required">*</span></td>
-<td><input type="url" id="formUrl" maxlength="1100" placeholder="https://example.com/page" required></td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Must start with https:// and be max 1100 characters.<br>
-No HTML tags or JavaScript allowed.
-</span>
-</span>
-</td>
-</tr>
-<!-- Reward per Execution - NEW PAYMENT SYSTEM -->
-<tr>
-<td>Reward per Execution <span class="required">*</span></td>
-<td>
-<input type="number" id="formReward" step="0.001" min="0.001" value="0.01" oninput="calculateTotalCost()" style="width:100px">
-<span style="color:#22c55e;font-weight:600">$</span>
-<span style="font-size:12px;color:#94a3b8">Min $0.001</span>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Amount ($) paid to executor per successful completion.<br>
-Fair pricing improves your reputation and task completion rate.
-</span>
-</span>
-</td>
-</tr>
-<!-- Target Audience -->
-<tr>
-<td>Target Audience</td>
-<td>
-<select id="formAudience">
-<option value="all">All Executors</option>
-<option value="favorites">Favorites List Only</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Limit task to specific users or open to everyone.
-</span>
-</span>
-</td>
-</tr>
-<!-- Delivery Interval -->
-<tr>
-<td>Delivery Interval</td>
-<td>
-<select id="formInterval" onchange="toggleIntervalFields()">
-<option value="none">No Interval (Continuous)</option>
-<option value="hourly">Hourly Limits</option>
-<option value="fixed">Fixed Delay</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Fixed:</b> Delay between task assignments.<br>
-<b>Hourly:</b> Set max completions per hour of day.
-</span>
-</span>
-</td>
-</tr>
-<!-- Fixed Interval Input -->
-<tr id="fixedIntervalRow" style="display:none">
-<td>Delay Between Assignments</td>
-<td colspan="2">
-<input type="number" id="formDelayHours" min="0" max="23" value="0" style="width:60px"> hours
-<input type="number" id="formDelayMinutes" min="0" max="59" value="5" style="width:60px"> minutes
-</td>
-</tr>
-<!-- Hourly Limits Grid -->
-<tr id="hourlyGridRow" style="display:none">
-<td colspan="3">
-<div class="interval-grid">
-<div>00-01<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>01-02<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>02-03<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>03-04<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>04-05<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>05-06<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>06-07<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>07-08<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>08-09<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>09-10<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>10-11<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>11-12<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>12-13<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>13-14<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>14-15<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>15-16<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>16-17<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>17-18<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>18-19<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>19-20<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>20-21<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>21-22<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>22-23<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-<div>23-00<br><input type="number" class="hourly-limit" value="0" min="0" max="999"></div>
-</div>
-</td>
-</tr>
-<!-- Execution Type -->
-<tr>
-<td>Execution Type<br><span style="color:#ef4444;font-size:12px">Cannot be changed later</span></td>
-<td>
-<select id="formExecType" onchange="toggleExecTypeFields()">
-<option value="once">One User — One Completion</option>
-<option value="multiple">Multiple Completions Allowed</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Once:</b> Each user can complete task only once.<br>
-<b>Multiple:</b> Users can re-complete after approval/rejection.
-</span>
-</span>
-</td>
-</tr>
-<!-- Multiple Execution Interval -->
-<tr id="multiIntervalRow" style="display:none">
-<td>Cooldown Between Re-completions</td>
-<td>
-<select id="formMultiInterval">
-<option value="0">Immediately after approval</option>
-<option value="3600">1 hour after previous report</option>
-<option value="10800">3 hours after previous report</option>
-<option value="21600">6 hours after previous report</option>
-<option value="43200">12 hours after previous report</option>
-<option value="86400">1 day after previous report</option>
-<option value="172800">2 days after previous report</option>
-<option value="259200">3 days after previous report</option>
-<option value="432000">5 days after previous report</option>
-<option value="604800">7 days after previous report</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Time users must wait before re-completing the task.
-</span>
-</span>
-</td>
-</tr>
-<!-- Max Completion Time -->
-<tr>
-<td>Max Completion Time <span class="required">*</span></td>
-<td>
-<select id="formMaxTime" required>
-<option value="1800">30 minutes</option>
-<option value="3600">1 hour</option>
-<option value="7200">2 hours</option>
-<option value="21600">6 hours</option>
-<option value="43200">12 hours</option>
-<option value="86400" selected>1 day</option>
-<option value="172800">2 days</option>
-<option value="259200">3 days</option>
-<option value="604800">7 days</option>
-<option value="1209600">14 days</option>
-<option value="2592000">30 days</option>
-</select>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Maximum time allowed for a user to complete the task after accepting.<br>
-If exceeded, the application is cancelled.
-</span>
-</span>
-</td>
-</tr>
-<!-- Budget & Cost Display - NEW PAYMENT SYSTEM -->
-<tr class="section-divider">
-<td colspan="3"><b>Budget & Cost Summary</b></td>
-</tr>
-<tr>
-<td>Executor Reward (100%)</td>
-<td class="price-display" id="executorRewardDisplay">$0.0100</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>100% of task price goes to executor</b><br>
-Example: $0.0100 task → Executor receives $0.0100
-</span>
-</span>
-</td>
-</tr>
-<tr>
-<td>Admin Commission (20%)</td>
-<td class="price-display" style="color:#facc15" id="adminCommissionDisplay">$0.0020</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>20% admin fee on top of executor reward</b><br>
-Example: $0.0100 × 20% = $0.0020 admin commission
-</span>
-</span>
-</td>
-</tr>
-<tr>
-<td><b>Total Cost per Completion</b></td>
-<td class="price-display" style="color:#f87171" id="totalCostDisplay"><b>$0.0120</b></td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-<b>Total deducted from your budget per completion:</b><br>
-Executor ($0.0100) + Admin ($0.0020) = $0.0120
-</span>
-</span>
-</td>
-</tr>
-<tr>
-<td>Initial Budget <span class="required">*</span></td>
-<td>
-<input type="number" id="formBudget" step="0.01" min="0.10" value="1.00" oninput="calculateTotalCost()" style="width:100px">
-<span style="color:#22c55e;font-weight:600">$</span>
-</td>
-<td>
-<span class="hint-quest">ⓘ
-<span class="tooltip">
-Total budget for this task. Must cover at least 10 completions.<br>
-Remaining funds can be withdrawn later.
-</span>
-</span>
-</td>
-</tr>
-<tr>
-<td>Estimated Completions</td>
-<td><span id="estimatedCompletions">83</span> completions</td>
-<td></td>
-</tr>
-<!-- ✅ حاوية رسائل النموذج (توضع قبل زر الإنشاء مباشرة) -->
-<tr>
-<td colspan="3" id="formMessageContainer" style="padding:10px 12px"></td>
-</tr>
-<!-- Submit Button -->
-<tr>
-<th colspan="3" style="padding:20px 0;background:transparent">
-<button type="submit" class="btn btn-success" style="width:200px">
-🚀 Create Task
-</button>
-</th>
-</tr>
-</table>
-<input type="hidden" name="func" value="task">
-</form>
-</div>
-</div>
-<!-- 💰 Add Funds Modal (Internal - No External Alerts) -->
-<div id="addFundsModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>➕ Add Funds to Task</h3>
-<button class="modal-close" onclick="closeModal('addFundsModal')">&times;</button>
-</div>
-<div class="alert alert-info">
-💡 Funds will be deducted from your personal balance and added to the task budget.
-</div>
-<div class="input-group">
-<label>Amount to Add (USD) <span class="required">*</span></label>
-<input type="number" id="addFundsAmount" step="0.01" min="0.01" placeholder="Enter amount">
-</div>
-<div class="alert alert-info" id="addFundsPreview" style="display:none">
-<strong>Preview:</strong><br>
-• Your balance will be reduced by: <span id="fundsPreviewDebit" style="color:#ef4444"></span><br>
-• Task budget will increase by: <span id="fundsPreviewCredit" style="color:#22c55e"></span>
-</div>
-<button class="btn btn-success" onclick="confirmAddFunds()">✅ Confirm & Add Funds</button>
-</div>
-</div>
-<!-- ↩️ Withdraw Funds Modal (Partial/Full Withdraw) -->
-<div id="withdrawFundsModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>↩️ Withdraw Funds from Task</h3>
-<button class="modal-close" onclick="closeModal('withdrawFundsModal')">&times;</button>
-</div>
-<div class="alert alert-info">
-⚠️ Withdraw funds from task budget back to your balance.<br>
-<strong>Cannot withdraw if there are pending or disputed executions.</strong>
-</div>
-<div id="withdrawPreview" style="margin:15px 0;padding:15px;background:#1e293b;border-radius:8px">
-<p><strong>Task:</strong> <span id="withdrawTaskTitle"></span></p>
-<p><strong>Maximum Withdrawable:</strong> <span id="withdrawMaxAmount" style="color:#22c55e;font-weight:600"></span></p>
-<p><strong>Pending Executions:</strong> <span id="withdrawPendingCount"></span></p>
-<p><strong>Disputed Executions:</strong> <span id="withdrawDisputedCount"></span></p>
-</div>
-<div class="input-group">
-<label>Amount to Withdraw (USD) <span class="required">*</span></label>
-<input type="number" id="withdrawAmountInput" step="0.01" min="0.01" placeholder="Enter amount or leave empty for full withdrawal">
-</div>
-<div class="alert alert-info" id="withdrawPreviewDetails" style="display:none">
-<strong>Preview:</strong><br>
-• Amount to withdraw: <span id="withdrawPreviewDebit" style="color:#facc15"></span><br>
-• Task budget remaining: <span id="withdrawPreviewRemaining" style="color:#ef4444"></span><br>
-• Your balance will increase by: <span id="withdrawPreviewCredit" style="color:#22c55e"></span>
-</div>
-<div class="btn-group" style="justify-content:center;margin-top:15px">
-<button class="btn btn-warning" onclick="confirmWithdrawFunds()">✅ Confirm Withdraw</button>
-<button class="btn btn-primary" onclick="closeModal('withdrawFundsModal')">❌ Cancel</button>
-</div>
-</div>
-</div>
-<!-- 📤 Submit Proof Modal (Internal) -->
-<div id="submitProofModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>📤 Submit Execution Proof</h3>
-<button class="modal-close" onclick="closeModal('submitProofModal')">&times;</button>
-</div>
-<div class="alert alert-info">
-⏱️ <strong>Time Remaining:</strong> <span id="submitProofCountdown" class="countdown"></span>
-</div>
-<div class="input-group">
-<label>Execution Proof (link, text, or description) <span class="required">*</span></label>
-<textarea id="proofText" rows="5" placeholder="Attach the link or describe what you did..."></textarea>
-</div>
-<button class="btn btn-success" onclick="submitProof()">✅ Submit Proof</button>
-</div>
-</div>
-<!-- Proofs Modal -->
-<div id="proofsModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>📋 Execution Proofs</h3>
-<button class="modal-close" onclick="closeModal('proofsModal')">&times;</button>
-</div>
-<div id="proofsList"></div>
-</div>
-</div>
-<!-- Dispute Modal -->
-<div id="disputeModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>⚠️ Create Dispute</h3>
-<button class="modal-close" onclick="closeModal('disputeModal')">&times;</button>
-</div>
-<div class="alert alert-info">Your dispute will be reviewed by admin. Please explain the issue in detail.</div>
-<div class="input-group">
-<label>Reason for Dispute <span class="required">*</span></label>
-<textarea id="disputeReason" rows="4" placeholder="Explain the problem you encountered..."></textarea>
-</div>
-<button class="btn btn-warning" onclick="createDispute()">📤 Submit Dispute</button>
-</div>
-</div>
-</div>
-<!-- 🗑️ Delete Task Confirmation Modal -->
-<div id="deleteTaskModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>🗑️ Delete Task Confirmation</h3>
-      <button class="modal-close" onclick="closeModal('deleteTaskModal')">&times;</button>
+    <!-- ==================== Header ==================== -->
+    <header class="header">
+        <div class="header-content">
+            <h1><i class="fas fa-tasks"></i> إدارة المهام</h1>
+            <div class="user-info">
+                <div class="user-balance">
+                    <i class="fas fa-wallet"></i>
+                    الرصيد: $<span id="user-balance">0.0000</span>
+                </div>
+                <div class="user-id">
+                    <i class="fas fa-user"></i>
+                    ID: <span id="current-user-id">جاري التحميل...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== Navigation Tabs ==================== -->
+    <nav class="nav-tabs">
+        <button class="nav-tab active" onclick="switchView('available')">
+            <i class="fas fa-search"></i>
+            المهام المتاحة
+        </button>
+        <button class="nav-tab" onclick="switchView('my-tasks')">
+            <i class="fas fa-clipboard-list"></i>
+            مهامي
+        </button>
+        <button class="nav-tab" onclick="switchView('create')">
+            <i class="fas fa-plus-circle"></i>
+            إنشاء مهمة جديدة
+        </button>
+        <button class="nav-tab" onclick="switchView('disputes')">
+            <i class="fas fa-exclamation-triangle"></i>
+            النزاعات
+        </button>
+    </nav>
+
+    <!-- ==================== Main Container ==================== -->
+    <main class="container">
+        <!-- ==================== View: Available Tasks ==================== -->
+        <div id="view-available" class="view-section">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-search"></i>
+                        المهام المتاحة للتنفيذ
+                    </h2>
+                    <button class="btn btn-primary btn-sm" onclick="loadAvailableTasks()">
+                        <i class="fas fa-sync-alt"></i>
+                        تحديث
+                    </button>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb"></i>
+                    <div>
+                        <strong>نصيحة:</strong> هناك العديد من المستخدمين المستعدين لإكمال مهام بسيطة مقابل رسوم صغيرة.
+                        اختر المهمة المناسبة وابدأ التنفيذ.
+                    </div>
+                </div>
+                <div id="available-tasks-list" class="task-list">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                        <p>جاري تحميل المهام...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== View: Task Details (Single Task Page) ==================== -->
+        <div id="view-details" class="view-section hidden">
+            <button class="btn btn-secondary mb-20" onclick="switchView('available')">
+                <i class="fas fa-arrow-right"></i>
+                العودة إلى القائمة
+            </button>
+            
+            <div id="task-details-content">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- ==================== View: My Tasks ==================== -->
+        <div id="view-my-tasks" class="view-section hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-clipboard-list"></i>
+                        المهام التي أنشأتها
+                    </h2>
+                    <button class="btn btn-primary btn-sm" onclick="loadMyTasks()">
+                        <i class="fas fa-sync-alt"></i>
+                        تحديث
+                    </button>
+                </div>
+                <div id="my-tasks-list" class="task-list">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                        <p>جاري تحميل مهامك...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== View: Create Task ==================== -->
+        <div id="view-create" class="view-section hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-plus-circle"></i>
+                        إنشاء مهمة جديدة مدفوعة
+                    </h2>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb"></i>
+                    <div>
+                        <strong>نصيحة:</strong> هناك العديد من المستخدمين المستعدين لإكمال مهام بسيطة مقابل رسوم صغيرة.
+                        لا تبخل على المكافأة. الحد الأدنى للسعر للمهمة: $0.001
+                    </div>
+                </div>
+                
+                <form id="create-task-form" onsubmit="return createTask(event)">
+                    <div class="form-group">
+                        <label class="form-label">
+                            عنوان المهمة
+                            <span class="required">*</span>
+                        </label>
+                        <input type="text" class="form-input" id="task-title" maxlength="55" required 
+                               placeholder="عنوان قصير وواضح">
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            الحد الأقصى 55 حرفاً. يجب أن يكون العنوان قصيراً وواضحاً. استخدم قواعد اللغة الصحيحة.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            فئة المهمة
+                            <span class="required">*</span>
+                        </label>
+                        <select class="form-select" id="task-category" required>
+                            <option value="">-- اختر الفئة --</option>
+                            <option value="Registration">تسجيل فقط</option>
+                            <option value="Clicks">نقرات فقط</option>
+                            <option value="YouTube">يوتيوب</option>
+                            <option value="Social Media">وسائل التواصل الاجتماعي</option>
+                            <option value="Posting/Comments">نشر/تعليقات</option>
+                            <option value="Write Article">كتابة مقال</option>
+                            <option value="Leave Review">ترك مراجعة</option>
+                            <option value="Vote/Poll">تصويت/استطلاع</option>
+                            <option value="Play Games">ألعاب</option>
+                            <option value="Download Files">تنزيل ملفات</option>
+                            <option value="Other">أخرى</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            طريقة التحقق
+                            <span class="required">*</span>
+                        </label>
+                        <select class="form-select" id="task-verification-method" required onchange="toggleVerificationKeyword()">
+                            <option value="manual">مراجعة يدوية من المعلن</option>
+                            <option value="auto">تحقق تلقائي من النظام</option>
+                        </select>
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            يدوي: تراجع كل دليل شخصياً. تلقائي: النظام يوافق تلقائياً إذا تطابقت الكلمة المفتاحية.
+                        </div>
+                    </div>
+
+                    <div class="form-group hidden" id="verification-keyword-group">
+                        <label class="form-label">
+                            كلمة التحقق
+                        </label>
+                        <input type="text" class="form-input" id="task-verification-keyword" 
+                               placeholder="كلمة فريدة وبسيطة">
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            رمز واحد يجب أن يتضمنه المنفذون في دليلهم للموافقة التلقائية.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            وصف المهمة
+                            <span class="required">*</span>
+                        </label>
+                        <textarea class="form-textarea" id="task-description" required 
+                                  placeholder="اكتب تعليمات واضحة ومفصلة..."></textarea>
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            الحد الأقصى 4000 حرف. كن واضحاً ومفيداً.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            ما يجب على المنفذ تقديمه كدليل
+                            <span class="required">*</span>
+                        </label>
+                        <textarea class="form-textarea" id="task-proof-requirements" required 
+                                  placeholder="اشرح بوضوح ما يجب على المستخدم تقديمه لإثبات الإكمال..."></textarea>
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            الحد الأقصى 3000 حرف. حدد بوضوح ما يجب على المستخدم تقديمه.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            الرابط المستهدف (مع https://)
+                            <span class="required">*</span>
+                        </label>
+                        <input type="url" class="form-input" id="task-target-url" required 
+                               placeholder="https://example.com">
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            يجب أن يبدأ بـ https:// والحد الأقصى 1100 حرف.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            المكافأة لكل تنفيذ ($)
+                            <span class="required">*</span>
+                        </label>
+                        <input type="number" class="form-input" id="task-reward" step="0.001" min="0.001" 
+                               required value="0.01" onchange="calculateCost()">
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            المبلغ ($) المدفوع للمنفذ لكل إكمال ناجح. الحد الأدنى $0.001
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            الجمهور المستهدف
+                        </label>
+                        <select class="form-select" id="task-audience">
+                            <option value="all">جميع المنفذين</option>
+                            <option value="favorites">قائمة المفضلة فقط</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            الحد الأقصى لوقت الإكمال
+                            <span class="required">*</span>
+                        </label>
+                        <select class="form-select" id="task-duration" required onchange="calculateCost()">
+                            <option value="1800">30 دقيقة</option>
+                            <option value="3600">1 ساعة</option>
+                            <option value="7200">2 ساعة</option>
+                            <option value="21600">6 ساعات</option>
+                            <option value="43200">12 ساعة</option>
+                            <option value="86400" selected>1 يوم</option>
+                            <option value="172800">2 يوم</option>
+                            <option value="259200">3 أيام</option>
+                            <option value="604800">7 أيام</option>
+                            <option value="1209600">14 يوم</option>
+                            <option value="2592000">30 يوم</option>
+                        </select>
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i>
+                            الحد الأقصى للوقت المسموح به للمستخدم لإكمال المهمة بعد القبول.
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            نوع التنفيذ
+                        </label>
+                        <select class="form-select" id="task-execution-type">
+                            <option value="once">مستخدم واحد — إكمال واحد</option>
+                            <option value="multiple">إكمالات متعددة مسموحة</option>
+                        </select>
+                    </div>
+
+                    <div class="cost-summary">
+                        <h3 style="margin-bottom: 15px;">
+                            <i class="fas fa-calculator"></i>
+                            ملخص التكلفة والميزانية
+                        </h3>
+                        <div class="cost-row">
+                            <span>مكافأة المنفذ (100%):</span>
+                            <span id="sum-reward">$0.0100</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>عمولة الإدارة (20%):</span>
+                            <span id="sum-commission">$0.0020</span>
+                        </div>
+                        <div class="cost-row">
+                            <span>إجمالي التكلفة لكل إكمال:</span>
+                            <span id="sum-total">$0.0120</span>
+                        </div>
+                        
+                        <div class="form-group mt-20">
+                            <label class="form-label">
+                                الميزانية الأولية ($)
+                                <span class="required">*</span>
+                            </label>
+                            <input type="number" class="form-input" id="task-budget" step="0.01" min="0.10" 
+                                   required placeholder="0.00" onchange="calculateCost()">
+                            <div class="form-hint">
+                                <i class="fas fa-info-circle"></i>
+                                الميزانية الإجمالية لهذه المهمة. يجب أن تغطي 10 إكمالات على الأقل.
+                            </div>
+                        </div>
+
+                        <div class="cost-row">
+                            <span>الإكمالات المقدرة:</span>
+                            <span id="sum-completions">83 إكمال</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+                            <i class="fas fa-rocket"></i>
+                            إنشاء المهمة
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- ==================== View: Disputes ==================== -->
+        <div id="view-disputes" class="view-section hidden">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        إدارة النزاعات
+                    </h2>
+                </div>
+                <div id="disputes-list" class="task-list">
+                    <div class="empty-state">
+                        <i class="fas fa-check-circle"></i>
+                        <h3>لا توجد نزاعات حالية</h3>
+                        <p>جميع مهامك تسير بسلاسة</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- ==================== Modal: Submit Proof ==================== -->
+    <div id="modal-proof" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-upload"></i>
+                    تقديم دليل التنفيذ
+                </h3>
+                <button class="modal-close" onclick="closeModal('modal-proof')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="timer-container" id="proof-timer-container">
+                    <div class="timer-label">
+                        <i class="fas fa-hourglass-half"></i>
+                        الوقت المتبقي:
+                    </div>
+                    <div class="timer-display" id="proof-timer">00:00:00</div>
+                </div>
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>تنبيه:</strong> إذا انتهى الوقت دون تقديم الدليل، سيتم إطلاق الحجز ويمكن لمستخدم آخر تنفيذ المهمة.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        دليل التنفيذ (رابط، نص، أو وصف)
+                        <span class="required">*</span>
+                    </label>
+                    <textarea class="form-textarea" id="proof-input" rows="6" 
+                              placeholder="الصق دليلك هنا (رابط، لقطة شاشة، نص، إلخ...)"></textarea>
+                    <div class="form-hint">
+                        <i class="fas fa-info-circle"></i>
+                        الحد الأدنى 10 أحرف. كن واضحاً ودقيقاً في دليلك.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-proof')">
+                    <i class="fas fa-times"></i>
+                    إلغاء
+                </button>
+                <button class="btn btn-success" onclick="submitProof()">
+                    <i class="fas fa-check"></i>
+                    تقديم الدليل
+                </button>
+            </div>
+        </div>
     </div>
-    <div class="alert alert-error">
-      ⚠️ <strong>Warning:</strong> This action cannot be undone!<br>
-      • Task will be permanently deleted<br>
-      • Remaining funds will be refunded to your balance<br>
-      • All pending proofs will be cancelled
+
+    <!-- ==================== Modal: Delete Confirmation ==================== -->
+    <div id="modal-delete" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-trash-alt"></i>
+                    تأكيد حذف المهمة
+                </h3>
+                <button class="modal-close" onclick="closeModal('modal-delete')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        <strong>تحذير:</strong> هذا الإجراء لا يمكن التراجع عنه!
+                    </div>
+                </div>
+                <ul style="margin: 15px 0; padding-right: 20px; color: var(--text-muted);">
+                    <li>سيتم حذف المهمة نهائياً</li>
+                    <li>سيتم استرداد الأموال المتبقية إلى رصيدك</li>
+                    <li>سيتم إلغاء جميع الأدلة المعلقة</li>
+                </ul>
+                <div class="form-group">
+                    <label class="form-label">المهمة:</label>
+                    <div id="delete-task-title" style="font-weight: 600; color: var(--primary-color);"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">مبلغ الاسترداد:</label>
+                    <div id="delete-refund-amount" style="font-weight: 700; color: var(--success-color); font-size: 18px;"></div>
+                </div>
+                <input type="hidden" id="delete-task-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-delete')">
+                    <i class="fas fa-times"></i>
+                    إلغاء
+                </button>
+                <button class="btn btn-danger" onclick="confirmDelete()">
+                    <i class="fas fa-trash-alt"></i>
+                    نعم، احذف المهمة
+                </button>
+            </div>
+        </div>
     </div>
-    <div id="deleteTaskInfo" style="margin:15px 0;padding:15px;background:#1e293b;border-radius:8px">
-      <p><strong>Task:</strong> <span id="deleteTaskTitle"></span></p>
-      <p><strong>Refund Amount:</strong> <span id="deleteRefundAmount" style="color:#22c55e"></span></p>
-      <p><strong>Pending Executions:</strong> <span id="deletePendingCount"></span></p>
-      <p><strong>Disputed Executions:</strong> <span id="deleteDisputedCount"></span></p>
+
+    <!-- ==================== Modal: Create Dispute ==================== -->
+    <div id="modal-dispute" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    إنشاء نزاع
+                </h3>
+                <button class="modal-close" onclick="closeModal('modal-dispute')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        سيتم مراجعة نزاعك من قبل الإدارة. يرجى شرح المشكلة بالتفصيل.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        سبب النزاع
+                        <span class="required">*</span>
+                    </label>
+                    <textarea class="form-textarea" id="dispute-reason" rows="6" 
+                              placeholder="اشرح المشكلة بالتفصيل (الحد الأدنى 20 حرف)..."></textarea>
+                    <div class="form-hint">
+                        <i class="fas fa-info-circle"></i>
+                        الحد الأدنى 20 حرف. كن واضحاً ومحدداً في شرحك.
+                    </div>
+                </div>
+                <input type="hidden" id="dispute-execution-id">
+                <input type="hidden" id="dispute-task-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-dispute')">
+                    <i class="fas fa-times"></i>
+                    إلغاء
+                </button>
+                <button class="btn btn-warning" onclick="submitDispute()">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    تقديم النزاع
+                </button>
+            </div>
+        </div>
     </div>
-    <div class="btn-group" style="justify-content:center">
-      <button class="btn btn-danger" onclick="confirmDeleteTask()">🗑️ Yes, Delete Task</button>
-      <button class="btn btn-primary" onclick="closeModal('deleteTaskModal')">❌ Cancel</button>
+
+    <!-- ==================== Modal: Add Funds ==================== -->
+    <div id="modal-add-funds" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-plus-circle"></i>
+                    إضافة أموال للمهمة
+                </h3>
+                <button class="modal-close" onclick="closeModal('modal-add-funds')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        سيتم خصم الأموال من رصيدك الشخصي وإضافتها إلى ميزانية المهمة.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        المبلغ للإضافة (USD)
+                        <span class="required">*</span>
+                    </label>
+                    <input type="number" class="form-input" id="add-funds-amount" step="0.01" min="0.01" 
+                           placeholder="0.00">
+                </div>
+                <div class="cost-summary">
+                    <div class="cost-row">
+                        <span>رصيدك الحالي:</span>
+                        <span id="add-funds-current-balance">$0.0000</span>
+                    </div>
+                    <div class="cost-row">
+                        <span>المبلغ للخصم:</span>
+                        <span id="add-funds-deduct">$0.0000</span>
+                    </div>
+                    <div class="cost-row">
+                        <span>ميزانية المهمة ستزيد بـ:</span>
+                        <span id="add-funds-increase">$0.0000</span>
+                    </div>
+                </div>
+                <input type="hidden" id="add-funds-task-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-add-funds')">
+                    <i class="fas fa-times"></i>
+                    إلغاء
+                </button>
+                <button class="btn btn-success" onclick="confirmAddFunds()">
+                    <i class="fas fa-check"></i>
+                    تأكيد وإضافة الأموال
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
-<script>
-// ================= CONFIG =================
-const API = "https://perceptive-victory-production.up.railway.app";
-let currentUser = null;
-let currentTask = null;
-let currentProof = null;
-let currentFundTaskId = null;
-let currentWithdrawTaskId = null;
-let taskToDelete = null;
-let windowMaxWithdrawAmount = 0;
-let countdownTimers = {}; // Store countdown intervals
-// ================= INIT =================
-window.addEventListener('load', async () => {
-let telegramId = null;
-// 🔹 First: Try to get user_id from URL
-const urlParams = new URLSearchParams(window.location.search);
-const userIdFromUrl = urlParams.get('user_id');
-if (userIdFromUrl && /^\d+$/.test(userIdFromUrl.trim())) {
-telegramId = userIdFromUrl.trim();
-localStorage.setItem('telegram_id', telegramId);
-}
-// 🔹 Fallback to localStorage
-if (!telegramId) {
-telegramId = localStorage.getItem('telegram_id');
-}
-// 🔹 Final validation
-if (!telegramId || !/^\d+$/.test(telegramId.trim())) {
-showAlert('⚠️ Please login first', 'error');
-setTimeout(() => {
-if (window.parent && window.parent !== window) {
-window.parent.postMessage({ action: 'logout' }, '*');
-}
-window.location.href = '/';
-}, 2000);
-return;
-}
-currentUser = telegramId;
-console.log('✅ Tasks page loaded for user:', currentUser);
-// Hide disputes tab for non-admin
-const ADMIN_ID = '7171208519';
-if (currentUser !== ADMIN_ID) {
-const disputesTab = document.getElementById('disputesTab');
-if (disputesTab) disputesTab.style.display = 'none';
-}
-// Start auto-check for expired applications
-startExpiredApplicationsChecker();
-await loadAvailableTasks();
-});
-// ================= UTILS =================
-function showAlert(msg, type) {
-const el = document.getElementById('alertBox');
-if (!el) return;
-el.className = `alert alert-${type}`;
-el.textContent = msg;
-el.classList.remove('hidden');
-setTimeout(() => el.classList.add('hidden'), 5000);
-}
-// ✅ عرض رسالة داخل نموذج إنشاء المهمة (بالقرب من الزر)
-function showFormMessage(msg, type) {
-const container = document.getElementById('formMessageContainer');
-if (!container) return;
-container.innerHTML = `<div class="form-message ${type}">${msg}</div>`;
-// إخفاء رسالة النجاح تلقائياً بعد 2 ثانية
-if (type === 'success') {
-setTimeout(() => { container.innerHTML = ''; }, 2000);
-}
-}
-// ✅ مسح رسائل النموذج
-function clearFormMessage() {
-const container = document.getElementById('formMessageContainer');
-if (container) container.innerHTML = '';
-}
-function showFormMessageInModal(modalId, msg, type) {
-const modal = document.getElementById(modalId);
-if (!modal) return;
-let msgContainer = modal.querySelector('.form-message-container');
-if (!msgContainer) {
-msgContainer = document.createElement('div');
-msgContainer.className = 'form-message-container';
-msgContainer.style.cssText = 'margin:15px 0;';
-const header = modal.querySelector('.modal-header');
-header.parentNode.insertBefore(msgContainer, header.nextSibling);
-}
-msgContainer.innerHTML = `<div class="form-message ${type}">${msg}</div>`;
-if (type === 'success') {
-setTimeout(() => { msgContainer.innerHTML = ''; }, 2000);
-}
-}
-function closeModal(id) {
-document.getElementById(id).classList.remove('active');
-}
-function openModal(id) {
-document.getElementById(id).classList.add('active');
-}
-function switchTab(tab) {
-document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
-document.getElementById('availableTasks').classList.add('hidden');
-document.getElementById('myTasks').classList.add('hidden');
-document.getElementById('disputesSection').classList.add('hidden');
-document.getElementById('taskDetail').classList.add('hidden');
-if (tab === 'available') {
-document.getElementById('availableTasks').classList.remove('hidden');
-loadAvailableTasks();
-} else if (tab === 'my') {
-document.getElementById('myTasks').classList.remove('hidden');
-loadMyTasks();
-} else if (tab === 'disputes') {
-document.getElementById('disputesSection').classList.remove('hidden');
-loadDisputes();
-}
-}
-function showSection(section) {
-if (section === 'list') {
-document.getElementById('taskDetail').classList.add('hidden');
-document.getElementById('availableTasks').classList.remove('hidden');
-}
-}
-function goBack() {
-if (window.history.length > 1) window.history.back();
-else window.location.href = '/';
-}
-function formatPrice(amount) {
-return '$' + parseFloat(amount).toFixed(4);
-}
-function formatDate(date) {
-return new Date(date).toLocaleString('en-US', {
-year:'numeric', month:'short', day:'numeric',
-hour:'2-digit', minute:'2-digit'
-});
-}
-function formatDuration(secs) {
-if (!secs) return 'Unspecified';
-if (secs < 60) return `${secs}s`;
-if (secs < 3600) return `${Math.floor(secs/60)}m`;
-if (secs < 86400) return `${Math.floor(secs/3600)}h`;
-return `${Math.floor(secs/86400)}d`;
-}
-function formatCountdown(ms) {
-if (ms <= 0) return 'EXPIRED';
-const totalSeconds = Math.ceil(ms / 1000);
-const hours = Math.floor(totalSeconds / 3600);
-const minutes = Math.floor((totalSeconds % 3600) / 60);
-const seconds = totalSeconds % 60;
-if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-if (minutes > 0) return `${minutes}m ${seconds}s`;
-return `${seconds}s`;
-}
-// ================= BB Code Helper =================
-function insertBBCode(fieldId, open, close) {
-const field = document.getElementById(fieldId);
-if (!field) return;
-const start = field.selectionStart;
-const end = field.selectionEnd;
-const text = field.value;
-const selected = text.substring(start, end);
-field.value = text.substring(0, start) + open + selected + close + text.substring(end);
-field.focus();
-updateCharCount(fieldId, fieldId.replace('form', '') + 'Count');
-}
-function updateCharCount(fieldId, countId) {
-const field = document.getElementById(fieldId);
-const counter = document.getElementById(countId);
-if (field && counter) {
-const max = field.maxLength || 4000;
-const remaining = max - field.value.length;
-counter.textContent = remaining;
-}
-}
-// ================= Form Field Toggles =================
-function toggleVerificationFields() {
-const mode = document.getElementById('formVerification').value;
-const autoRows = document.getElementById('autoKeywordRow');
-const keywordRow = document.getElementById('keywordRow');
-if (mode === 'auto') {
-autoRows.style.display = '';
-keywordRow.style.display = '';
-} else {
-autoRows.style.display = 'none';
-keywordRow.style.display = 'none';
-}
-}
-function toggleIntervalFields() {
-const interval = document.getElementById('formInterval').value;
-document.getElementById('fixedIntervalRow').style.display = interval === 'fixed' ? '' : 'none';
-document.getElementById('hourlyGridRow').style.display = interval === 'hourly' ? '' : 'none';
-}
-function toggleExecTypeFields() {
-const execType = document.getElementById('formExecType').value;
-document.getElementById('multiIntervalRow').style.display = execType === 'multiple' ? '' : 'none';
-}
-// ================= NEW PAYMENT SYSTEM CALCULATIONS =================
-function calculateTotalCost() {
-const reward = parseFloat(document.getElementById('formReward').value) || 0.01;
-const budget = parseFloat(document.getElementById('formBudget').value) || 1.00;
-// NEW SYSTEM: 100% to executor + 20% admin commission ON TOP
-const executorReward = reward;  // 100% to executor
-const adminCommission = reward * 0.20;  // 20% admin fee on top
-const totalCostPerExecution = executorReward + adminCommission;  // Total: reward + 20%
-// Update displays
-document.getElementById('executorRewardDisplay').textContent = '$' + executorReward.toFixed(4);
-document.getElementById('adminCommissionDisplay').textContent = '$' + adminCommission.toFixed(4);
-document.getElementById('totalCostDisplay').innerHTML = '<b>$' + totalCostPerExecution.toFixed(4) + '</b>';
-const estimated = Math.floor(budget / totalCostPerExecution);
-document.getElementById('estimatedCompletions').textContent = estimated;
-}
-// ================= TASKS: AVAILABLE =================
-async function loadAvailableTasks() {
-const list = document.getElementById('availableTasksList');
-list.innerHTML = '<div class="loading">Loading tasks...</div>';
-try {
-const res = await fetch(`${API}/api/tasks/available?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success || !data.data?.length) {
-list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No tasks available at the moment</p>';
-return;
-}
-list.innerHTML = data.data.map(task => {
-const remainingBudget = parseFloat(task.remaining_budget);
-const reward = parseFloat(task.executor_reward);
-const totalCost = reward * 1.20; // 100% + 20%
-// ✅ حساب الأماكن المتاحة بعد خصم المحجوزة (pending)
-const totalSlots = Math.floor(remainingBudget / totalCost);
-const availableSlots = Math.max(0, totalSlots - (task.pending_count || 0));
-return `
-<div class="proof-item">
-<div class="proof-header">
-<strong>${task.title}</strong>
-<span class="price-tag">${formatPrice(task.executor_reward)} per execution</span>
-</div>
-<p style="color:#cbd5e1;font-size:14px;margin:10px 0">${task.description}</p>
-<div class="budget-bar"><div class="budget-fill" style="width:${Math.min(100, (task.spent/task.budget)*100)}%"></div></div>
-<small style="color:#94a3b8">
-💰 Remaining: ${formatPrice(task.remaining_budget)} |
-✅ Completed: ${task.completed_count} |
-⏳ Pending: ${task.pending_count || 0} |
-⏱️ Duration: ${formatDuration(task.duration_seconds)} |
-🎯 Available Slots: <strong style="color:#22c55e">${availableSlots}</strong>
-</small>
-<div class="proof-actions" style="margin-top:12px">
-<button class="btn btn-success btn-sm" onclick="viewTaskDetail(${task.id})">🚀 View & Apply</button>
-<button class="btn btn-primary btn-sm" onclick="viewTaskDetail(${task.id})">📋 Details</button>
-</div>
-</div>
-`}).join('');
-} catch (err) {
-console.error(err);
-list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
-}
-}
-// ================= APPLY FOR TASK WITH RESERVATION =================
-async function applyForTask(taskId) {
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}/apply`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser })
-});
-const data = await res.json();
-if (data.success) {
-showAlert('✅ Applied for task. Slot reserved. Submit your proof before time expires.', 'success');
-loadAvailableTasks(); // Refresh to show updated slots
-setTimeout(() => {
-switchTab('my');
-loadMyTasks();
-}, 1500);
-} else {
-showAlert('❌ ' + data.message, 'error');
-}
-} catch (err) {
-console.error('Apply error:', err);
-showAlert('⚠️ Connection error', 'error');
-}
-}
-// ================= TASKS: MY TASKS =================
-async function loadMyTasks() {
-const list = document.getElementById('myTasksList');
-list.innerHTML = '<div class="loading">Loading your tasks...</div>';
-try {
-const res = await fetch(`${API}/api/tasks/my?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success || !data.data?.length) {
-list.innerHTML = `
-<div class="alert alert-info">
-<strong>💡 No tasks yet</strong><br>
-Click "➕ Add Task" above to create your first paid task.
-</div>
-`;
-return;
-}
-list.innerHTML = data.data.map(task => {
-const remaining = task.budget - task.spent;
-const canDelete = !task.total_executions ||
-(new Date() - new Date(task.created_at)) > 15*24*60*60*1000;
-const statusClass = task.is_active ? 'status-approved' : 'status-rejected';
-const statusText = task.is_active ? '🟢 Active' : '🔴 Paused';
-return `
-<div class="proof-item">
-<table class="task-form-table" style="margin:0;border:none">
-<tr>
-<td colspan="3" style="border:none;padding-bottom:5px">
-<div style="display:flex;justify-content:space-between;align-items:center">
-<strong style="font-size:16px">${task.title}</strong>
-<span class="status-badge ${statusClass}">${statusText}</span>
-</div>
-</td>
-</tr>
-<tr>
-<td style="border:none">💰 Reward to Executor:</td>
-<td style="border:none;font-weight:600;color:#22c55e">${formatPrice(task.executor_reward)}</td>
-<td style="border:none"></td>
-</tr>
-<tr>
-<td style="border:none">💵 Budget / Remaining:</td>
-<td style="border:none">${formatPrice(task.budget)} / <strong style="color:#facc15">${formatPrice(remaining)}</strong></td>
-<td style="border:none"></td>
-</tr>
-<tr>
-<td style="border:none">📊 Stats:</td>
-<td style="border:none">Total: ${task.total_executions} | Approved: ${task.approved_count}</td>
-<td style="border:none"></td>
-</tr>
-<tr>
-<td style="border:none">📅 Created:</td>
-<td style="border:none;color:#94a3b8">${formatDate(task.created_at)}</td>
-<td style="border:none"></td>
-</tr>
-<tr>
-<td colspan="3" style="border:none;padding-top:15px">
-<div class="btn-group">
-<button class="btn btn-primary btn-sm" onclick="manageTask(${task.id})">⚙️ Manage</button>
-<button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs (${task.total_executions})</button>
-${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
-${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
-${canDelete ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete Task</button>` : ''}
-</div>
-</td>
-</tr>
-</table>
-</div>`;
-}).join('');
-} catch (err) {
-console.error(err);
-list.innerHTML = '<p class="alert alert-error">Failed to load your tasks</p>';
-}
-}
-// ================= 💰 ADD FUNDS MODAL (Internal - No External Alerts) =================
-function openAddFundsModal(taskId) {
-currentFundTaskId = taskId;
-document.getElementById('addFundsAmount').value = '';
-document.getElementById('addFundsPreview').style.display = 'none';
-openModal('addFundsModal');
-// Preview update on input
-document.getElementById('addFundsAmount').oninput = function() {
-const amount = parseFloat(this.value) || 0;
-if (amount > 0) {
-document.getElementById('fundsPreviewDebit').textContent = formatPrice(amount);
-document.getElementById('fundsPreviewCredit').textContent = formatPrice(amount);
-document.getElementById('addFundsPreview').style.display = 'block';
-} else {
-document.getElementById('addFundsPreview').style.display = 'none';
-}
-};
-}
-async function confirmAddFunds() {
-const amount = parseFloat(document.getElementById('addFundsAmount').value);
-if (!amount || amount <= 0) {
-showAlert('⚠️ Please enter a valid amount', 'error');
-return;
-}
-try {
-const res = await fetch(`${API}/api/tasks/${currentFundTaskId}/fund`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser, amount: amount })
-});
-const data = await res.json();
-if (data.success) {
-showAlert('✅ Funds added successfully', 'success');
-closeModal('addFundsModal');
-loadMyTasks();
-} else {
-showAlert('❌ ' + data.message, 'error');
-}
-} catch (err) {
-showAlert('⚠️ Connection error', 'error');
-}
-}
-// ================= ↩️ WITHDRAW FUNDS MODAL =================
-async function openWithdrawFundsModal(taskId) {
-currentWithdrawTaskId = taskId;
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success) {
-showFormMessageInModal('withdrawFundsModal', '❌ Failed to load task details', 'error');
-return;
-}
-const task = data.task;
-const remaining = parseFloat(task.budget) - parseFloat(task.spent);
-windowMaxWithdrawAmount = remaining;
-const pendingRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
-const pendingData = await pendingRes.json();
-const pendingCount = pendingData.success ? pendingData.data.filter(p => p.status === 'pending').length : 0;
-const disputedCount = pendingData.success ? pendingData.data.filter(p => p.status === 'disputed').length : 0;
-document.getElementById('withdrawTaskTitle').textContent = task.title;
-document.getElementById('withdrawMaxAmount').textContent = formatPrice(remaining);
-document.getElementById('withdrawPendingCount').innerHTML = pendingCount > 0 ?
-`<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
-document.getElementById('withdrawDisputedCount').innerHTML = disputedCount > 0 ?
-`<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
-document.getElementById('withdrawAmountInput').value = '';
-document.getElementById('withdrawPreviewDetails').style.display = 'none';
-const btn = document.querySelector('#withdrawFundsModal .btn-warning');
-if (pendingCount > 0 || disputedCount > 0) {
-btn.disabled = true;
-btn.textContent = '⚠️ Cannot withdraw (pending/disputed executions)';
-} else {
-btn.disabled = false;
-btn.textContent = '✅ Confirm Withdraw';
-}
-openModal('withdrawFundsModal');
-} catch (err) {
-console.error('Withdraw modal error:', err);
-showFormMessageInModal('withdrawFundsModal', '❌ Failed to load task details', 'error');
-}
-}
-document.getElementById('withdrawAmountInput').oninput = function() {
-const amount = parseFloat(this.value) || 0;
-const maxAmount = windowMaxWithdrawAmount || 0;
-const preview = document.getElementById('withdrawPreviewDetails');
-if (amount > 0 && amount <= maxAmount) {
-document.getElementById('withdrawPreviewDebit').textContent = formatPrice(amount);
-document.getElementById('withdrawPreviewRemaining').textContent = formatPrice(maxAmount - amount);
-document.getElementById('withdrawPreviewCredit').textContent = formatPrice(amount);
-preview.style.display = 'block';
-} else {
-preview.style.display = 'none';
-}
-};
-async function confirmWithdrawFunds() {
-const amountInput = parseFloat(document.getElementById('withdrawAmountInput').value);
-const amount = amountInput > 0 ? amountInput : windowMaxWithdrawAmount;
-if (!amount || amount <= 0) {
-showFormMessageInModal('withdrawFundsModal', '⚠️ Please enter a valid amount', 'error');
-return;
-}
-if (amount > windowMaxWithdrawAmount) {
-showFormMessageInModal('withdrawFundsModal', `⚠️ Amount exceeds maximum (${formatPrice(windowMaxWithdrawAmount)})`, 'error');
-return;
-}
-try {
-const res = await fetch(`${API}/api/tasks/${currentWithdrawTaskId}/withdraw`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser, amount: amount })
-});
-const data = await res.json();
-if (data.success) {
-showFormMessageInModal('withdrawFundsModal', `✅ Withdrawn ${formatPrice(data.amount)}`, 'success');
-setTimeout(() => {
-closeModal('withdrawFundsModal');
-loadMyTasks();
-}, 1500);
-} else {
-showFormMessageInModal('withdrawFundsModal', '❌ ' + data.message, 'error');
-}
-} catch (err) {
-console.error('Withdraw error:', err);
-showFormMessageInModal('withdrawFundsModal', '⚠️ Connection error', 'error');
-}
-}
-// ================= 🗑️ DELETE TASK MODAL =================
-async function openDeleteTaskModal(taskId) {
-taskToDelete = taskId;
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success) {
-showAlert('❌ Failed to load task details', 'error');
-return;
-}
-const task = data.task;
-const remaining = parseFloat(task.budget) - parseFloat(task.spent);
-// Check for pending and disputed executions
-const proofsRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
-const proofsData = await proofsRes.json();
-const pendingCount = proofsData.success ? proofsData.data.filter(p => p.status === 'pending').length : 0;
-const disputedCount = proofsData.success ? proofsData.data.filter(p => p.status === 'disputed').length : 0;
-document.getElementById('deleteTaskTitle').textContent = task.title;
-document.getElementById('deleteRefundAmount').textContent = formatPrice(remaining);
-document.getElementById('deletePendingCount').innerHTML = pendingCount > 0 ?
-`<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
-document.getElementById('deleteDisputedCount').innerHTML = disputedCount > 0 ?
-`<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
-// Disable delete button if there are pending/disputed executions
-const btn = document.querySelector('#deleteTaskModal .btn-danger');
-if (pendingCount > 0 || disputedCount > 0) {
-btn.disabled = true;
-btn.textContent = '⚠️ Cannot delete (pending/disputed executions)';
-} else {
-btn.disabled = false;
-btn.textContent = '🗑️ Yes, Delete Task';
-}
-openModal('deleteTaskModal');
-} catch (err) {
-console.error('Delete modal error:', err);
-showAlert('⚠️ Failed to load task details', 'error');
-}
-}
-async function confirmDeleteTask() {
-if (!taskToDelete) return;
-try {
-const res = await fetch(`${API}/api/tasks/${taskToDelete}`, {
-method: 'DELETE',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser })
-});
-const data = await res.json();
-if (data.success) {
-closeModal('deleteTaskModal');
-showAlert(`✅ Task deleted. ${data.refunded > 0 ? 'Refunded ' + formatPrice(data.refunded) : ''}`, 'success');
-loadMyTasks();
-} else {
-closeModal('deleteTaskModal');
-showAlert('❌ ' + data.message, 'error');
-}
-} catch (err) {
-console.error('Delete error:', err);
-closeModal('deleteTaskModal');
-showAlert('⚠️ Connection error', 'error');
-}
-taskToDelete = null;
-}
-// ================= TASK: DETAIL & MANAGEMENT =================
-async function viewTaskDetail(taskId) {
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success) {
-showAlert('❌ ' + data.message, 'error');
-return;
-}
-currentTask = data.task;
-const isCreator = data.is_creator;
-const myExecution = data.my_execution;
-document.getElementById('availableTasks').classList.add('hidden');
-document.getElementById('taskDetail').classList.remove('hidden');
-let content = `
-<h3 style="margin-bottom:15px">${data.task.title}</h3>
-<p style="color:#cbd5e1;margin-bottom:20px">${data.task.description}</p>
-<div style="background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px">
-<div style="display:flex;justify-content:space-between;margin-bottom:10px">
-<span>💰 Execution reward:</span>
-<strong style="color:#22c55e">${formatPrice(data.task.executor_reward)}</strong>
-</div>
-<div style="display:flex;justify-content:space-between;margin-bottom:10px">
-<span>💵 Remaining budget:</span>
-<strong>${formatPrice(data.task.budget - data.task.spent)}</strong>
-</div>
-<div style="display:flex;justify-content:space-between">
-<span>⏱️ Execution time:</span>
-<strong>${formatDuration(data.task.duration_seconds)}</strong>
-</div>
-</div>
-`;
-if (isCreator) {
-content += `
-<div class="btn-group" style="margin-bottom:20px">
-<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${data.task.id})">➕ Add Funds</button>
-<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${data.task.id})">↩️ Withdraw Funds</button>
-<button class="btn btn-primary btn-sm" onclick="viewTaskProofs(${data.task.id})">📋 Review Proofs</button>
-</div>
-`;
-} else if (myExecution) {
-if (myExecution.status === 'pending') {
-// Calculate countdown
-const appliedAt = new Date(myExecution.submitted_at || myExecution.created_at);
-const deadline = new Date(appliedAt.getTime() + (data.task.duration_seconds * 1000));
-const now = new Date();
-const remaining = deadline - now;
-if (remaining > 0) {
-content += `
-<div class="alert alert-info">
-📝 Your status: Pending<br>
-⏱️ Time remaining: <span id="detailCountdown" class="countdown">${formatCountdown(remaining)}</span>
-</div>
-<button class="btn btn-primary" onclick="openSubmitProofModal(${data.task.id}, ${myExecution.id}, ${data.task.duration_seconds * 1000}, '${myExecution.submitted_at || myExecution.created_at}')">📤 Submit Execution Proof</button>
-`;
-// Start countdown for this task
-startCountdown('detailCountdown', remaining, () => {
-document.getElementById('detailCountdown').textContent = 'EXPIRED';
-document.getElementById('detailCountdown').classList.add('expired');
-showAlert('⏰ Time expired. Your reservation has been released.', 'error');
-});
-} else {
-content += `<div class="alert alert-error">⏰ Time expired. Your reservation has been released.</div>`;
-}
-} else if (myExecution.status === 'approved') {
-content += `<div class="alert alert-success">✅ Your execution was approved! ${formatPrice(myExecution.payment_amount)} added to your balance</div>`;
-} else if (myExecution.status === 'rejected') {
-content += `<div class="alert alert-error">❌ Your execution was rejected</div>
-<button class="btn btn-warning" onclick="openDisputeModal(${data.task.id}, ${myExecution.id})">⚠️ Create Dispute</button>`;
-} else if (myExecution.status === 'disputed') {
-content += `<div class="alert alert-info">⏳ Dispute under admin review</div>`;
-}
-} else {
-content += `<button class="btn btn-success" onclick="applyForTask(${data.task.id})">🚀 Apply for Task</button>`;
-}
-document.getElementById('taskDetailContent').innerHTML = content;
-} catch (err) {
-console.error(err);
-showAlert('⚠️ Failed to load task details', 'error');
-}
-}
-async function manageTask(taskId) {
-try {
-await viewTaskDetail(taskId);
-} catch (err) {
-console.error('Manage task error:', err);
-showAlert('❌ Failed to load task details', 'error');
-}
-}
-// ================= 📤 SUBMIT PROOF WITH COUNTDOWN =================
-function openSubmitProofModal(taskId, executionId, durationMs, appliedAtStr) {
-currentTask = { id: taskId };
-currentProof = { id: executionId };
-document.getElementById('proofText').value = '';
-// Calculate and display countdown
-const appliedAt = new Date(appliedAtStr);
-const deadline = new Date(appliedAt.getTime() + durationMs);
-const now = new Date();
-const remaining = deadline - now;
-const countdownEl = document.getElementById('submitProofCountdown');
-countdownEl.textContent = formatCountdown(remaining);
-countdownEl.className = 'countdown';
-if (remaining <= 0) {
-countdownEl.textContent = 'EXPIRED';
-countdownEl.classList.add('expired');
-showAlert('⚠️ Time expired. Please re-apply for the task.', 'error');
-return;
-}
-// Start countdown timer
-startCountdown('submitProofCountdown', remaining, () => {
-countdownEl.textContent = 'EXPIRED';
-countdownEl.classList.add('expired');
-showAlert('⏰ Time expired. Your reservation has been released.', 'error');
-closeModal('submitProofModal');
-});
-openModal('submitProofModal');
-}
-function startCountdown(elementId, initialMs, onExpire) {
-// Clear any existing timer for this element
-if (countdownTimers[elementId]) {
-clearInterval(countdownTimers[elementId]);
-}
-let remaining = initialMs;
-const el = document.getElementById(elementId);
-countdownTimers[elementId] = setInterval(() => {
-remaining -= 1000;
-if (remaining <= 0) {
-clearInterval(countdownTimers[elementId]);
-delete countdownTimers[elementId];
-if (onExpire) onExpire();
-} else if (el) {
-el.textContent = formatCountdown(remaining);
-}
-}, 1000);
-}
-async function submitProof() {
-const proof = document.getElementById('proofText').value.trim();
-if (!proof || proof.length < 10) {
-showAlert('⚠️ Please provide a detailed execution proof (at least 10 characters)', 'error');
-return;
-}
-try {
-const res = await fetch(`${API}/api/tasks/${currentTask.id}/submit-proof`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser, proof, execution_id: currentProof.id })
-});
-const data = await res.json();
-if (data.success) {
-showAlert('✅ Proof submitted successfully. Waiting for review.', 'success');
-closeModal('submitProofModal');
-// Clear the countdown timer
-if (countdownTimers['submitProofCountdown']) {
-clearInterval(countdownTimers['submitProofCountdown']);
-delete countdownTimers['submitProofCountdown'];
-}
-setTimeout(() => viewTaskDetail(currentTask.id), 1000);
-} else {
-showAlert('❌ ' + data.message, 'error');
-}
-} catch (err) {
-console.error('Submit proof error:', err);
-showAlert('⚠️ Connection error', 'error');
-}
-}
-// ================= AUTO-CHECK EXPIRED APPLICATIONS =================
-function startExpiredApplicationsChecker() {
-// Check every 30 seconds for expired applications
-setInterval(async () => {
-try {
-const res = await fetch(`${API}/api/tasks/my?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success || !data.data) return;
-for (const task of data.data) {
-// Check each execution for this task
-const proofsRes = await fetch(`${API}/api/tasks/${task.id}/proofs?user_id=${currentUser}`);
-const proofsData = await proofsRes.json();
-if (!proofsData.success || !proofsData.data) continue;
-for (const proof of proofsData.data) {
-if (proof.status === 'pending' && proof.executor_id?.toString() === currentUser) {
-const appliedAt = new Date(proof.submitted_at || proof.created_at);
-const deadline = new Date(appliedAt.getTime() + (task.duration_seconds * 1000));
-const now = new Date();
-if (now >= deadline) {
-// Time expired - release the reservation (server handles this via cron)
-console.log(`⏰ Expired application for task ${task.id}, execution ${proof.id}`);
-}
-}
-}
-}
-} catch (err) {
-console.error('Expired applications check error:', err);
-}
-}, 30000);
-}
-// ================= PROOFS =================
-async function viewTaskProofs(taskId) {
-openModal('proofsModal');
-const list = document.getElementById('proofsList');
-list.innerHTML = '<div class="loading">Loading...</div>';
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
-const data = await res.json();
-if (!data.success || !data.data?.length) {
-list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No proofs to review</p>';
-return;
-}
-list.innerHTML = data.data.map(proof => `
-<div class="proof-item">
-<div class="proof-header">
-<strong>👤 @${proof.executor_username || proof.executor_id}</strong>
-<span class="status-badge status-${proof.status}">${getStatusText(proof.status)}</span>
-</div>
-<small style="color:#94a3b8">📅 ${formatDate(proof.submitted_at)}</small>
-${proof.proof ? `<div class="proof-content">${proof.proof}</div>` : ''}
-${proof.status === 'pending' ? `
-<div class="proof-actions">
-<button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
-<button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
-</div>
-` : proof.status === 'disputed' ? `
-<div class="alert alert-info" style="margin-top:10px">⚠️ This execution is under dispute - waiting for admin review</div>
-` : ''}
-</div>
-`).join('');
-} catch (err) {
-console.error(err);
-list.innerHTML = '<p class="alert alert-error">Failed to load proofs</p>';
-}
-}
-function getStatusText(status) {
-const map = { pending: '⏳ Pending', approved: '✅ Approved', rejected: '❌ Rejected', disputed: '⚠️ Disputed' };
-return map[status] || status;
-}
-async function approveProof(taskId, proofId) {
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser })
-});
-const data = await res.json();
-showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
-if (data.success) viewTaskProofs(taskId);
-} catch (err) {
-showAlert('⚠️ Connection error', 'error');
-}
-}
-async function rejectProof(taskId, proofId) {
-const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
-try {
-const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser, reason })
-});
-const data = await res.json();
-showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
-if (data.success) viewTaskProofs(taskId);
-} catch (err) {
-showAlert('⚠️ Connection error', 'error');
-}
-}
-// ================= DISPUTES =================
-function openDisputeModal(taskId, proofId) {
-currentTask = { id: taskId };
-currentProof = { id: proofId };
-document.getElementById('disputeReason').value = '';
-openModal('disputeModal');
-}
-async function createDispute() {
-const reason = document.getElementById('disputeReason').value.trim();
-if (!reason || reason.length < 20) {
-showAlert('⚠️ Please explain the dispute in detail (at least 20 characters)', 'error');
-return;
-}
-try {
-const res = await fetch(`${API}/api/tasks/${currentTask.id}/proofs/${currentProof.id}/dispute`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({ user_id: currentUser, reason })
-});
-const data = await res.json();
-if (data.success) {
-showAlert('✅ Dispute created. Admin will review and get back to you', 'success');
-closeModal('disputeModal');
-setTimeout(() => viewTaskDetail(currentTask.id), 1500);
-} else {
-showAlert('❌ ' + data.message, 'error');
-}
-} catch (err) {
-showAlert('⚠️ Connection error', 'error');
-}
-}
-async function loadDisputes() {
-const ADMIN_ID = '7171208519';
-if (currentUser !== ADMIN_ID) return;
-const list = document.getElementById('disputesList');
-list.innerHTML = '<div class="loading">Loading disputes...</div>';
-try {
-const res = await fetch(`${API}/api/admin/task-disputes?admin_key=${process.env.ADMIN_SECRET}`);
-const data = await res.json();
-if (!data.success || !data.data?.length) {
-list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No open disputes</p>';
-return;
-}
-list.innerHTML = data.data.map(d => `
-<div class="proof-item">
-<div class="proof-header">
-<strong>⚠️ Dispute #${d.id}</strong>
-<span class="status-badge status-disputed">Open</span>
-</div>
-<p><strong>Task:</strong> ${d.task_title} (#${d.task_id})</p>
-<p><strong>Executor:</strong> @${d.executor_username || d.executor_id}</p>
-<p><strong>Task Creator:</strong> @${d.creator_username || d.creator_id}</p>
-<p><strong>Amount:</strong> ${formatPrice(d.payment_amount)}</p>
-<div class="proof-content" style="margin:10px 0">${d.reason}</div>
-<div class="input-group">
-<label>Admin Decision:</label>
-<select id="resolve-${d.id}">
-<option value="executor">✅ Pay executor</option>
-<option value="none">❌ No payment (refund to creator)</option>
-</select>
-<textarea id="resolution-${d.id}" placeholder="Decision note..." style="margin-top:10px"></textarea>
-</div>
-<button class="btn btn-success btn-sm" onclick="resolveDispute(${d.id})">✅ Resolve Dispute</button>
-</div>
-`).join('');
-} catch (err) {
-console.error(err);
-list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
-}
-}
-async function resolveDispute(disputeId) {
-const payout = document.getElementById(`resolve-${disputeId}`).value;
-const resolution = document.getElementById(`resolution-${disputeId}`).value || 'Resolved by admin';
-try {
-const res = await fetch(`${API}/api/admin/task-disputes/${disputeId}/resolve`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify({
-admin_key: process.env.ADMIN_SECRET,
-admin_id: process.env.ADMIN_ID,
-payout_to: payout,
-resolution
-})
-});
-const data = await res.json();
-showAlert(data.success ? '✅ Dispute resolved' : '❌ ' + data.message, data.success ? 'success' : 'error');
-if (data.success) loadDisputes();
-} catch (err) {
-showAlert('⚠️ Connection error', 'error');
-}
-}
-// ================= ADD TASK MODAL =================
-function openAddTaskModal() {
-// Reset form
-document.getElementById('addTaskForm').reset();
-clearFormMessage();  // ✅ مسح الرسائل القديمة
-document.getElementById('descCount').textContent = '4000';
-calculateTotalCost();
-toggleVerificationFields();
-toggleIntervalFields();
-toggleExecTypeFields();
-// Open modal internally
-openModal('addTaskModal');
-}
-async function createTaskFromForm(event) {
-event.preventDefault();
-clearFormMessage(); // ✅ مسح الرسائل القديمة قبل البدء
-// Collect form data
-const title = document.getElementById('formTitle').value.trim();
-const category = document.getElementById('formCategory').value;
-const verification = document.getElementById('formVerification').value;
-const description = document.getElementById('formDesc').value.trim();
-const proofReq = document.getElementById('formProofReq').value.trim();
-const url = document.getElementById('formUrl').value.trim();
-const reward = parseFloat(document.getElementById('formReward').value) || 0.01;
-const audience = document.getElementById('formAudience').value;
-const interval = document.getElementById('formInterval').value;
-const execType = document.getElementById('formExecType').value;
-const maxTime = parseInt(document.getElementById('formMaxTime').value) || 86400;
-const budget = parseFloat(document.getElementById('formBudget').value) || 1.00;
-// Validation
-if (!title || !category || !description || !proofReq || !url || !budget) {
-showFormMessage('⚠️ Please fill all required fields', 'error');
-return;
-}
-if (reward < 0.001 || budget < 0.10) {
-showFormMessage('⚠️ Minimum: reward $0.001, budget $0.10', 'error');
-return;
-}
-// Build task data
-const taskData = {
-creator_id: currentUser,
-title,
-category,
-verification_method: verification,
-description,
-proof_requirements: proofReq,
-target_url: url,
-reward_per_execution: reward,
-audience,
-delivery_interval: interval,
-execution_type: execType,
-max_completion_time: maxTime,
-budget
-};
-// Add optional fields
-if (verification === 'auto') {
-taskData.verification_keyword = document.getElementById('formKeyword').value.trim();
-}
-if (interval === 'fixed') {
-taskData.delay_hours = parseInt(document.getElementById('formDelayHours').value) || 0;
-taskData.delay_minutes = parseInt(document.getElementById('formDelayMinutes').value) || 5;
-}
-if (interval === 'hourly') {
-const hourlyLimits = Array.from(document.querySelectorAll('.hourly-limit')).map(input => parseInt(input.value) || 0);
-taskData.hourly_limits = hourlyLimits;
-}
-if (execType === 'multiple') {
-taskData.multi_interval = parseInt(document.getElementById('formMultiInterval').value) || 0;
-}
-try {
-const res = await fetch(`${API}/api/tasks/create`, {
-method: 'POST',
-headers: {'Content-Type': 'application/json'},
-body: JSON.stringify(taskData)
-});
-const data = await res.json();
-if (data.success) {
-// ✅ نجاح: اعرض رسالة ثم أغلق النافذة
-showFormMessage('✅ Task created successfully', 'success');
-setTimeout(() => {
-closeModal('addTaskModal');
-clearFormMessage();
-switchTab('my');
-loadMyTasks();
-}, 1000);
-} else {
-// ✅ خطأ: اعرض الرسالة من السيرفر قرب الزر
-showFormMessage('❌ ' + data.message, 'error');
-}
-} catch (err) {
-console.error('Create task error:', err);
-showFormMessage('⚠️ Connection error. Please try again.', 'error');
-}
-return false;
-}
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-// Clear all countdown timers
-Object.values(countdownTimers).forEach(timer => clearInterval(timer));
-});
-</script>
+
+    <!-- ==================== Modal: Withdraw Funds ==================== -->
+    <div id="modal-withdraw-funds" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-minus-circle"></i>
+                    سحب أموال من المهمة
+                </h3>
+                <button class="modal-close" onclick="closeModal('modal-withdraw-funds')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <div>
+                        سحب الأموال من ميزانية المهمة إلى رصيدك. لا يمكن السحب إذا كانت هناك تنفيذات معلقة أو متنازع عليها.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">المهمة:</label>
+                    <div id="withdraw-task-title" style="font-weight: 600;"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">الحد الأقصى القابل للسحب:</label>
+                    <div id="withdraw-max-amount" style="font-weight: 700; color: var(--success-color);"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">التنفيذات المعلقة:</label>
+                    <div id="withdraw-pending-count" style="font-weight: 600;"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">التنفيذات المتنازع عليها:</label>
+                    <div id="withdraw-disputed-count" style="font-weight: 600;"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">
+                        المبلغ للسحب (USD)
+                        <span class="required">*</span>
+                    </label>
+                    <input type="number" class="form-input" id="withdraw-amount" step="0.01" min="0.01" 
+                           placeholder="0.00">
+                </div>
+                <div class="cost-summary">
+                    <div class="cost-row">
+                        <span>المبلغ للسحب:</span>
+                        <span id="withdraw-preview-amount">$0.0000</span>
+                    </div>
+                    <div class="cost-row">
+                        <span>ميزانية المهمة المتبقية:</span>
+                        <span id="withdraw-preview-remaining">$0.0000</span>
+                    </div>
+                    <div class="cost-row">
+                        <span>رصيدك سيزيد بـ:</span>
+                        <span id="withdraw-preview-balance">$0.0000</span>
+                    </div>
+                </div>
+                <input type="hidden" id="withdraw-task-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-withdraw-funds')">
+                    <i class="fas fa-times"></i>
+                    إلغاء
+                </button>
+                <button class="btn btn-warning" onclick="confirmWithdrawFunds()">
+                    <i class="fas fa-check"></i>
+                    تأكيد السحب
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== Loading Overlay ==================== -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="text-center">
+            <i class="fas fa-spinner loading-spinner" style="width: 50px; height: 50px; border-width: 5px;"></i>
+            <div class="loading-text">جاري المعالجة...</div>
+        </div>
+    </div>
+
+    <!-- ==================== JavaScript ==================== -->
+    <script>
+        // ==================== Configuration & State ====================
+        let USER_ID = localStorage.getItem('telegram_id') || '';
+        let USER_BALANCE = 0;
+        let currentTaskId = null;
+        let currentExecutionId = null;
+        let countdownInterval = null;
+        let currentTaskDuration = 0;
+        let currentTaskData = null;
+
+        // ==================== Initialize ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeUser();
+            calculateCost();
+        });
+
+        // ==================== User Initialization ====================
+        async function initializeUser() {
+            if (!USER_ID) {
+                USER_ID = prompt("الرجاء إدخال معرف Telegram (User ID) للمتابعة:");
+                if (USER_ID) {
+                    localStorage.setItem('telegram_id', USER_ID);
+                } else {
+                    alert("يجب إدخال User ID لاستخدام التطبيق");
+                    return;
+                }
+            }
+            document.getElementById('current-user-id').textContent = USER_ID;
+            await loadUserBalance();
+            switchView('available');
+        }
+
+        // ==================== Load User Balance ====================
+        async function loadUserBalance() {
+            try {
+                const response = await fetch(`/api/user/profile?user_id=${USER_ID}`);
+                const data = await response.json();
+                if (data.status === 'success') {
+                    USER_BALANCE = parseFloat(data.data.balance || 0);
+                    document.getElementById('user-balance').textContent = USER_BALANCE.toFixed(4);
+                }
+            } catch (error) {
+                console.error('Error loading balance:', error);
+            }
+        }
+
+        // ==================== View Switching ====================
+        function switchView(viewName) {
+            // Hide all views
+            document.querySelectorAll('.view-section').forEach(el => {
+                el.classList.add('hidden');
+            });
+            
+            // Remove active class from all tabs
+            document.querySelectorAll('.nav-tab').forEach(el => {
+                el.classList.remove('active');
+            });
+
+            // Show selected view
+            const viewMap = {
+                'available': 'view-available',
+                'my-tasks': 'view-my-tasks',
+                'create': 'view-create',
+                'details': 'view-details',
+                'disputes': 'view-disputes'
+            };
+
+            if (viewMap[viewName]) {
+                document.getElementById(viewMap[viewName]).classList.remove('hidden');
+            }
+
+            // Set active tab
+            const tabMap = {
+                'available': 0,
+                'my-tasks': 1,
+                'create': 2,
+                'disputes': 3
+            };
+
+            if (tabMap[viewName] !== undefined) {
+                document.querySelectorAll('.nav-tab')[tabMap[viewName]].classList.add('active');
+            }
+
+            // Load data based on view
+            if (viewName === 'available') {
+                loadAvailableTasks();
+            } else if (viewName === 'my-tasks') {
+                loadMyTasks();
+            } else if (viewName === 'disputes') {
+                loadDisputes();
+            } else if (viewName === 'create') {
+                calculateCost();
+            }
+        }
+
+        // ==================== Modal Functions ====================
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function showLoading() {
+            document.getElementById('loading-overlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.remove('active');
+        }
+
+        // ==================== API Helper ====================
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            // Add user_id to query params for GET requests
+            const url = endpoint.includes('?') 
+                ? `${endpoint}&user_id=${USER_ID}` 
+                : `${endpoint}?user_id=${USER_ID}`;
+
+            try {
+                const response = await fetch(url, options);
+                return await response.json();
+            } catch (error) {
+                console.error('API Error:', error);
+                return { success: false, message: 'خطأ في الاتصال' };
+            }
+        }
+
+        // ==================== Available Tasks ====================
+        async function loadAvailableTasks() {
+            const listElement = document.getElementById('available-tasks-list');
+            listElement.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                    <p>جاري تحميل المهام...</p>
+                </div>
+            `;
+
+            try {
+                const result = await apiCall('/api/tasks/available');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    listElement.innerHTML = '';
+                    result.data.forEach(task => {
+                        const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+                        const reward = parseFloat(task.executor_reward || 0.01);
+                        
+                        const taskElement = document.createElement('div');
+                        taskElement.className = 'task-item';
+                        taskElement.innerHTML = `
+                            <div class="task-info">
+                                <div class="task-title">${escapeHtml(task.title)}</div>
+                                <div class="task-description">${escapeHtml(task.description || '')}</div>
+                                <div class="task-meta">
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-dollar-sign"></i>
+                                        مكافأة: $${reward.toFixed(4)}
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-clock"></i>
+                                        ${(task.duration_seconds || 86400) / 3600} ساعة
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-wallet"></i>
+                                        المتبقي: $${remaining.toFixed(4)}
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-check-circle"></i>
+                                        مكتمل: ${task.completed_count || 0}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="task-actions">
+                                <button class="btn btn-primary" onclick="openTaskDetails(${task.id})">
+                                    <i class="fas fa-eye"></i>
+                                    عرض وتنفيذ
+                                </button>
+                            </div>
+                        `;
+                        listElement.appendChild(taskElement);
+                    });
+                } else {
+                    listElement.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <h3>لا توجد مهام متاحة حالياً</h3>
+                            <p>تحقق مرة أخرى لاحقاً أو أنشئ مهمتك الخاصة</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading available tasks:', error);
+                listElement.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                        <h3>خطأ في تحميل المهام</h3>
+                        <p>يرجى المحاولة مرة أخرى</p>
+                        <button class="btn btn-primary mt-20" onclick="loadAvailableTasks()">
+                            <i class="fas fa-sync-alt"></i>
+                            إعادة المحاولة
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // ==================== Task Details Page ====================
+        async function openTaskDetails(taskId) {
+            currentTaskId = taskId;
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+
+            switchView('details');
+            const container = document.getElementById('task-details-content');
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                    <p>جاري تحميل تفاصيل المهمة...</p>
+                </div>
+            `;
+
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}`);
+                
+                if (!result.success || !result.task) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                            <h3>فشل تحميل المهمة</h3>
+                            <p>${result.message || 'المهمة غير موجودة'}</p>
+                            <button class="btn btn-primary mt-20" onclick="switchView('available')">
+                                <i class="fas fa-arrow-right"></i>
+                                العودة للقائمة
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                currentTaskData = result.task;
+                const task = result.task;
+                const myExec = result.my_execution;
+                const isCreator = result.is_creator;
+                const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+                const reward = parseFloat(task.executor_reward || 0.01);
+                currentTaskDuration = parseInt(task.duration_seconds) || 86400;
+
+                // Calculate progress
+                const totalCompletions = Math.floor(parseFloat(task.budget) / (reward * 1.20));
+                const completedCount = parseInt(task.approved_count || 0);
+                const progressPercent = totalCompletions > 0 ? (completedCount / totalCompletions) * 100 : 0;
+
+                // Build action area based on user status
+                let actionArea = '';
+                
+                if (myExec) {
+                    currentExecutionId = myExec.id;
+                    
+                    if (myExec.status === 'approved') {
+                        actionArea = `
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle"></i>
+                                <div>
+                                    <strong>تم الإكمال والدفع!</strong><br>
+                                    لقد استلمت $${parseFloat(myExec.payment_amount).toFixed(4)}
+                                </div>
+                            </div>
+                        `;
+                    } else if (myExec.status === 'rejected') {
+                        actionArea = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-times-circle"></i>
+                                <div>
+                                    <strong>تم رفض الدليل</strong><br>
+                                    يرجى مراجعة متطلبات المهمة وإعادة المحاولة إذا كان مسموحاً.
+                                </div>
+                            </div>
+                        `;
+                    } else if (myExec.status === 'disputed') {
+                        actionArea = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div>
+                                    <strong>هناك نزاع</strong><br>
+                                    سيتم مراجعة نزاعك من قبل الإدارة.
+                                </div>
+                            </div>
+                        `;
+                    } else if (myExec.status === 'pending') {
+                        if (!myExec.proof || myExec.proof.trim() === '') {
+                            // Applied but no proof submitted yet - Show Timer & Submit Button
+                            const startTime = new Date(myExec.submitted_at).getTime();
+                            const endTime = startTime + (currentTaskDuration * 1000);
+                            
+                            actionArea = `
+                                <div class="timer-container">
+                                    <div class="timer-label">
+                                        <i class="fas fa-hourglass-half"></i>
+                                        الوقت المتبقي لتقديم الدليل:
+                                    </div>
+                                    <div class="timer-display" id="countdown">جاري الحساب...</div>
+                                </div>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <div>
+                                        <strong>تنبيه مهم:</strong> إذا انتهى الوقت دون تقديم الدليل، 
+                                        سيتم إطلاق الحجز ويمكن لمستخدم آخر تنفيذ المهمة.
+                                    </div>
+                                </div>
+                                <button class="btn btn-success btn-lg" style="width: 100%;" onclick="openProofModal()">
+                                    <i class="fas fa-upload"></i>
+                                    تقديم الدليل
+                                </button>
+                            `;
+                            startCountdown(endTime);
+                        } else {
+                            // Proof submitted, waiting review
+                            actionArea = `
+                                <div class="alert alert-info">
+                                    <i class="fas fa-clock"></i>
+                                    <div>
+                                        <strong>تم تقديم الدليل</strong><br>
+                                        في انتظار مراجعة المعلن. سيتم إشعارك عند المراجعة.
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                } else {
+                    // Not applied yet
+                    if (remaining <= 0) {
+                        actionArea = `
+                            <div class="alert alert-danger">
+                                <i class="fas fa-times-circle"></i>
+                                <div>
+                                    <strong>نفذت الميزانية</strong><br>
+                                    لا يمكن تنفيذ هذه المهمة حالياً.
+                                </div>
+                            </div>
+                            <button class="btn btn-secondary btn-lg" style="width: 100%;" disabled>
+                                <i class="fas fa-lock"></i>
+                                المهمة غير متاحة
+                            </button>
+                        `;
+                    } else {
+                        actionArea = `
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i>
+                                <div>
+                                    <strong>جاهز للتنفيذ</strong><br>
+                                    عند الضغط على "ابدأ التنفيذ"، سيتم حجز مكان لك ويبدأ العد التنازلي.
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-lg" style="width: 100%;" onclick="applyForTask()">
+                                <i class="fas fa-rocket"></i>
+                                ابدأ التنفيذ
+                            </button>
+                        `;
+                    }
+                }
+
+                // Build creator actions if user is creator
+                let creatorActions = '';
+                if (isCreator) {
+                    creatorActions = `
+                        <div class="card mt-20">
+                            <h3 style="margin-bottom: 15px;">
+                                <i class="fas fa-cog"></i>
+                                إدارة المهمة
+                            </h3>
+                            <div class="flex flex-wrap gap-10">
+                                <button class="btn btn-primary" onclick="openAddFundsModal(${task.id})">
+                                    <i class="fas fa-plus-circle"></i>
+                                    إضافة أموال
+                                </button>
+                                <button class="btn btn-warning" onclick="openWithdrawFundsModal(${task.id})">
+                                    <i class="fas fa-minus-circle"></i>
+                                    سحب أموال
+                                </button>
+                                <button class="btn btn-danger" onclick="openDeleteModal(${task.id}, '${escapeHtml(task.title).replace(/'/g, "\\'")}', ${remaining.toFixed(4)})">
+                                    <i class="fas fa-trash-alt"></i>
+                                    حذف المهمة
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Build proofs list if creator
+                let proofsSection = '';
+                if (isCreator) {
+                    proofsSection = `
+                        <div class="card mt-20">
+                            <h3 style="margin-bottom: 15px;">
+                                <i class="fas fa-clipboard-check"></i>
+                                أدلة التنفيذ
+                            </h3>
+                            <div id="proofs-list-${task.id}">
+                                <div class="empty-state">
+                                    <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                                    <p>جاري تحميل الأدلة...</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    loadTaskProofs(task.id);
+                }
+
+                container.innerHTML = `
+                    <div class="task-detail-header">
+                        <div class="task-detail-title">${escapeHtml(task.title)}</div>
+                        <div class="task-detail-meta">
+                            <span><i class="fas fa-dollar-sign"></i> المكافأة: $${reward.toFixed(4)}</span>
+                            <span><i class="fas fa-clock"></i> الوقت المحدد: ${(currentTaskDuration / 3600).toFixed(1)} ساعة</span>
+                            <span><i class="fas fa-wallet"></i> الميزانية المتبقية: $${remaining.toFixed(4)}</span>
+                            <span><i class="fas fa-check-circle"></i> الإكمالات: ${completedCount}</span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="progress-container">
+                            <div class="progress-label">
+                                <span>نسبة الإكمال</span>
+                                <span>${progressPercent.toFixed(1)}%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="task-detail-section">
+                            <h3><i class="fas fa-align-left"></i> وصف المهمة</h3>
+                            <div class="task-detail-content">${escapeHtml(task.description || 'لا يوجد وصف')}</div>
+                        </div>
+
+                        <div class="task-detail-section">
+                            <h3><i class="fas fa-clipboard-check"></i> متطلبات الدليل</h3>
+                            <div class="task-detail-content">${escapeHtml(task.settings?.proof_requirements || 'لا توجد متطلبات محددة')}</div>
+                        </div>
+
+                        <div class="task-detail-section">
+                            <h3><i class="fas fa-link"></i> الرابط المستهدف</h3>
+                            <div class="task-detail-url">
+                                <a href="${escapeHtml(task.target_url || '#')}" target="_blank" rel="noopener noreferrer">
+                                    <i class="fas fa-external-link-alt"></i>
+                                    ${escapeHtml(task.target_url || 'لا يوجد رابط')}
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="task-detail-section">
+                            <h3><i class="fas fa-user"></i> حالتك</h3>
+                            ${actionArea}
+                        </div>
+                    </div>
+
+                    ${creatorActions}
+                    ${proofsSection}
+                `;
+            } catch (error) {
+                console.error('Error loading task details:', error);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                        <h3>خطأ في تحميل التفاصيل</h3>
+                        <p>${error.message || 'يرجى المحاولة مرة أخرى'}</p>
+                        <button class="btn btn-primary mt-20" onclick="switchView('available')">
+                            <i class="fas fa-arrow-right"></i>
+                            العودة للقائمة
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // ==================== Countdown Timer ====================
+        function startCountdown(endTime) {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+            }
+
+            const timerElement = document.getElementById('countdown');
+            if (!timerElement) return;
+
+            countdownInterval = setInterval(() => {
+                const now = new Date().getTime();
+                const distance = endTime - now;
+
+                if (distance < 0) {
+                    clearInterval(countdownInterval);
+                    timerElement.innerHTML = '⏰ انتهى الوقت';
+                    timerElement.parentElement.classList.add('timer-expired');
+                    
+                    // Reload to refresh state (slot released by server cron)
+                    setTimeout(() => {
+                        openTaskDetails(currentTaskId);
+                    }, 3000);
+                } else {
+                    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                    
+                    timerElement.innerHTML = 
+                        `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                }
+            }, 1000);
+        }
+
+        // ==================== Apply for Task ====================
+        async function applyForTask() {
+            if (!confirm('هل أنت متأكد من بدء هذه المهمة؟ سيبدأ العد التنازلي فوراً.')) {
+                return;
+            }
+
+            showLoading();
+            try {
+                const result = await apiCall(`/api/tasks/${currentTaskId}/apply`, 'POST', {
+                    user_id: USER_ID
+                });
+
+                if (result.success) {
+                    alert('تم التقديم بنجاح! بدأ العد التنازلي. يرجى إكمال المهمة وتقديم الدليل.');
+                    openTaskDetails(currentTaskId);
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل التقديم'));
+                }
+            } catch (error) {
+                console.error('Error applying for task:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ==================== Proof Modal ====================
+        function openProofModal() {
+            // Update timer in modal
+            const timerElement = document.getElementById('countdown');
+            const proofTimerElement = document.getElementById('proof-timer');
+            if (timerElement && proofTimerElement) {
+                proofTimerElement.textContent = timerElement.textContent;
+            }
+            
+            document.getElementById('proof-input').value = '';
+            openModal('modal-proof');
+        }
+
+        async function submitProof() {
+            const proofText = document.getElementById('proof-input').value;
+            
+            if (proofText.length < 10) {
+                alert('يجب أن يكون الدليل 10 أحرف على الأقل.');
+                return;
+            }
+
+            const submitBtn = document.querySelector('#modal-proof .btn-success');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> جاري الإرسال...';
+
+            try {
+                const result = await apiCall(`/api/tasks/${currentTaskId}/submit-proof`, 'POST', {
+                    user_id: USER_ID,
+                    proof: proofText,
+                    execution_id: currentExecutionId
+                });
+
+                if (result.success) {
+                    closeModal('modal-proof');
+                    alert('تم تقديم الدليل بنجاح! في انتظار مراجعة المعلن.');
+                    openTaskDetails(currentTaskId);
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل تقديم الدليل'));
+                }
+            } catch (error) {
+                console.error('Error submitting proof:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-check"></i> تقديم الدليل';
+            }
+        }
+
+        // ==================== My Tasks ====================
+        async function loadMyTasks() {
+            const listElement = document.getElementById('my-tasks-list');
+            listElement.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                    <p>جاري تحميل مهامك...</p>
+                </div>
+            `;
+
+            try {
+                const result = await apiCall('/api/tasks/my');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    listElement.innerHTML = '';
+                    result.data.forEach(task => {
+                        const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+                        const reward = parseFloat(task.executor_reward || 0.01);
+                        const approvedCount = parseInt(task.approved_count || 0);
+                        const pendingCount = parseInt(task.pending_count || 0);
+                        
+                        const taskElement = document.createElement('div');
+                        taskElement.className = 'task-item';
+                        taskElement.innerHTML = `
+                            <div class="task-info">
+                                <div class="task-title">${escapeHtml(task.title)}</div>
+                                <div class="task-meta">
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-dollar-sign"></i>
+                                        مكافأة: $${reward.toFixed(4)}
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-wallet"></i>
+                                        الميزانية: $${parseFloat(task.budget).toFixed(4)}
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-coins"></i>
+                                        المتبقي: $${remaining.toFixed(4)}
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-check-circle"></i>
+                                        مكتمل: ${approvedCount}
+                                    </span>
+                                    <span class="task-meta-item">
+                                        <i class="fas fa-clock"></i>
+                                        معلق: ${pendingCount}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="task-actions">
+                                <button class="btn btn-primary" onclick="openTaskDetails(${task.id})">
+                                    <i class="fas fa-cog"></i>
+                                    إدارة
+                                </button>
+                                <button class="btn btn-danger" onclick="openDeleteModal(${task.id}, '${escapeHtml(task.title).replace(/'/g, "\\'")}', ${remaining.toFixed(4)})">
+                                    <i class="fas fa-trash-alt"></i>
+                                    حذف
+                                </button>
+                            </div>
+                        `;
+                        listElement.appendChild(taskElement);
+                    });
+                } else {
+                    listElement.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <h3>لم تنشئ أي مهام بعد</h3>
+                            <p>ابدأ بإنشاء مهمتك الأولى الآن</p>
+                            <button class="btn btn-primary mt-20" onclick="switchView('create')">
+                                <i class="fas fa-plus-circle"></i>
+                                إنشاء مهمة
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading my tasks:', error);
+                listElement.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                        <h3>خطأ في تحميل المهام</h3>
+                        <p>يرجى المحاولة مرة أخرى</p>
+                    </div>
+                `;
+            }
+        }
+
+        // ==================== Delete Task ====================
+        function openDeleteModal(taskId, title, refund) {
+            document.getElementById('delete-task-id').value = taskId;
+            document.getElementById('delete-task-title').textContent = title;
+            document.getElementById('delete-refund-amount').textContent = '$' + parseFloat(refund).toFixed(4);
+            openModal('modal-delete');
+        }
+
+        async function confirmDelete() {
+            const taskId = document.getElementById('delete-task-id').value;
+            
+            const deleteBtn = document.querySelector('#modal-delete .btn-danger');
+            deleteBtn.disabled = true;
+            deleteBtn.innerHTML = '<i class="fas fa-spinner loading-spinner"></i> جاري الحذف...';
+
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}`, 'DELETE', {
+                    user_id: USER_ID
+                });
+
+                if (result.success) {
+                    alert('تم حذف المهمة بنجاح. تم استرداد الأموال إلى رصيدك.');
+                    closeModal('modal-delete');
+                    loadMyTasks();
+                } else {
+                    alert('لا يمكن الحذف: ' + (result.message || 'يرجى حل جميع التنفيذات المعلقة أولاً'));
+                    closeModal('modal-delete');
+                }
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '<i class="fas fa-trash-alt"></i> نعم، احذف المهمة';
+            }
+        }
+
+        // ==================== Create Task ====================
+        function toggleVerificationKeyword() {
+            const method = document.getElementById('task-verification-method').value;
+            const keywordGroup = document.getElementById('verification-keyword-group');
+            
+            if (method === 'auto') {
+                keywordGroup.classList.remove('hidden');
+            } else {
+                keywordGroup.classList.add('hidden');
+            }
+        }
+
+        function calculateCost() {
+            const reward = parseFloat(document.getElementById('task-reward').value) || 0;
+            const budget = parseFloat(document.getElementById('task-budget').value) || 0;
+            const commission = reward * 0.20;
+            const total = reward + commission;
+            
+            document.getElementById('sum-reward').textContent = '$' + reward.toFixed(4);
+            document.getElementById('sum-commission').textContent = '$' + commission.toFixed(4);
+            document.getElementById('sum-total').textContent = '$' + total.toFixed(4);
+            
+            const completions = total > 0 ? Math.floor(budget / total) : 0;
+            document.getElementById('sum-completions').textContent = completions + ' إكمال';
+        }
+
+        async function createTask(event) {
+            event.preventDefault();
+            
+            showLoading();
+            
+            const payload = {
+                creator_id: USER_ID,
+                title: document.getElementById('task-title').value,
+                category: document.getElementById('task-category').value,
+                verification_method: document.getElementById('task-verification-method').value,
+                verification_keyword: document.getElementById('task-verification-keyword').value,
+                description: document.getElementById('task-description').value,
+                proof_requirements: document.getElementById('task-proof-requirements').value,
+                target_url: document.getElementById('task-target-url').value,
+                reward_per_execution: document.getElementById('task-reward').value,
+                audience: document.getElementById('task-audience').value,
+                duration_seconds: document.getElementById('task-duration').value,
+                execution_type: document.getElementById('task-execution-type').value,
+                budget: document.getElementById('task-budget').value
+            };
+
+            try {
+                const result = await apiCall('/api/tasks/create', 'POST', payload);
+                
+                if (result.success) {
+                    alert('تم إنشاء المهمة بنجاح!');
+                    switchView('my-tasks');
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل إنشاء المهمة'));
+                }
+            } catch (error) {
+                console.error('Error creating task:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ==================== Load Task Proofs ====================
+        async function loadTaskProofs(taskId) {
+            const container = document.getElementById(`proofs-list-${taskId}`);
+            if (!container) return;
+
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}/proofs`);
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    container.innerHTML = '';
+                    result.data.forEach(proof => {
+                        const proofElement = document.createElement('div');
+                        proofElement.className = 'task-item';
+                        proofElement.style.flexDirection = 'column';
+                        proofElement.style.alignItems = 'stretch';
+                        
+                        let statusBadge = '';
+                        if (proof.status === 'pending') {
+                            statusBadge = '<span class="badge badge-pending">معلق</span>';
+                        } else if (proof.status === 'approved') {
+                            statusBadge = '<span class="badge badge-approved">موافق</span>';
+                        } else if (proof.status === 'rejected') {
+                            statusBadge = '<span class="badge badge-rejected">مرفوض</span>';
+                        } else if (proof.status === 'disputed') {
+                            statusBadge = '<span class="badge badge-disputed">نزاع</span>';
+                        }
+
+                        let actionButtons = '';
+                        if (proof.status === 'pending') {
+                            actionButtons = `
+                                <div class="flex gap-10 mt-10">
+                                    <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">
+                                        <i class="fas fa-check"></i>
+                                        موافق
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">
+                                        <i class="fas fa-times"></i>
+                                        مرفوض
+                                    </button>
+                                </div>
+                            `;
+                        }
+
+                        proofElement.innerHTML = `
+                            <div class="flex flex-between flex-wrap mb-10">
+                                <div>
+                                    <strong>المنفذ:</strong> ${proof.executor_username || 'مستخدم ' + proof.executor_id}
+                                    ${statusBadge}
+                                </div>
+                                <div style="font-size: 12px; color: var(--text-muted);">
+                                    <i class="fas fa-clock"></i>
+                                    ${new Date(proof.submitted_at).toLocaleString('ar-EG')}
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-color); padding: 15px; border-radius: 8px; margin: 10px 0;">
+                                <strong>الدليل:</strong><br>
+                                ${escapeHtml(proof.proof || 'لا يوجد دليل')}
+                            </div>
+                            <div style="font-size: 13px; color: var(--text-muted);">
+                                <i class="fas fa-dollar-sign"></i>
+                                المكافأة: $${parseFloat(proof.payment_amount || 0).toFixed(4)}
+                            </div>
+                            ${actionButtons}
+                        `;
+                        container.appendChild(proofElement);
+                    });
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-inbox"></i>
+                            <p>لا توجد أدلة مقدمة بعد</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading proofs:', error);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                        <p>خطأ في تحميل الأدلة</p>
+                    </div>
+                `;
+            }
+        }
+
+        // ==================== Approve/Reject Proof ====================
+        async function approveProof(taskId, proofId) {
+            if (!confirm('هل أنت متأكد من الموافقة على هذا الدليل؟ سيتم دفع المكافأة للمنفظ.')) {
+                return;
+            }
+
+            showLoading();
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}/proofs/${proofId}/approve`, 'POST', {
+                    user_id: USER_ID
+                });
+
+                if (result.success) {
+                    alert('تمت الموافقة على الدليل ودفع المكافأة.');
+                    loadTaskProofs(taskId);
+                    openTaskDetails(taskId);
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل الموافقة'));
+                }
+            } catch (error) {
+                console.error('Error approving proof:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function rejectProof(taskId, proofId) {
+            const reason = prompt('يرجى إدخال سبب الرفض (اختياري):');
+            
+            showLoading();
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}/proofs/${proofId}/reject`, 'POST', {
+                    user_id: USER_ID,
+                    reason: reason || ''
+                });
+
+                if (result.success) {
+                    alert('تم رفض الدليل.');
+                    loadTaskProofs(taskId);
+                    openTaskDetails(taskId);
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل الرفض'));
+                }
+            } catch (error) {
+                console.error('Error rejecting proof:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ==================== Dispute Functions ====================
+        function openDisputeModal(executionId, taskId) {
+            document.getElementById('dispute-execution-id').value = executionId;
+            document.getElementById('dispute-task-id').value = taskId;
+            document.getElementById('dispute-reason').value = '';
+            openModal('modal-dispute');
+        }
+
+        async function submitDispute() {
+            const reason = document.getElementById('dispute-reason').value;
+            const executionId = document.getElementById('dispute-execution-id').value;
+            const taskId = document.getElementById('dispute-task-id').value;
+
+            if (reason.length < 20) {
+                alert('يجب أن يكون سبب النزاع 20 حرفاً على الأقل.');
+                return;
+            }
+
+            showLoading();
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}/proofs/${executionId}/dispute`, 'POST', {
+                    user_id: USER_ID,
+                    reason: reason
+                });
+
+                if (result.success) {
+                    alert('تم إنشاء النزاع. ستقوم الإدارة بمراجعته.');
+                    closeModal('modal-dispute');
+                    openTaskDetails(parseInt(taskId));
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل إنشاء النزاع'));
+                }
+            } catch (error) {
+                console.error('Error creating dispute:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function loadDisputes() {
+            const listElement = document.getElementById('disputes-list');
+            listElement.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-spinner loading-spinner" style="color: var(--primary-color);"></i>
+                    <p>جاري تحميل النزاعات...</p>
+                </div>
+            `;
+
+            try {
+                const result = await apiCall('/api/admin/task-disputes');
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    listElement.innerHTML = '';
+                    result.data.forEach(dispute => {
+                        const disputeElement = document.createElement('div');
+                        disputeElement.className = 'task-item';
+                        disputeElement.style.flexDirection = 'column';
+                        disputeElement.style.alignItems = 'stretch';
+                        
+                        disputeElement.innerHTML = `
+                            <div class="flex flex-between flex-wrap mb-10">
+                                <div>
+                                    <strong>المهمة:</strong> ${escapeHtml(dispute.task_title || 'غير معروف')}
+                                    <span class="badge badge-disputed">نزاع مفتوح</span>
+                                </div>
+                                <div style="font-size: 12px; color: var(--text-muted);">
+                                    <i class="fas fa-clock"></i>
+                                    ${new Date(dispute.created_at).toLocaleString('ar-EG')}
+                                </div>
+                            </div>
+                            <div style="background: var(--bg-color); padding: 15px; border-radius: 8px; margin: 10px 0;">
+                                <strong>سبب النزاع:</strong><br>
+                                ${escapeHtml(dispute.reason || 'لا يوجد سبب')}
+                            </div>
+                            <div style="font-size: 13px; color: var(--text-muted);">
+                                <i class="fas fa-user"></i> المنفذ: ${dispute.executor_username || 'مستخدم ' + dispute.executor_id}
+                                | 
+                                <i class="fas fa-user"></i> المعلن: ${dispute.creator_username || 'مستخدم ' + dispute.creator_id}
+                            </div>
+                        `;
+                        listElement.appendChild(disputeElement);
+                    });
+                } else {
+                    listElement.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <h3>لا توجد نزاعات حالية</h3>
+                            <p>جميع مهامك تسير بسلاسة</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading disputes:', error);
+                listElement.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-circle" style="color: var(--danger-color);"></i>
+                        <p>خطأ في تحميل النزاعات</p>
+                    </div>
+                `;
+            }
+        }
+
+        // ==================== Add Funds Modal ====================
+        function openAddFundsModal(taskId) {
+            document.getElementById('add-funds-task-id').value = taskId;
+            document.getElementById('add-funds-amount').value = '';
+            document.getElementById('add-funds-current-balance').textContent = '$' + USER_BALANCE.toFixed(4);
+            document.getElementById('add-funds-deduct').textContent = '$0.0000';
+            document.getElementById('add-funds-increase').textContent = '$0.0000';
+            openModal('modal-add-funds');
+        }
+
+        document.getElementById('add-funds-amount').addEventListener('input', function() {
+            const amount = parseFloat(this.value) || 0;
+            document.getElementById('add-funds-deduct').textContent = '$' + amount.toFixed(4);
+            document.getElementById('add-funds-increase').textContent = '$' + amount.toFixed(4);
+        });
+
+        async function confirmAddFunds() {
+            const taskId = document.getElementById('add-funds-task-id').value;
+            const amount = parseFloat(document.getElementById('add-funds-amount').value);
+
+            if (!amount || amount <= 0) {
+                alert('يرجى إدخال مبلغ صحيح.');
+                return;
+            }
+
+            if (amount > USER_BALANCE) {
+                alert('رصيدك غير كافي.');
+                return;
+            }
+
+            showLoading();
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}/fund`, 'POST', {
+                    user_id: USER_ID,
+                    amount: amount
+                });
+
+                if (result.success) {
+                    alert('تمت إضافة الأموال بنجاح.');
+                    closeModal('modal-add-funds');
+                    loadUserBalance();
+                    openTaskDetails(parseInt(taskId));
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل إضافة الأموال'));
+                }
+            } catch (error) {
+                console.error('Error adding funds:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ==================== Withdraw Funds Modal ====================
+        function openWithdrawFundsModal(taskId) {
+            document.getElementById('withdraw-task-id').value = taskId;
+            document.getElementById('withdraw-amount').value = '';
+            openModal('modal-withdraw-funds');
+            
+            // Load task info
+            loadWithdrawInfo(taskId);
+        }
+
+        async function loadWithdrawInfo(taskId) {
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}`);
+                if (result.success && result.task) {
+                    const task = result.task;
+                    const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+                    
+                    document.getElementById('withdraw-task-title').textContent = task.title;
+                    document.getElementById('withdraw-max-amount').textContent = '$' + remaining.toFixed(4);
+                    document.getElementById('withdraw-pending-count').textContent = task.pending_count || 0;
+                    document.getElementById('withdraw-disputed-count').textContent = 0; // Would need separate query
+                }
+            } catch (error) {
+                console.error('Error loading withdraw info:', error);
+            }
+        }
+
+        document.getElementById('withdraw-amount').addEventListener('input', function() {
+            const amount = parseFloat(this.value) || 0;
+            const maxAmount = parseFloat(document.getElementById('withdraw-max-amount').textContent.replace('$', '')) || 0;
+            const remaining = maxAmount - amount;
+            
+            document.getElementById('withdraw-preview-amount').textContent = '$' + amount.toFixed(4);
+            document.getElementById('withdraw-preview-remaining').textContent = '$' + Math.max(0, remaining).toFixed(4);
+            document.getElementById('withdraw-preview-balance').textContent = '$' + amount.toFixed(4);
+        });
+
+        async function confirmWithdrawFunds() {
+            const taskId = document.getElementById('withdraw-task-id').value;
+            const amount = parseFloat(document.getElementById('withdraw-amount').value);
+
+            if (!amount || amount <= 0) {
+                alert('يرجى إدخال مبلغ صحيح.');
+                return;
+            }
+
+            showLoading();
+            try {
+                const result = await apiCall(`/api/tasks/${taskId}/withdraw`, 'POST', {
+                    user_id: USER_ID,
+                    amount: amount
+                });
+
+                if (result.success) {
+                    alert('تم سحب الأموال بنجاح.');
+                    closeModal('modal-withdraw-funds');
+                    loadUserBalance();
+                    openTaskDetails(parseInt(taskId));
+                } else {
+                    alert('خطأ: ' + (result.message || 'فشل سحب الأموال'));
+                }
+            } catch (error) {
+                console.error('Error withdrawing funds:', error);
+                alert('خطأ في الاتصال. يرجى المحاولة مرة أخرى.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // ==================== Utility Functions ====================
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==================== Auto-refresh ====================
+        setInterval(() => {
+            // Refresh balance every 30 seconds
+            loadUserBalance();
+        }, 30000);
+    </script>
 </body>
 </html>
