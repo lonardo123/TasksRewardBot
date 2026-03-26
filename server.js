@@ -2459,17 +2459,20 @@ app.get('/api/tasks/:id', async (req, res) => {
       return res.json({ success: false, message: "Invalid task ID" });
     }
     
-    const task = await pool.query(`
-      SELECT 
-        t.*,
-        (t.budget - t.spent) as remaining_budget,
-        COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
-        COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count
-      FROM tasks t
-      LEFT JOIN task_executions te ON t.id = te.task_id
-      WHERE t.id = $1 AND t.deleted_at IS NULL
-      GROUP BY t.id
-    `, [id]);
+    // ✅ أضف pending_count و disputed_count
+const task = await pool.query(`
+  SELECT 
+    t.*,
+    (t.budget - t.spent) as remaining_budget,
+    COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
+    COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count,
+    COUNT(te.id) FILTER (WHERE te.status = 'pending') AS pending_count,
+    COUNT(te.id) FILTER (WHERE te.status = 'disputed') AS disputed_count
+  FROM tasks t
+  LEFT JOIN task_executions te ON t.id = te.task_id
+  WHERE t.id = $1 AND t.deleted_at IS NULL
+  GROUP BY t.id
+`, [id]);
     
     if (task.rows.length === 0) {
       return res.json({ success: false, message: "Task not found" });
@@ -2721,7 +2724,7 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     // ✅ تسجيل التقديم مع حجز المكان
     await client.query(
       `INSERT INTO task_executions (
-         task_id, executor_id, status, payment_amount, commission_amount, created_at
+         task_id, executor_id, status, payment_amount, commission_amount, submitted_at
        ) VALUES ($1, $2, 'pending', $3, $4, NOW())`,
       [id, user_id, executorReward, adminCommission]
     );
@@ -2752,30 +2755,36 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
 app.post('/api/tasks/:id/submit-proof', async (req, res) => {
   try {
     const { id } = req.params;
-    const { user_id, proof } = req.body;
-    
-    if (!proof || proof.trim().length < 10) {
-      return res.json({ success: false, message: "Proof must be at least 10 characters" });
-    }
-    
-    // ✅ التحقق من وجود تنفيذ معلق لهذا المستخدم
-    const exec = await pool.query(
-      `SELECT id, status FROM task_executions 
-       WHERE task_id = $1 AND executor_id = $2 AND status = 'pending'`,
-      [id, user_id]
-    );
-    
-    if (exec.rows.length === 0) {
-      return res.json({ success: false, message: "No pending execution found for this task" });
-    }
-    
-    // ✅ تحديث التنفيذ بالدليل
-    await pool.query(
-      `UPDATE task_executions 
-       SET proof = $1, submitted_at = NOW(), status = 'pending' 
-       WHERE id = $2`, 
-      [proof, exec.rows[0].id]
-    );
+    // ✅ استقبال execution_id من الـ frontend
+const { user_id, proof, execution_id } = req.body;
+
+// ✅ استخدام execution_id إذا وُجد، أو البحث عن التنفيذ المعلق
+let exec;
+if (execution_id) {
+  exec = await pool.query(
+    `SELECT id, status FROM task_executions 
+     WHERE id = $1 AND task_id = $2 AND executor_id = $3 AND status = 'pending'`,
+    [execution_id, id, user_id]
+  );
+} else {
+  exec = await pool.query(
+    `SELECT id, status FROM task_executions 
+     WHERE task_id = $1 AND executor_id = $2 AND status = 'pending'`,
+    [id, user_id]
+  );
+}
+
+if (exec.rows.length === 0) {
+  return res.json({ success: false, message: "No pending execution found for this task" });
+}
+
+// ✅ تحديث التنفيذ بالدليل
+await pool.query(
+  `UPDATE task_executions 
+   SET proof = $1, submitted_at = COALESCE(submitted_at, NOW()), status = 'pending' 
+   WHERE id = $2`, 
+  [proof, exec.rows[0].id]
+);
     
     res.json({ success: true, message: "Proof submitted successfully", execution_id: exec.rows[0].id });
     
@@ -3224,7 +3233,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
     await client.query('BEGIN');
     
     // ✅ التحقق من الصلاحية
-    const task = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    const task = await client.query('SELECT * FROM tasks WHERE id = $1', [id, 'pending', 'disputed']);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
       return res.json({ success: false, message: "Unauthorized" });
