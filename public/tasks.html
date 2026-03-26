@@ -569,39 +569,45 @@ async function openTaskDetailPage(taskId) {
         `;
 
         if (myExecution) {
-            if (myExecution.status === 'pending') {
-                const appliedAt = new Date(myExecution.submitted_at || myExecution.created_at);
-                const deadline = new Date(appliedAt.getTime() + (task.duration_seconds * 1000));
-                const now = new Date();
-                const remaining = deadline - now;
-                if (remaining > 0) {
-                    content += `
-                        <div class="alert alert-info">
-                            📝 Status: <strong>Pending</strong><br>
-                            ⏱️ Time: <span id="taskDetailCountdown" class="countdown">${formatCountdown(remaining)}</span>
-                        </div>
-                        <div class="input-group">
-                            <label>Proof <span class="required">*</span></label>
-                            <textarea id="proofText" rows="5" placeholder="Your proof..."></textarea>
-                        </div>
-                        <button class="btn btn-primary" onclick="submitProofForTask(${task.id}, ${myExecution.id})">📤 Submit Proof</button>
-                    `;
-                    startCountdown('taskDetailCountdown', remaining, () => {
-                        document.getElementById('taskDetailCountdown').textContent = 'EXPIRED';
-                        document.getElementById('taskDetailCountdown').classList.add('expired');
-                        showAlert('⏰ Time expired', 'error');
-                        setTimeout(() => openTaskDetailPage(taskId), 1000);
-                    });
-                } else {
-                    content += `<div class="alert alert-error">⏰ Time expired</div>`;
-                }
-            } else if (myExecution.status === 'approved') {
-                content += `<div class="alert alert-success">✅ Approved! ${formatPrice(myExecution.payment_amount)}</div>`;
-            } else if (myExecution.status === 'rejected') {
-                content += `<div class="alert alert-error">❌ Rejected</div>
-                    <button class="btn btn-warning" onclick="openDisputeModal(${task.id}, ${myExecution.id})">⚠️ Dispute</button>`;
-            }
+    // ✅ تعديل 1: التعامل مع حالتين: applied و pending
+    if (myExecution.status === 'applied' || myExecution.status === 'pending') {
+        const appliedAt = new Date(myExecution.submitted_at || myExecution.created_at);
+        const deadline = new Date(appliedAt.getTime() + (task.duration_seconds * 1000));
+        const now = new Date();
+        const remaining = deadline - now;
+        
+        if (remaining > 0) {
+            // ✅ تعديل 2: عرض الحالة ديناميكياً
+            const statusText = myExecution.status === 'applied' ? 'Applied' : 'Pending';
+            
+            content += `
+            <div class="alert alert-info">
+                📝 Status: <strong>${statusText}</strong><br>
+                ⏱️ Time: <span id="taskDetailCountdown" class="countdown">${formatCountdown(remaining)}</span>
+            </div>
+            <div class="input-group">
+                <label>Proof <span class="required">*</span></label>
+                <textarea id="proofText" rows="5" placeholder="Your proof..."></textarea>
+            </div>
+            <button class="btn btn-primary" onclick="submitProofForTask(${task.id}, ${myExecution.id})">📤 Submit Proof</button>
+            `;
+            
+            startCountdown('taskDetailCountdown', remaining, () => {
+                document.getElementById('taskDetailCountdown').textContent = 'EXPIRED';
+                document.getElementById('taskDetailCountdown').classList.add('expired');
+                showAlert('⏰ Time expired', 'error');
+                setTimeout(() => openTaskDetailPage(taskId), 1000);
+            });
         } else {
+            content += `<div class="alert alert-error">⏰ Time expired</div>`;
+        }
+    } else if (myExecution.status === 'approved') {
+        content += `<div class="alert alert-success">✅ Approved! ${formatPrice(myExecution.payment_amount)}</div>`;
+    } else if (myExecution.status === 'rejected') {
+        content += `<div class="alert alert-error">❌ Rejected</div>
+        <button class="btn btn-warning" onclick="openDisputeModal(${task.id}, ${myExecution.id})">⚠️ Dispute</button>`;
+    }
+} else {
             if (availableSlots > 0) {
                 content += `<button class="btn btn-success" onclick="applyForTaskFromDetail(${task.id})">🚀 Apply</button>`;
             } else {
