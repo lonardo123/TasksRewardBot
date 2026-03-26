@@ -632,7 +632,7 @@ async function applyForTaskFromDetail(taskId) {
         });
         const data = await res.json();
         if (data.success) {
-            showAlert('✅ Applied! Slot reserved.', 'success');
+            openTaskDetailPage(taskId);
             setTimeout(() => { openTaskDetailPage(taskId); }, 1000);
         } else {
             showAlert('❌ ' + data.message, 'error');
