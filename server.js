@@ -3205,6 +3205,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
 
 // ======================= 🔄 CRON: CLEANUP EXPIRED =======================
 
+// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 دقيقة)
 setInterval(async () => {
   try {
     const now = new Date();
@@ -3216,7 +3217,7 @@ setInterval(async () => {
       WHERE te.status = 'pending'
         AND te.proof IS NULL
         AND te.submitted_at IS NOT NULL
-        AND (te.submitted_at + (COALESCE(t.duration_seconds, 86400) || 86400) * INTERVAL '1 second') < $1
+        AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
     `, [now]);
     
     for (const exec of rows) {
@@ -3231,36 +3232,6 @@ setInterval(async () => {
     console.error('❌ Expired applications cleanup error:', err);
   }
 }, 60 * 1000); // كل 1 دقيقة
-
-// ======================= END TASKS SYSTEM API =======================
-
-// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 5 دقائق)
-setInterval(async () => {
-  try {
-    const now = new Date();
-    const { rows } = await pool.query(`
-      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.created_at
-      FROM task_executions te
-      JOIN tasks t ON t.id = te.task_id
-      WHERE te.status = 'pending'
-        AND te.proof IS NULL
-        AND (te.created_at + (COALESCE(t.duration_seconds, 86400) || 86400) * INTERVAL '1 second') < $1
-    `, [now]);
-    
-    for (const exec of rows) {
-      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
-      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
-    }
-    
-    if (rows.length > 0) {
-      console.log(`✅ Cleaned ${rows.length} expired applications`);
-    }
-  } catch (err) {
-    console.error('❌ Expired applications cleanup error:', err);
-  }
-}, 5 * 60 * 1000);
-
-
 // ======================= END TASKS SYSTEM API =======================
 
 /* =========================
