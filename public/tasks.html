@@ -56,41 +56,28 @@ tr:hover{background:#1e293b/50}
 .price-tag{background:#22c55e20;color:#22c55e;padding:4px 10px;border-radius:6px;font-weight:600;font-size:13px}
 .loading{text-align:center;padding:40px;color:#94a3b8}
 .hidden{display:none!important}
-/* === Form Messages inside Modal === */
+.task-form-table{width:100%;border-collapse:collapse;font-size:14px}
+.task-form-table th{background:#1e293b;padding:12px;text-align:left;color:#94a3b8}
+.task-form-table td{padding:10px 12px;border-bottom:1px solid #334155;vertical-align:top}
+.task-form-table td:first-child{width:35%;color:#94a3b8}
+.task-form-table input[type="text"],.task-form-table input[type="number"],.task-form-table textarea,.task-form-table select{
+width:100%;padding:8px;border:1px solid #475569;border-radius:4px;background:#0f172a;color:white;font-size:13px
+}
+.task-form-table textarea{min-height:100px;resize:vertical}
+.required{color:#ef4444}*
 .form-message{padding:10px 15px;border-radius:8px;margin:10px 0;font-size:14px;text-align:center;font-weight:500;animation:slideDown 0.2s ease}
 .form-message.error{background:#ef444420;color:#ef4444;border:1px solid #ef444440}
 .form-message.success{background:#22c55e20;color:#22c55e;border:1px solid #22c55e40}
 @keyframes slideDown{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 .section-divider{border-top:1px dashed #475569;margin:15px 0;padding-top:15px}
-/* === Countdown Timer === */
 .countdown{font-weight:600;color:#facc15;font-size:14px}
 .countdown.expired{color:#ef4444}
-/* === Task Form Styles === */
-.task-form-table{width:100%;border-collapse:collapse;font-size:14px}
-.task-form-table th{background:#1e293b;padding:12px;text-align:left;color:#94a3b8}
-.task-form-table td{padding:10px 12px;border-bottom:1px solid #334155;vertical-align:top}
-.task-form-table td:first-child{width:35%;color:#94a3b8}
-.task-form-table input[type="text"],.task-form-table input[type="number"],.task-form-table textarea,.task-form-table select{width:100%;padding:8px;border:1px solid #475569;border-radius:4px;background:#0f172a;color:white;font-size:13px}
-.task-form-table textarea{min-height:100px;resize:vertical}
-.required{color:#ef4444}*
-.task-form-table .hint-quest{cursor:help;color:#60a5fa;font-size:12px}
-.task-form-table .hint-quest:hover{color:#3b82f6}
-.tooltip{position:absolute;background:#1e293b;border:1px solid #475569;padding:10px;border-radius:6px;z-index:100;max-width:300px;font-size:12px;color:#cbd5e1;display:none}
-.tooltip b{color:#60a5fa}
-.hint-quest{position:relative}
-.hint-quest:hover .tooltip{display:block}
-.bb-code{display:inline-block;padding:2px 8px;background:#334155;border-radius:4px;margin-right:5px;cursor:pointer;font-size:12px}
-.bb-code:hover{background:#475569}
-.price-display{font-size:18px;font-weight:600;color:#22c55e}
-.interval-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;font-size:11px}
-.interval-grid input{width:100%;padding:4px;text-align:center}
+#deleteTaskInfo p{margin:8px 0;color:#cbd5e1}
+#withdrawPreview p{margin:8px 0;color:#cbd5e1}
 @media(max-width:768px){
 .btn-group{flex-direction:column}
 th,td{padding:8px;font-size:13px}
 .modal-content{width:95%;padding:15px}
-.task-form-table td:first-child{width:100%;padding-bottom:5px}
-.task-form-table tr{display:block;margin-bottom:15px;border-bottom:1px solid #334155}
-.interval-grid{grid-template-columns:repeat(3,1fr)}
 }
 </style>
 </head>
@@ -103,7 +90,7 @@ th,td{padding:8px;font-size:13px}
 <button class="btn btn-primary" onclick="openAddTaskModal()">➕ Add Task</button>
 </div>
 </div>
-<!-- Alert Messages (inside page) -->
+<!-- Alert Messages -->
 <div id="alertBox" class="alert hidden"></div>
 <!-- Tabs -->
 <div class="tabs">
@@ -120,7 +107,7 @@ th,td{padding:8px;font-size:13px}
 <h3>📋 Tasks You Created</h3>
 <div id="myTasksList"></div>
 </div>
-<!-- ✅ 2. صفحة مهمة خاصة لكل مهمة (Task Detail Page) -->
+<!-- Task Detail Page -->
 <div id="taskDetailPage" class="card hidden">
 <button class="btn btn-primary btn-sm" onclick="goBackToAvailable()">⬅️ Back to Available Tasks</button>
 <div id="taskDetailPageContent" style="margin-top:20px"></div>
@@ -139,13 +126,11 @@ Minimum price per task: <strong>$0.001</strong>
 <form id="addTaskForm" onsubmit="return createTaskFromForm(event)">
 <table class="task-form-table">
 <tr><th colspan="3">New Task Details</th></tr>
-<!-- Task Title -->
 <tr>
 <td>Task Title <span class="required">*</span></td>
 <td><input type="text" id="formTitle" maxlength="55" placeholder="Short, clear title (max 55 chars)" required></td>
-<td><span class="hint-quest">ⓘ<span class="tooltip"><b>Task Title</b> - Maximum 55 characters.</span></span></td>
+<td></td>
 </tr>
-<!-- Category -->
 <tr>
 <td>Task Category <span class="required">*</span></td>
 <td>
@@ -166,47 +151,42 @@ Minimum price per task: <strong>$0.001</strong>
 </td>
 <td></td>
 </tr>
-<!-- Verification Method -->
 <tr>
 <td>Verification Method</td>
 <td>
-<select id="formVerification" onchange="toggleVerificationFields()" required>
+<select id="formVerification" required>
 <option value="manual">Manual Review by Advertiser</option>
 <option value="auto">Auto-Verify by System</option>
 </select>
 </td>
 <td></td>
 </tr>
-<!-- Task Description -->
 <tr>
 <td><b>Task Description</b> <span class="required">*</span></td>
 <td colspan="2">
 <div style="margin-bottom:5px">
-<span class="bb-code" onclick="insertBBCode('formDesc','[b]','[/b]')">B</span>
-<span class="bb-code" onclick="insertBBCode('formDesc','[i]','[/i]')">I</span>
-<span class="bb-code" onclick="insertBBCode('formDesc','[u]','[/u]')">U</span>
-<span class="bb-code" onclick="insertBBCode('formDesc','[url]','[/url]')">URL</span>
 <span style="float:right;font-size:12px;color:#94a3b8"><span id="descCount">4000</span> chars left</span>
 </div>
 </td>
 </tr>
 <tr>
-<td colspan="2"><textarea id="formDesc" maxlength="4000" onkeyup="updateCharCount('formDesc','descCount')" placeholder="Detailed instructions..."></textarea></td>
+<td colspan="2">
+<textarea id="formDesc" maxlength="4000" onkeyup="updateCharCount('formDesc','descCount')" placeholder="Detailed instructions for executors..."></textarea>
+</td>
 <td></td>
 </tr>
-<!-- Proof Requirements -->
 <tr class="section-divider"><td colspan="3"><b>What executor must submit as proof</b> <span class="required">*</span></td></tr>
 <tr>
-<td colspan="2"><textarea id="formProofReq" maxlength="3000" placeholder="Example: 'Send your Telegram ID'..."></textarea></td>
+<td colspan="2">
+<textarea id="formProofReq" maxlength="3000" placeholder="Example: 'Send your Telegram ID'..."></textarea>
+</td>
 <td></td>
 </tr>
-<!-- Target URL -->
 <tr>
 <td><b>Target URL</b> (with https://) <span class="required">*</span></td>
 <td><input type="url" id="formUrl" maxlength="1100" placeholder="https://example.com/page" required></td>
 <td></td>
 </tr>
-<!-- Reward per Execution -->
 <tr>
 <td>Reward per Execution <span class="required">*</span></td>
 <td>
@@ -215,7 +195,6 @@ Minimum price per task: <strong>$0.001</strong>
 </td>
 <td></td>
 </tr>
-<!-- Max Completion Time -->
 <tr>
 <td>Max Completion Time <span class="required">*</span></td>
 <td>
@@ -234,21 +213,20 @@ Minimum price per task: <strong>$0.001</strong>
 </td>
 <td></td>
 </tr>
-<!-- Budget & Cost Display -->
 <tr class="section-divider"><td colspan="3"><b>Budget & Cost Summary</b></td></tr>
 <tr>
 <td>Executor Reward (100%)</td>
-<td class="price-display" id="executorRewardDisplay">$0.0100</td>
+<td style="font-size:18px;font-weight:600;color:#22c55e" id="executorRewardDisplay">$0.0100</td>
 <td></td>
 </tr>
 <tr>
 <td>Admin Commission (20%)</td>
-<td class="price-display" style="color:#facc15" id="adminCommissionDisplay">$0.0020</td>
+<td style="font-size:18px;font-weight:600;color:#facc15" id="adminCommissionDisplay">$0.0020</td>
 <td></td>
 </tr>
 <tr>
 <td><b>Total Cost per Completion</b></td>
-<td class="price-display" style="color:#f87171" id="totalCostDisplay"><b>$0.0120</b></td>
+<td style="font-size:18px;font-weight:600;color:#f87171" id="totalCostDisplay"><b>$0.0120</b></td>
 <td></td>
 </tr>
 <tr>
@@ -264,9 +242,7 @@ Minimum price per task: <strong>$0.001</strong>
 <td><span id="estimatedCompletions">83</span> completions</td>
 <td></td>
 </tr>
-<!-- Form Message Container -->
 <tr><td colspan="3" id="formMessageContainer" style="padding:10px 12px"></td></tr>
-<!-- Submit Button -->
 <tr>
 <th colspan="3" style="padding:20px 0;background:transparent">
 <button type="submit" class="btn btn-success" style="width:200px">🚀 Create Task</button>
@@ -363,7 +339,7 @@ Minimum price per task: <strong>$0.001</strong>
 <button class="btn btn-warning" onclick="createDispute()">📤 Submit Dispute</button>
 </div>
 </div>
-<!-- ✅ 1. نافذة تأكيد حذف المهمة -->
+<!-- Delete Task Modal -->
 <div id="deleteTaskModal" class="modal">
 <div class="modal-content">
 <div class="modal-header">
@@ -373,7 +349,7 @@ Minimum price per task: <strong>$0.001</strong>
 <div class="alert alert-error">
 ⚠️ <strong>Warning:</strong> This action cannot be undone!<br>
 • Task will be permanently deleted<br>
-• Remaining funds will be refunded to your balance
+• Remaining funds will be refunded
 </div>
 <div id="deleteTaskInfo" style="margin:15px 0;padding:15px;background:#1e293b;border-radius:8px">
 <p><strong>Task:</strong> <span id="deleteTaskTitle"></span></p>
@@ -470,7 +446,6 @@ loadMyTasks();
 }
 }
 
-// ✅ 2. زر العودة للقائمة من صفحة التفاصيل
 function goBackToAvailable() {
 document.getElementById('taskDetailPage').classList.add('hidden');
 document.getElementById('availableTasks').classList.remove('hidden');
@@ -507,19 +482,6 @@ if (minutes > 0) return `${minutes}m ${seconds}s`;
 return `${seconds}s`;
 }
 
-// ================= BB Code Helper =================
-function insertBBCode(fieldId, open, close) {
-const field = document.getElementById(fieldId);
-if (!field) return;
-const start = field.selectionStart;
-const end = field.selectionEnd;
-const text = field.value;
-const selected = text.substring(start, end);
-field.value = text.substring(0, start) + open + selected + close + text.substring(end);
-field.focus();
-updateCharCount(fieldId, fieldId.replace('form', '') + 'Count');
-}
-
 function updateCharCount(fieldId, countId) {
 const field = document.getElementById(fieldId);
 const counter = document.getElementById(countId);
@@ -530,21 +492,7 @@ counter.textContent = remaining;
 }
 }
 
-// ================= Form Field Toggles =================
-function toggleVerificationFields() {
-const mode = document.getElementById('formVerification').value;
-const autoRows = document.getElementById('autoKeywordRow');
-const keywordRow = document.getElementById('keywordRow');
-if (mode === 'auto') {
-autoRows.style.display = '';
-keywordRow.style.display = '';
-} else {
-autoRows.style.display = 'none';
-keywordRow.style.display = 'none';
-}
-}
-
-// ================= PAYMENT SYSTEM CALCULATIONS =================
+// ================= PAYMENT CALCULATIONS =================
 function calculateTotalCost() {
 const reward = parseFloat(document.getElementById('formReward').value) || 0.01;
 const budget = parseFloat(document.getElementById('formBudget').value) || 1.00;
@@ -573,7 +521,6 @@ list.innerHTML = data.data.map(task => {
 const remainingBudget = parseFloat(task.remaining_budget);
 const reward = parseFloat(task.executor_reward);
 const totalCost = reward * 1.20;
-// ✅ 3. حساب الأماكن المتاحة بعد خصم المحجوزة (pending)
 const totalSlots = Math.floor(remainingBudget / totalCost);
 const availableSlots = Math.max(0, totalSlots - (task.pending_count || 0));
 return `
@@ -602,7 +549,7 @@ list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
 }
 }
 
-// ✅ 2. صفحة مهمة خاصة لكل مهمة
+// ================= TASK DETAIL PAGE =================
 async function openTaskDetailPage(taskId) {
 try {
 const res = await fetch(`${API}/api/tasks/${taskId}?user_id=${currentUser}`);
@@ -663,7 +610,6 @@ content += `
 </div>
 <button class="btn btn-primary" onclick="submitProofForTask(${task.id}, ${myExecution.id})">📤 Submit Execution Proof</button>
 `;
-// ✅ 5. بدء العد التنازلي
 startCountdown('taskDetailCountdown', remaining, () => {
 document.getElementById('taskDetailCountdown').textContent = 'EXPIRED';
 document.getElementById('taskDetailCountdown').classList.add('expired');
@@ -683,7 +629,6 @@ content += `<div class="alert alert-info">⏳ Dispute under admin review</div>`;
 }
 } else {
 if (availableSlots > 0) {
-// ✅ 3. زر التقديم يظهر فقط إذا توجد أماكن متاحة
 content += `<button class="btn btn-success" onclick="applyForTaskFromDetail(${task.id})">🚀 Apply for Task</button>`;
 } else {
 content += `<div class="alert alert-error">⚠️ No available slots at the moment</div>`;
@@ -697,7 +642,7 @@ showAlert('⚠️ Failed to load task details', 'error');
 }
 }
 
-// ✅ 3. نظام التقديم (Apply)
+// ================= APPLY FOR TASK =================
 async function applyForTaskFromDetail(taskId) {
 try {
 const res = await fetch(`${API}/api/tasks/${taskId}/apply`, {
@@ -720,7 +665,7 @@ showAlert('⚠️ Connection error', 'error');
 }
 }
 
-// ✅ 4. تقديم الدليل (Submit Proof)
+// ================= SUBMIT PROOF =================
 async function submitProofForTask(taskId, executionId) {
 const proof = document.getElementById('proofText').value.trim();
 if (!proof || proof.length < 10) {
@@ -746,7 +691,7 @@ showAlert('⚠️ Connection error', 'error');
 }
 }
 
-// ✅ 5. العد التنازلي (Countdown Timer)
+// ================= COUNTDOWN TIMER =================
 function startCountdown(elementId, initialMs, onExpire) {
 if (countdownTimers[elementId]) {
 clearInterval(countdownTimers[elementId]);
@@ -904,6 +849,7 @@ btn.textContent = '✅ Confirm Withdraw';
 }
 openModal('withdrawFundsModal');
 } catch (err) {
+console.error('Withdraw modal error:', err);
 showAlert('⚠️ Failed to load task details', 'error');
 }
 }
@@ -934,11 +880,12 @@ loadMyTasks();
 showAlert('❌ ' + data.message, 'error');
 }
 } catch (err) {
+console.error('Withdraw error:', err);
 showAlert('⚠️ Connection error', 'error');
 }
 }
 
-// ✅ 1. حذف المهمة (Delete Task)
+// ================= DELETE TASK =================
 async function openDeleteTaskModal(taskId) {
 taskToDelete = taskId;
 try {
@@ -950,8 +897,6 @@ return;
 }
 const task = data.task;
 const remaining = parseFloat(task.budget) - parseFloat(task.spent);
-
-// التحقق من وجود تنفيذات معلقة أو نزاعات
 const proofsRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
 const proofsData = await proofsRes.json();
 const pendingCount = proofsData.success ? proofsData.data.filter(p => p.status === 'pending').length : 0;
@@ -962,7 +907,6 @@ document.getElementById('deleteRefundAmount').textContent = formatPrice(remainin
 document.getElementById('deletePendingCount').innerHTML = pendingCount > 0 ? `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
 document.getElementById('deleteDisputedCount').innerHTML = disputedCount > 0 ? `<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
 
-// منع الحذف إذا وجدت تنفيذات معلقة أو نزاعات
 const btn = document.querySelector('#deleteTaskModal .btn-danger');
 if (pendingCount > 0 || disputedCount > 0) {
 btn.disabled = true;
@@ -973,6 +917,7 @@ btn.textContent = '🗑️ Yes, Delete Task';
 }
 openModal('deleteTaskModal');
 } catch (err) {
+console.error('Delete modal error:', err);
 showAlert('⚠️ Failed to load task details', 'error');
 }
 }
@@ -995,6 +940,7 @@ closeModal('deleteTaskModal');
 showAlert('❌ ' + data.message, 'error');
 }
 } catch (err) {
+console.error('Delete error:', err);
 closeModal('deleteTaskModal');
 showAlert('⚠️ Connection error', 'error');
 }
@@ -1017,7 +963,7 @@ list.innerHTML = data.data.map(proof => `
 <div class="proof-item">
 <div class="proof-header">
 <strong>👤 @${proof.executor_username || proof.executor_id}</strong>
-<span class="status-badge status-${proof.status}">${getStatusText(proof.status)}</span>
+<span class="status-badge status-${proof.status}">${proof.status}</span>
 </div>
 <small style="color:#94a3b8">📅 ${formatDate(proof.submitted_at)}</small>
 ${proof.proof ? `<div class="proof-content">${proof.proof}</div>` : ''}
@@ -1026,19 +972,13 @@ ${proof.status === 'pending' ? `
 <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
 <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
 </div>
-` : proof.status === 'disputed' ? `
-<div class="alert alert-info" style="margin-top:10px">⚠️ This execution is under dispute</div>
 ` : ''}
 </div>
 `).join('');
 } catch (err) {
+console.error(err);
 list.innerHTML = '<p class="alert alert-error">Failed to load proofs</p>';
 }
-}
-
-function getStatusText(status) {
-const map = { pending: '⏳ Pending', approved: '✅ Approved', rejected: '❌ Rejected', disputed: '⚠️ Disputed' };
-return map[status] || status;
 }
 
 async function approveProof(taskId, proofId) {
@@ -1112,7 +1052,6 @@ document.getElementById('addTaskForm').reset();
 clearFormMessage();
 document.getElementById('descCount').textContent = '4000';
 calculateTotalCost();
-toggleVerificationFields();
 openModal('addTaskModal');
 }
 
@@ -1165,6 +1104,7 @@ loadMyTasks();
 showFormMessage('❌ ' + data.message, 'error');
 }
 } catch (err) {
+console.error('Create task error:', err);
 showFormMessage('⚠️ Connection error', 'error');
 }
 return false;
