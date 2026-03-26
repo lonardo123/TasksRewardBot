@@ -107,7 +107,7 @@ th,td{padding:8px;font-size:13px}
 <h3>📋 Tasks You Created</h3>
 <div id="myTasksList"></div>
 </div>
-<!-- Task Detail Page -->
+<!-- ✅ Task Detail Page (NEW) -->
 <div id="taskDetailPage" class="card hidden">
 <button class="btn btn-primary btn-sm" onclick="goBackToAvailable()">⬅️ Back to Available Tasks</button>
 <div id="taskDetailPageContent" style="margin-top:20px"></div>
@@ -339,7 +339,7 @@ Minimum price per task: <strong>$0.001</strong>
 <button class="btn btn-warning" onclick="createDispute()">📤 Submit Dispute</button>
 </div>
 </div>
-<!-- Delete Task Modal -->
+<!-- ✅ Delete Task Modal (NEW) -->
 <div id="deleteTaskModal" class="modal">
 <div class="modal-content">
 <div class="modal-header">
@@ -836,8 +836,10 @@ const disputedCount = pendingData.success ? pendingData.data.filter(p => p.statu
 
 document.getElementById('withdrawTaskTitle').textContent = task.title;
 document.getElementById('withdrawMaxAmount').textContent = formatPrice(remaining);
-document.getElementById('withdrawPendingCount').innerHTML = pendingCount > 0 ? `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
-document.getElementById('withdrawDisputedCount').innerHTML = disputedCount > 0 ? `<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
+document.getElementById('withdrawPendingCount').innerHTML = pendingCount > 0 ?
+`<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
+document.getElementById('withdrawDisputedCount').innerHTML = disputedCount > 0 ?
+`<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
 
 const btn = document.querySelector('#withdrawFundsModal .btn-warning');
 if (pendingCount > 0 || disputedCount > 0) {
@@ -853,6 +855,20 @@ console.error('Withdraw modal error:', err);
 showAlert('⚠️ Failed to load task details', 'error');
 }
 }
+
+document.getElementById('withdrawAmountInput').oninput = function() {
+const amount = parseFloat(this.value) || 0;
+const maxAmount = windowMaxWithdrawAmount || 0;
+const preview = document.getElementById('withdrawPreviewDetails');
+if (amount > 0 && amount <= maxAmount) {
+document.getElementById('withdrawPreviewDebit').textContent = formatPrice(amount);
+document.getElementById('withdrawPreviewRemaining').textContent = formatPrice(maxAmount - amount);
+document.getElementById('withdrawPreviewCredit').textContent = formatPrice(amount);
+preview.style.display = 'block';
+} else {
+preview.style.display = 'none';
+}
+};
 
 async function confirmWithdrawFunds() {
 const amountInput = parseFloat(document.getElementById('withdrawAmountInput').value);
@@ -897,6 +913,8 @@ return;
 }
 const task = data.task;
 const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+
+// Check for pending and disputed executions
 const proofsRes = await fetch(`${API}/api/tasks/${taskId}/proofs?user_id=${currentUser}`);
 const proofsData = await proofsRes.json();
 const pendingCount = proofsData.success ? proofsData.data.filter(p => p.status === 'pending').length : 0;
@@ -904,8 +922,10 @@ const disputedCount = proofsData.success ? proofsData.data.filter(p => p.status 
 
 document.getElementById('deleteTaskTitle').textContent = task.title;
 document.getElementById('deleteRefundAmount').textContent = formatPrice(remaining);
-document.getElementById('deletePendingCount').innerHTML = pendingCount > 0 ? `<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
-document.getElementById('deleteDisputedCount').innerHTML = disputedCount > 0 ? `<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
+document.getElementById('deletePendingCount').innerHTML = pendingCount > 0 ?
+`<span style="color:#ef4444;font-weight:600">${pendingCount} pending</span>` : '<span style="color:#22c55e">None</span>';
+document.getElementById('deleteDisputedCount').innerHTML = disputedCount > 0 ?
+`<span style="color:#8b5cf6;font-weight:600">${disputedCount} disputed</span>` : '<span style="color:#22c55e">None</span>';
 
 const btn = document.querySelector('#deleteTaskModal .btn-danger');
 if (pendingCount > 0 || disputedCount > 0) {
@@ -972,6 +992,8 @@ ${proof.status === 'pending' ? `
 <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
 <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
 </div>
+` : proof.status === 'disputed' ? `
+<div class="alert alert-info" style="margin-top:10px">⚠️ This execution is under dispute</div>
 ` : ''}
 </div>
 `).join('');
