@@ -2644,7 +2644,7 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     
     const existing = await client.query(
       `SELECT id, status FROM task_executions 
-       WHERE task_id = $1 AND executor_id = $2 AND status IN ('pending', 'approved')`,
+       WHERE task_id = $1 AND executor_id = $2 AND status IN ('applied','pending','approved')`,
       [id, user_id]
     );
     
@@ -2718,22 +2718,21 @@ app.post('/api/tasks/:id/submit-proof', async (req, res) => {
     if (execution_id) {
       exec = await pool.query(
         `SELECT id, status, submitted_at FROM task_executions 
-         WHERE id = $1 AND task_id = $2 AND executor_id = $3 AND status = 'pending'`,
+         WHERE id = $1 AND task_id = $2 AND executor_id = $3 AND status = 'applied'`,
         [execution_id, id, user_id]
       );
     } else {
       exec = await pool.query(
         `SELECT id, status, submitted_at FROM task_executions 
-         WHERE task_id = $1 AND executor_id = $2 AND status = 'pending'`,
+         WHERE task_id = $1 AND executor_id = $2 AND status = 'applied'`,
         [id, user_id]
       );
     }
     
     if (exec.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "No pending execution found for this task" });
+      return res.status(404).json({ success: false, message: "No applied execution found for this task" });
     }
     
-    // ✅ تحديث submitted_at فقط إذا كان فارغاً
     await pool.query(
       `UPDATE task_executions 
        SET proof = $1, submitted_at = COALESCE(submitted_at, NOW()), status = 'pending' 
@@ -2757,54 +2756,99 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     const { user_id } = req.query;
     
     if (!id) {
-      return res.status(400).json({ success: false, message: "Task ID required" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Task ID required" 
+      });
     }
     
-    const task = await pool.query('SELECT creator_id, deleted_at FROM tasks WHERE id = $1', [id]);
+    // 🔍 التحقق من وجود المهمة
+    const task = await pool.query(
+      'SELECT creator_id, deleted_at FROM tasks WHERE id = $1', 
+      [id]
+    );
+
     if (task.rows.length === 0 || task.rows[0].deleted_at) {
-      return res.status(404).json({ success: false, message: "Task not found" });
+      return res.status(404).json({ 
+        success: false, 
+        message: "Task not found" 
+      });
     }
     
     const isCreator = task.rows[0].creator_id?.toString() === user_id;
     
     let query, params;
     
+    // 👑 صاحب المهمة
     if (isCreator) {
-      // ✅ استخدام submitted_at بدلاً من created_at
       query = `
         SELECT 
-          te.id, te.proof, te.status, te.submitted_at,
-          te.payment_amount, te.commission_amount, te.executor_id,
-          u.username as executor_username, u.telegram_id
+          te.id, 
+          te.proof, 
+          te.status, 
+          te.submitted_at,
+          te.payment_amount, 
+          te.commission_amount, 
+          te.executor_id,
+          u.username as executor_username, 
+          u.telegram_id
         FROM task_executions te
         LEFT JOIN users u ON te.executor_id = u.telegram_id
         WHERE te.task_id = $1
-        ORDER BY te.status, te.submitted_at DESC
+        AND te.proof IS NOT NULL -- 🔥 يمنع ظهور applied
+        ORDER BY 
+          CASE 
+            WHEN te.status = 'pending' THEN 1
+            WHEN te.status = 'disputed' THEN 2
+            WHEN te.status = 'approved' THEN 3
+            WHEN te.status = 'rejected' THEN 4
+            ELSE 5
+          END,
+          te.submitted_at DESC
       `;
       params = [id];
+
+    // 👤 المستخدم العادي
     } else if (user_id) {
       query = `
         SELECT 
-          te.id, te.proof, te.status, te.submitted_at,
-          te.payment_amount, te.executor_id
+          te.id, 
+          te.proof, 
+          te.status, 
+          te.submitted_at,
+          te.payment_amount, 
+          te.executor_id
         FROM task_executions te
-        WHERE te.task_id = $1 AND te.executor_id = $2
+        WHERE te.task_id = $1 
+        AND te.executor_id = $2
+        AND te.proof IS NOT NULL -- 🔥 يمنع ظهور applied
         ORDER BY te.submitted_at DESC
       `;
       params = [id, user_id];
+
     } else {
-      return res.status(401).json({ success: false, message: "Authentication required" });
+      return res.status(401).json({ 
+        success: false, 
+        message: "Authentication required" 
+      });
     }
     
     const proofs = await pool.query(query, params);
-    res.json({ success: true, data: proofs.rows });
+
+    res.json({ 
+      success: true, 
+      data: proofs.rows 
+    });
     
   } catch (err) {
     console.error('❌ /api/tasks/:id/proofs:', err);
-    res.status(500).json({ success: false, message: "Failed to load proofs", error: err.message });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to load proofs", 
+      error: err.message 
+    });
   }
 });
-
 // ======================= ✅ APPROVE PROOF =======================
 
 app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
