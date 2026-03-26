@@ -2342,16 +2342,14 @@ async function validateUser(telegramId) {
 
 // ======================= 📊 TASKS: AVAILABLE =======================
 
-// ✅ GET /api/tasks/available - جلب المهام المتاحة للتنفيذ
 app.get('/api/tasks/available', async (req, res) => {
   try {
     const { user_id } = req.query;
     
     if (!user_id || !/^\d+$/.test(user_id.toString())) {
-      return res.json({ success: false, message: "Valid user_id required" });
+      return res.status(400).json({ success: false, message: "Valid user_id required" });
     }
     
-    // ✅ استعلام متوافق مع frontend: يرجع remaining_budget و completed_count
     const tasks = await pool.query(`
       SELECT 
         t.id, 
@@ -2364,6 +2362,7 @@ app.get('/api/tasks/available', async (req, res) => {
         (t.budget - t.spent) as remaining_budget,
         t.created_at,
         t.settings,
+        t.target_url,
         (
           SELECT COUNT(*) 
           FROM task_executions 
@@ -2399,7 +2398,6 @@ app.get('/api/tasks/available', async (req, res) => {
 
 // ======================= 📋 TASKS: MY TASKS =======================
 
-// ✅ GET /api/tasks/my - جلب مهام المستخدم المنشأة (متوافق مع frontend)
 app.get('/api/tasks/my', async (req, res) => {
   try {
     const userId = req.query.user_id;
@@ -2408,7 +2406,6 @@ app.get('/api/tasks/my', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Valid user_id is required' });
     }
 
-    // ✅ استعلام يرجع total_executions و approved_count كما يتوقع الـ frontend
     const query = `
       SELECT 
         t.id,
@@ -2425,7 +2422,8 @@ app.get('/api/tasks/my', async (req, res) => {
         COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
         COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count,
         COUNT(te.id) FILTER (WHERE te.status = 'pending') AS pending_count,
-        COUNT(te.id) FILTER (WHERE te.status = 'rejected') AS rejected_count
+        COUNT(te.id) FILTER (WHERE te.status = 'rejected') AS rejected_count,
+        COUNT(te.id) FILTER (WHERE te.status = 'disputed') AS disputed_count
       FROM tasks t
       LEFT JOIN task_executions te ON t.id = te.task_id
       WHERE t.creator_id = $1 
@@ -2436,10 +2434,7 @@ app.get('/api/tasks/my', async (req, res) => {
     
     const result = await pool.query(query, [userId]);
 
-    res.json({
-      success: true,
-      data: result.rows
-    });
+    res.json({ success: true, data: result.rows });
 
   } catch (err) {
     console.error('❌ /api/tasks/my:', err);
@@ -2449,46 +2444,44 @@ app.get('/api/tasks/my', async (req, res) => {
 
 // ======================= 🔍 TASK: DETAILS =======================
 
-// ✅ GET /api/tasks/:id - جلب تفاصيل مهمة واحدة (مطلوب للـ frontend)
 app.get('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.query;
     
     if (!id || isNaN(id)) {
-      return res.json({ success: false, message: "Invalid task ID" });
+      return res.status(400).json({ success: false, message: "Invalid task ID" });
     }
     
-    // ✅ أضف pending_count و disputed_count
-const task = await pool.query(`
-  SELECT 
-    t.*,
-    (t.budget - t.spent) as remaining_budget,
-    COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
-    COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count,
-    COUNT(te.id) FILTER (WHERE te.status = 'pending') AS pending_count,
-    COUNT(te.id) FILTER (WHERE te.status = 'disputed') AS disputed_count
-  FROM tasks t
-  LEFT JOIN task_executions te ON t.id = te.task_id
-  WHERE t.id = $1 AND t.deleted_at IS NULL
-  GROUP BY t.id
-`, [id]);
+    const task = await pool.query(`
+      SELECT 
+        t.*,
+        (t.budget - t.spent) as remaining_budget,
+        COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
+        COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count,
+        COUNT(te.id) FILTER (WHERE te.status = 'pending') AS pending_count,
+        COUNT(te.id) FILTER (WHERE te.status = 'disputed') AS disputed_count
+      FROM tasks t
+      LEFT JOIN task_executions te ON t.id = te.task_id
+      WHERE t.id = $1 AND t.deleted_at IS NULL
+      GROUP BY t.id
+    `, [id]);
     
     if (task.rows.length === 0) {
-      return res.json({ success: false, message: "Task not found" });
+      return res.status(404).json({ success: false, message: "Task not found" });
     }
     
     const taskData = task.rows[0];
     const isCreator = taskData.creator_id?.toString() === user_id;
     
-    // جلب حالة تنفيذ المستخدم الحالي إن وجد
     let myExecution = null;
     if (user_id) {
+      // ✅ استخدام submitted_at بدلاً من created_at
       const exec = await pool.query(
-        `SELECT id, task_id, executor_id, proof, status, submitted_at, created_at, payment_amount, commission_amount
+        `SELECT id, task_id, executor_id, proof, status, submitted_at, payment_amount, commission_amount
          FROM task_executions 
          WHERE task_id = $1 AND executor_id = $2 
-         ORDER BY created_at DESC LIMIT 1`,
+         ORDER BY submitted_at DESC LIMIT 1`,
         [id, user_id]
       );
       if (exec.rows.length > 0) myExecution = exec.rows[0];
@@ -2513,14 +2506,6 @@ app.post('/api/tasks/create', async (req, res) => {
   const client = await pool.connect();
   
   try {
-    console.log('📥 Create task request:', { 
-      creator_id: req.body.creator_id, 
-      title: req.body.title,
-      reward: req.body.reward_per_execution,
-      budget: req.body.budget 
-    });
-    
-    // ✅ 1. استقبال البيانات (نفس أسماء الحقول من frontend)
     const { 
       creator_id, title, description, reward_per_execution,
       duration_seconds, budget, target_url,
@@ -2529,7 +2514,6 @@ app.post('/api/tasks/create', async (req, res) => {
       verification_keyword, delay_hours, delay_minutes, hourly_limits, multi_interval
     } = req.body;
     
-    // ✅ 2. التحقق من الحقول الإلزامية
     if (!creator_id || !title || reward_per_execution === undefined || !budget) {
       return res.status(400).json({ 
         success: false, 
@@ -2538,7 +2522,6 @@ app.post('/api/tasks/create', async (req, res) => {
       });
     }
     
-    // ✅ 3. التحقق من صحة الأرقام
     const executorReward = parseFloat(reward_per_execution);
     const totalBudget = parseFloat(budget);
     
@@ -2549,14 +2532,12 @@ app.post('/api/tasks/create', async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid budget: min $0.10" });
     }
     
-    // ✅ 4. حساب التكلفة (100% منفذ + 20% إدارة)
     const adminCommission = executorReward * 0.20;
     const totalCostPerExecution = executorReward + adminCommission;
     
-    // ✅ 5. التحقق من رصيد المستخدم
     const userRes = await client.query(
       'SELECT balance FROM users WHERE telegram_id = $1', 
-      [creator_id]  // ✅ PostgreSQL يتعامل مع bigint تلقائياً
+      [creator_id]
     );
     
     if (userRes.rows.length === 0) {
@@ -2571,17 +2552,14 @@ app.post('/api/tasks/create', async (req, res) => {
       });
     }
     
-    // ✅ 6. بدء المعاملة
     await client.query('BEGIN');
     
     try {
-      // ✅ 7. خصم الميزانية
       await client.query(
         'UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', 
         [totalBudget, creator_id]
       );
       
-      // ✅ 8. تجميع الإعدادات (ككائن لـ jsonb)
       const settings = {
         category: category || 'other',
         verification_method: verification_method || 'manual',
@@ -2596,11 +2574,8 @@ app.post('/api/tasks/create', async (req, res) => {
         multi_interval: multi_interval || 0
       };
       
-      // ✅ 9. معالجة duration_seconds مع fallback
       const finalDuration = parseInt(duration_seconds) || parseInt(max_completion_time) || 86400;
       
-      // ✅ 10. إنشاء المهمة - استعلام متوافق 100% مع الهيكل
-      // ⚠️ ملاحظة: القيم الثابتة (0, true) توضع مباشرة في VALUES وليست ضمن العد
       const result = await client.query(`
         INSERT INTO tasks (
           title, description, price, executor_reward, duration_seconds,
@@ -2609,23 +2584,18 @@ app.post('/api/tasks/create', async (req, res) => {
         VALUES ($1, $2, $3, $4, $5, $6, 0, $7, true, $8, $9)
         RETURNING id, title, created_at, executor_reward, budget, spent, is_active, settings, target_url
       `, [
-        title,                           // $1
-        description,                     // $2
-        executorReward,                  // $3: price
-        executorReward,                  // $4: executor_reward
-        finalDuration,                   // $5: duration_seconds
-        totalBudget,                     // $6: budget
-        // 0,                            // spent: قيمة ثابتة في الاستعلام
-        creator_id,                      // $7: creator_id (bigint)
-        // true,                         // is_active: قيمة ثابتة في الاستعلام
-        target_url || '',                // $8: target_url
-        settings                         // $9: settings (jsonb - كائن مباشر)
+        title,
+        description,
+        executorReward,
+        executorReward,
+        finalDuration,
+        totalBudget,
+        creator_id,
+        target_url || '',
+        settings
       ]);
       
-      // ✅ 11. تأكيد المعاملة
       await client.query('COMMIT');
-      
-      console.log('✅ Task created:', result.rows[0].id);
       
       res.json({ 
         success: true, 
@@ -2641,31 +2611,18 @@ app.post('/api/tasks/create', async (req, res) => {
       
     } catch (dbErr) {
       await client.query('ROLLBACK');
-      console.error('❌ DB Error:', {
-        message: dbErr.message,
-        code: dbErr.code,
-        detail: dbErr.detail
-      });
+      console.error('❌ DB Error:', dbErr);
       throw dbErr;
     }
     
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch (_) {}
-    
-    console.error('❌ CRITICAL /api/tasks/create:', {
-      message: err.message,
-      code: err.code,
-      detail: err.detail,
-      hint: err.hint
-    });
-    
+    console.error('❌ CRITICAL /api/tasks/create:', err);
     res.status(500).json({ 
       success: false, 
       message: "Failed to create task", 
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-      code: err.code
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
-    
   } finally {
     client.release();
   }
@@ -2673,7 +2630,6 @@ app.post('/api/tasks/create', async (req, res) => {
 
 // ======================= 🚀 APPLY FOR TASK =======================
 
-// ✅ POST /api/tasks/:id/apply - التقديم على مهمة مع حجز مكان
 app.post('/api/tasks/:id/apply', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -2681,12 +2637,11 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     const { user_id } = req.body;
     
     if (!id || !user_id || !/^\d+$/.test(user_id.toString())) {
-      return res.json({ success: false, message: "Invalid task ID or user ID" });
+      return res.status(400).json({ success: false, message: "Invalid task ID or user ID" });
     }
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من وجود تنفيذ سابق معلق أو مقبول
     const existing = await client.query(
       `SELECT id, status FROM task_executions 
        WHERE task_id = $1 AND executor_id = $2 AND status IN ('pending', 'approved')`,
@@ -2695,11 +2650,9 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     
     if (existing.rows.length > 0) {
       await client.query('ROLLBACK');
-      const statusText = existing.rows[0].status === 'approved' ? 'already completed' : 'already applied';
-      return res.json({ success: false, message: `You have ${statusText} for this task` });
+      return res.status(400).json({ success: false, message: "You already have an active execution for this task" });
     }
     
-    // ✅ التحقق من وجود المهمة وميزانيتها
     const task = await client.query(
       `SELECT budget, spent, executor_reward, duration_seconds, is_active, deleted_at 
        FROM tasks WHERE id = $1`, 
@@ -2708,7 +2661,7 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     
     if (task.rows.length === 0 || !task.rows[0].is_active || task.rows[0].deleted_at) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Task not found or inactive" });
+      return res.status(404).json({ success: false, message: "Task not found or inactive" });
     }
     
     const executorReward = parseFloat(task.rows[0].executor_reward || task.rows[0].price || 0.01);
@@ -2718,10 +2671,10 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     
     if (remaining < totalCost) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Task has insufficient budget" });
+      return res.status(400).json({ success: false, message: "Task has insufficient budget" });
     }
     
-    // ✅ تسجيل التقديم مع حجز المكان
+    // ✅ استخدام submitted_at بدلاً من created_at
     await client.query(
       `INSERT INTO task_executions (
          task_id, executor_id, status, payment_amount, commission_amount, submitted_at
@@ -2736,7 +2689,8 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       execution: {
         reward: executorReward.toFixed(4),
         commission: adminCommission.toFixed(4),
-        total_cost: totalCost.toFixed(4)
+        total_cost: totalCost.toFixed(4),
+        duration_seconds: task.rows[0].duration_seconds
       }
     });
     
@@ -2751,40 +2705,41 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
 
 // ======================= 📤 SUBMIT PROOF =======================
 
-// ✅ POST /api/tasks/:id/submit-proof - إرسال دليل التنفيذ
 app.post('/api/tasks/:id/submit-proof', async (req, res) => {
   try {
     const { id } = req.params;
-    // ✅ استقبال execution_id من الـ frontend
-const { user_id, proof, execution_id } = req.body;
-
-// ✅ استخدام execution_id إذا وُجد، أو البحث عن التنفيذ المعلق
-let exec;
-if (execution_id) {
-  exec = await pool.query(
-    `SELECT id, status FROM task_executions 
-     WHERE id = $1 AND task_id = $2 AND executor_id = $3 AND status = 'pending'`,
-    [execution_id, id, user_id]
-  );
-} else {
-  exec = await pool.query(
-    `SELECT id, status FROM task_executions 
-     WHERE task_id = $1 AND executor_id = $2 AND status = 'pending'`,
-    [id, user_id]
-  );
-}
-
-if (exec.rows.length === 0) {
-  return res.json({ success: false, message: "No pending execution found for this task" });
-}
-
-// ✅ تحديث التنفيذ بالدليل
-await pool.query(
-  `UPDATE task_executions 
-   SET proof = $1, submitted_at = COALESCE(submitted_at, NOW()), status = 'pending' 
-   WHERE id = $2`, 
-  [proof, exec.rows[0].id]
-);
+    const { user_id, proof, execution_id } = req.body;
+    
+    if (!proof || proof.trim().length < 10) {
+      return res.status(400).json({ success: false, message: "Proof must be at least 10 characters" });
+    }
+    
+    let exec;
+    if (execution_id) {
+      exec = await pool.query(
+        `SELECT id, status, submitted_at FROM task_executions 
+         WHERE id = $1 AND task_id = $2 AND executor_id = $3 AND status = 'pending'`,
+        [execution_id, id, user_id]
+      );
+    } else {
+      exec = await pool.query(
+        `SELECT id, status, submitted_at FROM task_executions 
+         WHERE task_id = $1 AND executor_id = $2 AND status = 'pending'`,
+        [id, user_id]
+      );
+    }
+    
+    if (exec.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "No pending execution found for this task" });
+    }
+    
+    // ✅ تحديث submitted_at فقط إذا كان فارغاً
+    await pool.query(
+      `UPDATE task_executions 
+       SET proof = $1, submitted_at = COALESCE(submitted_at, NOW()), status = 'pending' 
+       WHERE id = $2`, 
+      [proof, exec.rows[0].id]
+    );
     
     res.json({ success: true, message: "Proof submitted successfully", execution_id: exec.rows[0].id });
     
@@ -2796,20 +2751,18 @@ await pool.query(
 
 // ======================= 📋 TASK PROOFS =======================
 
-// ✅ GET /api/tasks/:id/proofs - جلب براهين التنفيذ لمهمة (مطلوب للـ frontend)
 app.get('/api/tasks/:id/proofs', async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.query;
     
     if (!id) {
-      return res.json({ success: false, message: "Task ID required" });
+      return res.status(400).json({ success: false, message: "Task ID required" });
     }
     
-    // ✅ التحقق من صلاحية الوصول: المنشئ يرى الكل، المنفذ يرى براهينه فقط
     const task = await pool.query('SELECT creator_id, deleted_at FROM tasks WHERE id = $1', [id]);
     if (task.rows.length === 0 || task.rows[0].deleted_at) {
-      return res.json({ success: false, message: "Task not found" });
+      return res.status(404).json({ success: false, message: "Task not found" });
     }
     
     const isCreator = task.rows[0].creator_id?.toString() === user_id;
@@ -2817,10 +2770,10 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     let query, params;
     
     if (isCreator) {
-      // المنشئ يرى كل البراهين مع بيانات المنفذ
+      // ✅ استخدام submitted_at بدلاً من created_at
       query = `
         SELECT 
-          te.id, te.proof, te.status, te.submitted_at, te.created_at,
+          te.id, te.proof, te.status, te.submitted_at,
           te.payment_amount, te.commission_amount, te.executor_id,
           u.username as executor_username, u.telegram_id
         FROM task_executions te
@@ -2830,10 +2783,9 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
       `;
       params = [id];
     } else if (user_id) {
-      // المنفذ يرى براهينه فقط
       query = `
         SELECT 
-          te.id, te.proof, te.status, te.submitted_at, te.created_at,
+          te.id, te.proof, te.status, te.submitted_at,
           te.payment_amount, te.executor_id
         FROM task_executions te
         WHERE te.task_id = $1 AND te.executor_id = $2
@@ -2841,11 +2793,10 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
       `;
       params = [id, user_id];
     } else {
-      return res.json({ success: false, message: "Authentication required" });
+      return res.status(401).json({ success: false, message: "Authentication required" });
     }
     
     const proofs = await pool.query(query, params);
-    
     res.json({ success: true, data: proofs.rows });
     
   } catch (err) {
@@ -2856,46 +2807,41 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
 
 // ======================= ✅ APPROVE PROOF =======================
 
-// ✅ POST /api/tasks/:id/proofs/:proofId/approve - الموافقة على دليل التنفيذ
 app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
   const client = await pool.connect();
   try {
     const { id: taskId, proofId } = req.params;
     const { user_id } = req.body;
     
-    // ✅ التحقق من أن المستخدم هو منشئ المهمة
     const task = await client.query(
       'SELECT creator_id, budget, spent FROM tasks WHERE id = $1 AND deleted_at IS NULL', 
       [taskId]
     );
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
-      return res.json({ success: false, message: "Unauthorized: You are not the task creator" });
+      return res.status(403).json({ success: false, message: "Unauthorized: You are not the task creator" });
     }
     
-    // ✅ التحقق من وجود التنفيذ وحالته
     const exec = await client.query(
       `SELECT id, executor_id, payment_amount, commission_amount, status 
        FROM task_executions WHERE id = $1 AND task_id = $2 AND status = 'pending'`,
       [proofId, taskId]
     );
     if (exec.rows.length === 0) {
-      return res.json({ success: false, message: "Execution not found or already processed" });
+      return res.status(404).json({ success: false, message: "Execution not found or already processed" });
     }
     
     const executorId = exec.rows[0].executor_id;
-    const paymentAmount = parseFloat(exec.rows[0].payment_amount); // 100% to executor
+    const paymentAmount = parseFloat(exec.rows[0].payment_amount);
     const adminCommission = parseFloat(exec.rows[0].commission_amount || (paymentAmount * 0.20));
     const totalCost = paymentAmount + adminCommission;
     
     await client.query('BEGIN');
     
-    // ✅ دفع 100% للمنفذ
     await client.query(
       'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', 
       [paymentAmount, executorId]
     );
     
-    // ✅ دفع 20% للإدارة (إذا كان معرف الأدمن موجود)
     const adminId = process.env.ADMIN_ID;
     if (adminId && adminCommission > 0) {
       await client.query(
@@ -2904,26 +2850,22 @@ app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
       );
     }
     
-    // ✅ تحديث حالة التنفيذ
     await client.query(`
       UPDATE task_executions 
       SET status = 'approved', reviewed_at = NOW(), reviewed_by = $1
       WHERE id = $2
     `, [user_id, proofId]);
     
-    // ✅ تحديث المصروفات في المهمة (التكلفة الكاملة)
     await client.query(
       'UPDATE tasks SET spent = spent + $1 WHERE id = $2', 
       [totalCost, taskId]
     );
     
-    // ✅ تسجيل الأرباح للمنفذ
     await client.query(`
       INSERT INTO earnings (user_id, source, amount, description, video_id, watched_seconds, created_at)
       VALUES ($1, 'task_execution', $2, $3, NULL, NULL, NOW())
     `, [executorId, paymentAmount, `Task #${taskId} execution reward (100%)`]);
     
-    // ✅ تسجيل عمولة الإدارة
     if (adminCommission > 0 && adminId) {
       await client.query(`
         INSERT INTO earnings (user_id, source, amount, description, video_id, watched_seconds, created_at)
@@ -2954,19 +2896,16 @@ app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
 
 // ======================= ❌ REJECT PROOF =======================
 
-// ✅ POST /api/tasks/:id/proofs/:proofId/reject - رفض دليل التنفيذ
 app.post('/api/tasks/:id/proofs/:proofId/reject', async (req, res) => {
   try {
     const { id: taskId, proofId } = req.params;
     const { user_id, reason } = req.body;
     
-    // ✅ التحقق من الصلاحية
     const task = await pool.query('SELECT creator_id FROM tasks WHERE id = $1 AND deleted_at IS NULL', [taskId]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
-      return res.json({ success: false, message: "Unauthorized" });
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     
-    // ✅ تحديث حالة التنفيذ إلى مرفوض
     await pool.query(`
       UPDATE task_executions 
       SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $1
@@ -2983,38 +2922,33 @@ app.post('/api/tasks/:id/proofs/:proofId/reject', async (req, res) => {
 
 // ======================= ⚠️ DISPUTES =======================
 
-// ✅ POST /api/tasks/:id/proofs/:proofId/dispute - إنشاء نزاع
 app.post('/api/tasks/:id/proofs/:proofId/dispute', async (req, res) => {
   try {
     const { id: taskId, proofId } = req.params;
     const { user_id, reason } = req.body;
     
     if (!reason || reason.trim().length < 20) {
-      return res.json({ success: false, message: "Please provide a detailed reason (min 20 characters)" });
+      return res.status(400).json({ success: false, message: "Please provide a detailed reason (min 20 characters)" });
     }
     
-    // ✅ التحقق من وجود التنفيذ
     const exec = await pool.query(
       'SELECT id, status FROM task_executions WHERE id = $1', 
       [proofId]
     );
     if (exec.rows.length === 0) {
-      return res.json({ success: false, message: "Execution not found" });
+      return res.status(404).json({ success: false, message: "Execution not found" });
     }
     
-    // ✅ إنشاء النزاع
     await pool.query(`
       INSERT INTO task_disputes (execution_id, reason, status, created_at)
       VALUES ($1, $2, 'open', NOW())
     `, [proofId, reason]);
     
-    // ✅ تحديث حالة التنفيذ
     await pool.query(
       'UPDATE task_executions SET status = $1 WHERE id = $2', 
       ['disputed', proofId]
     );
     
-    // ✅ إشعار الأدمن (إذا كان البوت معرفاً)
     if (typeof bot !== 'undefined' && bot?.telegram && process.env.ADMIN_ID) {
       try {
         await bot.telegram.sendMessage(
@@ -3032,7 +2966,6 @@ app.post('/api/tasks/:id/proofs/:proofId/dispute', async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/task-disputes - جلب النزاعات (للأدمن فقط)
 app.get('/api/admin/task-disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
@@ -3058,7 +2991,6 @@ app.get('/api/admin/task-disputes', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ POST /api/admin/task-disputes/:id/resolve - حل نزاع (للأدمن فقط)
 app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -3067,7 +2999,7 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
     
     const dispute = await client.query('SELECT * FROM task_disputes WHERE id = $1', [disputeId]);
     if (dispute.rows.length === 0) {
-      return res.json({ success: false, message: "Dispute not found" });
+      return res.status(404).json({ success: false, message: "Dispute not found" });
     }
     
     const exec = await client.query(
@@ -3075,18 +3007,16 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
       [dispute.rows[0].execution_id]
     );
     if (exec.rows.length === 0) {
-      return res.json({ success: false, message: "Execution not found" });
+      return res.status(404).json({ success: false, message: "Execution not found" });
     }
     
     await client.query('BEGIN');
     
     if (payout_to === 'executor') {
-      // ✅ دفع 100% للمنفذ
       await client.query(
         'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', 
         [exec.rows[0].payment_amount, exec.rows[0].executor_id]
       );
-      // ✅ خصم التكلفة الكاملة من المهمة
       const totalCost = exec.rows[0].payment_amount * 1.20;
       await client.query(
         'UPDATE tasks SET spent = spent + $1 WHERE id = $2', 
@@ -3097,7 +3027,6 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
         ['approved', exec.rows[0].id]
       );
     } else if (payout_to === 'none') {
-      // ✅ لا دفع - إرجاع الرصيد للمعلن (اختياري)
       const task = await client.query('SELECT creator_id FROM tasks WHERE id = $1', [exec.rows[0].task_id]);
       if (task.rows.length > 0) {
         await client.query(
@@ -3111,7 +3040,6 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
       );
     }
     
-    // ✅ تحديث حالة النزاع
     await client.query(`
       UPDATE task_disputes 
       SET status = 'resolved', resolved_at = NOW(), resolved_by = $1, resolution = $2
@@ -3132,7 +3060,6 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
 
 // ======================= 💰 FUND & WITHDRAW =======================
 
-// ✅ POST /api/tasks/:id/fund - إضافة رصيد لمهمة
 app.post('/api/tasks/:id/fund', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -3140,26 +3067,23 @@ app.post('/api/tasks/:id/fund', async (req, res) => {
     const { user_id, amount } = req.body;
     
     if (!amount || amount <= 0) {
-      return res.json({ success: false, message: "Invalid amount" });
+      return res.status(400).json({ success: false, message: "Invalid amount" });
     }
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من رصيد المستخدم
     const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
     if (user.rows.length === 0 || parseFloat(user.rows[0].balance || 0) < amount) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Insufficient balance" });
+      return res.status(400).json({ success: false, message: "Insufficient balance" });
     }
     
-    // ✅ التحقق من أن المستخدم هو منشئ المهمة
     const task = await client.query('SELECT creator_id, is_active FROM tasks WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Unauthorized" });
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     
-    // ✅ خصم من المستخدم وإضافة للمهمة
     await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [amount, user_id]);
     await client.query('UPDATE tasks SET budget = budget + $1 WHERE id = $2', [amount, id]);
     
@@ -3175,44 +3099,51 @@ app.post('/api/tasks/:id/fund', async (req, res) => {
   }
 });
 
-// ✅ POST /api/tasks/:id/withdraw - سحب الرصيد المتبقي من مهمة
 app.post('/api/tasks/:id/withdraw', async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
-    const { user_id } = req.body;
+    const { user_id, amount } = req.body;
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من الصلاحية
     const task = await client.query('SELECT * FROM tasks WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Unauthorized" });
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     
-    // ✅ التحقق من عدم وجود تنفيذ معلق
+    // ✅ التحقق من pending و disputed
     const pending = await client.query(
-      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status = $2',
-      [id, 'pending']
+      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status IN ($2, $3)',
+      [id, 'pending', 'disputed']
     );
     if (parseInt(pending.rows[0].count) > 0) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Cannot withdraw: pending executions exist" });
+      return res.status(400).json({ success: false, message: "Cannot withdraw: pending or disputed executions exist" });
     }
     
     const remaining = parseFloat(task.rows[0].budget) - parseFloat(task.rows[0].spent);
+    const withdrawAmount = amount && amount > 0 ? parseFloat(amount) : remaining;
+    
+    if (withdrawAmount > remaining) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: "Amount exceeds remaining budget" });
+    }
     if (remaining <= 0) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "No funds to withdraw" });
+      return res.status(400).json({ success: false, message: "No funds to withdraw" });
     }
     
-    // ✅ إرجاع الرصيد وإيقاف المهمة
-    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [remaining, user_id]);
-    await client.query('UPDATE tasks SET is_active = false, budget = spent WHERE id = $1', [id]);
+    await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [withdrawAmount, user_id]);
+    await client.query('UPDATE tasks SET budget = budget - $1 WHERE id = $2', [withdrawAmount, id]);
+    
+    if (withdrawAmount >= remaining - 0.001) {
+      await client.query('UPDATE tasks SET is_active = false WHERE id = $1', [id]);
+    }
     
     await client.query('COMMIT');
-    res.json({ success: true, message: "Funds withdrawn successfully", amount: remaining });
+    res.json({ success: true, message: "Funds withdrawn successfully", amount: withdrawAmount });
     
   } catch (err) {
     await client.query('ROLLBACK');
@@ -3223,7 +3154,8 @@ app.post('/api/tasks/:id/withdraw', async (req, res) => {
   }
 });
 
-// ✅ DELETE /api/tasks/:id - حذف مهمة
+// ======================= 🗑️ DELETE TASK =======================
+
 app.delete('/api/tasks/:id', async (req, res) => {
   const client = await pool.connect();
   try {
@@ -3232,22 +3164,31 @@ app.delete('/api/tasks/:id', async (req, res) => {
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من الصلاحية
-    const task = await client.query('SELECT * FROM tasks WHERE id = $1', [id, 'pending', 'disputed']);
+    const task = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
-      return res.json({ success: false, message: "Unauthorized" });
+      return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     
-    // ✅ حساب الرصيد المتبقي
+    // ✅ التحقق من pending و disputed
+    const pending = await client.query(
+      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status IN ($2, $3)',
+      [id, 'pending', 'disputed']
+    );
+    if (parseInt(pending.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot delete: ${pending.rows[0].count} pending/disputed execution(s) must be resolved first` 
+      });
+    }
+    
     const remaining = parseFloat(task.rows[0].budget) - parseFloat(task.rows[0].spent);
     
-    // ✅ إرجاع الرصيد إذا وجد
     if (remaining > 0) {
       await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [remaining, user_id]);
     }
     
-    // ✅ وضع علامة حذف ناعم (Soft Delete)
     await client.query('UPDATE tasks SET is_active = false, deleted_at = NOW() WHERE id = $1', [id]);
     
     await client.query('COMMIT');
@@ -3263,6 +3204,35 @@ app.delete('/api/tasks/:id', async (req, res) => {
 });
 
 // ======================= 🔄 CRON: CLEANUP EXPIRED =======================
+
+setInterval(async () => {
+  try {
+    const now = new Date();
+    // ✅ استخدام submitted_at بدلاً من created_at
+    const { rows } = await pool.query(`
+      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
+      FROM task_executions te
+      JOIN tasks t ON t.id = te.task_id
+      WHERE te.status = 'pending'
+        AND te.proof IS NULL
+        AND te.submitted_at IS NOT NULL
+        AND (te.submitted_at + (COALESCE(t.duration_seconds, 86400) || 86400) * INTERVAL '1 second') < $1
+    `, [now]);
+    
+    for (const exec of rows) {
+      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
+      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
+    }
+    
+    if (rows.length > 0) {
+      console.log(`✅ Cleaned ${rows.length} expired applications`);
+    }
+  } catch (err) {
+    console.error('❌ Expired applications cleanup error:', err);
+  }
+}, 60 * 1000); // كل 1 دقيقة
+
+// ======================= END TASKS SYSTEM API =======================
 
 // ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 5 دقائق)
 setInterval(async () => {
