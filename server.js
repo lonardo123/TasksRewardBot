@@ -3307,7 +3307,7 @@ if (parseInt(pendingExec.rows[0].count) > 0) {
   }
 });
 
-// ✅ GET /api/tasks/user-executions - جلب جميع تنفيذات المستخدم
+// ✅ GET /api/tasks/user-executions - جلب تنفيذات المستخدم
 app.get('/api/tasks/user-executions', async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -3316,6 +3316,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       return res.status(400).json({ success: false, message: "Valid user_id required" });
     }
     
+    // ✅ جلب التنفيذات من جدول task_executions مع تفاصيل المهمة
     const executions = await pool.query(`
       SELECT 
         te.id,
@@ -3334,7 +3335,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       ORDER BY te.submitted_at DESC
     `, [user_id]);
     
-    // ✅ إضافة حقل has_dispute
+    // ✅ إضافة حقل has_dispute للتحقق من وجود نزاع
     const executionsWithDispute = await Promise.all(executions.rows.map(async (exec) => {
       const dispute = await pool.query(
         'SELECT id FROM task_disputes WHERE execution_id = $1', 
@@ -3346,7 +3347,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       };
     }));
     
-    res.json({ success: true,  executionsWithDispute });
+    res.json({ success: true, data: executionsWithDispute });
     
   } catch (err) {
     console.error('❌ /api/tasks/user-executions:', err);
