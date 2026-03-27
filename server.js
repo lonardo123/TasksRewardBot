@@ -2363,6 +2363,7 @@ app.get('/api/tasks/available', async (req, res) => {
         t.created_at,
         t.settings,
         t.target_url,
+        t.settings->>'category' as category,  -- ✅ استخراج الفئة من settings
         (
           SELECT COUNT(*) 
           FROM task_executions 
