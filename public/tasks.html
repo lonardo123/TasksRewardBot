@@ -439,6 +439,7 @@ function switchTab(tab) {
     document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
     document.getElementById('availableTasks').classList.add('hidden');
     document.getElementById('myTasks').classList.add('hidden');
+    document.getElementById('executionsSection').classList.add('hidden');
     document.getElementById('taskDetailPage').classList.add('hidden');
     if (tab === 'available') {
         document.getElementById('availableTasks').classList.remove('hidden');
