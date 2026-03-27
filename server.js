@@ -2434,7 +2434,16 @@ app.get('/api/tasks/my', async (req, res) => {
     
     const result = await pool.query(query, [userId]);
 
-    res.json({ success: true, data: result.rows });
+    // ✅ تحويل القيم المحتملة لـ NULL إلى 0 لضمان عمل الـ frontend
+    const tasks = result.rows.map(task => ({
+      ...task,
+      pending_count: parseInt(task.pending_count) || 0,
+      disputed_count: parseInt(task.disputed_count) || 0,
+      total_executions: parseInt(task.total_executions) || 0,
+      approved_count: parseInt(task.approved_count) || 0
+    }));
+
+    res.json({ success: true, data: tasks });
 
   } catch (err) {
     console.error('❌ /api/tasks/my:', err);
