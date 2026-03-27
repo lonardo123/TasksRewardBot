@@ -536,6 +536,7 @@ async function openTaskDetailPage(taskId) {
         }
         const task = data.task;
         const myExecution = data.my_execution;
+        const isCreator = task.creator_id?.toString() === currentUser;
         const remainingBudget = parseFloat(task.budget) - parseFloat(task.spent);
         const reward = parseFloat(task.executor_reward);
         const totalCost = reward * 1.20;
@@ -608,12 +609,22 @@ async function openTaskDetailPage(taskId) {
         <button class="btn btn-warning" onclick="openDisputeModal(${task.id}, ${myExecution.id})">⚠️ Dispute</button>`;
     }
 } else {
-            if (availableSlots > 0) {
-                content += `<button class="btn btn-success" onclick="applyForTaskFromDetail(${task.id})">🚀 Apply</button>`;
-            } else {
-                content += `<div class="alert alert-error">⚠️ No slots available</div>`;
-            }
+    // ❌ لو هو صاحب المهمة → لا تظهر Apply
+    if (isCreator) {
+        content += `
+        <div class="alert alert-info">
+            📊 This is your task (Advertiser View)
+        </div>
+        `;
+    } else {
+        // ✅ المستخدم العادي فقط
+        if (availableSlots > 0) {
+            content += `<button class="btn btn-success" onclick="applyForTaskFromDetail(${task.id})">🚀 Apply</button>`;
+        } else {
+            content += `<div class="alert alert-error">⚠️ No slots available</div>`;
         }
+    }
+}
 
         document.getElementById('taskDetailPageContent').innerHTML = content;
     } catch (err) {
@@ -699,7 +710,7 @@ async function loadMyTasks() {
         }
         list.innerHTML = data.data.map(task => {
             const remaining = task.budget - task.spent;
-            const canDelete = !task.total_executions || (new Date() - new Date(task.created_at)) > 15*24*60*60*1000;
+            const canDelete = (task.applied_count === 0) && (task.pending_count === 0);
             const statusClass = task.is_active ? 'status-approved' : 'status-rejected';
             const statusText = task.is_active ? '🟢 Active' : '🔴 Paused';
             return `
@@ -732,7 +743,10 @@ async function loadMyTasks() {
                                 <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs</button>
                                 ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
                                 ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
-                                ${canDelete ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete</button>` : ''}
+                                ${canDelete 
+  ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete</button>` 
+  : `<button class="btn btn-danger btn-sm" disabled>🗑️ Locked</button>`
+}
                             </div>
                         </td>
                     </tr>
