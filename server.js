@@ -3219,39 +3219,74 @@ app.delete('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id } = req.body;
-    
+
     await client.query('BEGIN');
-    
-    const task = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
-    if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
+
+    // 1️⃣ التحقق من وجود المهمة وملكية المستخدم
+    const taskRes = await client.query('SELECT * FROM tasks WHERE id = $1', [id]);
+    if (taskRes.rows.length === 0 || taskRes.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
-    
-    // ✅ التحقق من pending و disputed
-    const pending = await client.query(
-      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status IN ($2, $3)',
-      [id, 'pending', 'disputed']
+    const task = taskRes.rows[0];
+
+    // 2️⃣ التحقق من وجود تطبيقات pending أو disputed
+    const pendingExecRes = await client.query(
+      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status = $2',
+      [id, 'pending']
     );
-    if (parseInt(pending.rows[0].count) > 0) {
+    if (parseInt(pendingExecRes.rows[0].count) > 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ 
         success: false, 
-        message: `Cannot delete: ${pending.rows[0].count} pending/disputed execution(s) must be resolved first` 
+        message: `Cannot delete: ${pendingExecRes.rows[0].count} pending execution(s) exist` 
       });
     }
-    
-    const remaining = parseFloat(task.rows[0].budget) - parseFloat(task.rows[0].spent);
-    
-    if (remaining > 0) {
-      await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', [remaining, user_id]);
+
+    const disputedExecRes = await client.query(
+      'SELECT COUNT(*) FROM task_executions te JOIN task_disputes td ON te.id = td.execution_id WHERE te.task_id = $1 AND td.status = $2',
+      [id, 'open']
+    );
+    if (parseInt(disputedExecRes.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot delete: ${disputedExecRes.rows[0].count} disputed execution(s) without admin decision` 
+      });
     }
-    
-    await client.query('UPDATE tasks SET is_active = false, deleted_at = NOW() WHERE id = $1', [id]);
-    
+
+    // 3️⃣ التحقق من وجود إثباتات pending
+    const pendingProofsRes = await client.query(
+      'SELECT COUNT(*) FROM task_proofs WHERE task_id = $1 AND status = $2',
+      [id, 'pending']
+    );
+    if (parseInt(pendingProofsRes.rows[0].count) > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        success: false, 
+        message: `Cannot delete: ${pendingProofsRes.rows[0].count} pending proof(s) exist` 
+      });
+    }
+
+    // 4️⃣ استرداد الميزانية المتبقية
+    const remaining = parseFloat(task.budget) - parseFloat(task.spent);
+    if (remaining > 0) {
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+        [remaining, user_id]
+      );
+    }
+
+    // 5️⃣ الحذف النهائي لكل السجلات المرتبطة
+    await client.query('DELETE FROM task_disputes WHERE execution_id IN (SELECT id FROM task_executions WHERE task_id = $1)', [id]);
+    await client.query('DELETE FROM task_proofs WHERE task_id = $1', [id]);
+    await client.query('DELETE FROM task_executions WHERE task_id = $1', [id]);
+    await client.query('DELETE FROM user_tasks WHERE task_id = $1', [id]);
+    await client.query('DELETE FROM tasks WHERE id = $1', [id]);
+
     await client.query('COMMIT');
-    res.json({ success: true, message: "Task deleted", refunded: remaining });
-    
+    res.json({ success: true, message: "Task deleted permanently", refunded: remaining });
+
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ DELETE /api/tasks/:id:', err);
