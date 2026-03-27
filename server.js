@@ -3109,31 +3109,45 @@ app.post('/api/tasks/:id/fund', async (req, res) => {
   try {
     const { id } = req.params;
     const { user_id, amount } = req.body;
-    
+
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: "Invalid amount" });
     }
-    
+
     await client.query('BEGIN');
-    
+
     const user = await client.query('SELECT balance FROM users WHERE telegram_id = $1', [user_id]);
     if (user.rows.length === 0 || parseFloat(user.rows[0].balance || 0) < amount) {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: "Insufficient balance" });
     }
-    
-    const task = await client.query('SELECT creator_id, is_active FROM tasks WHERE id = $1 AND deleted_at IS NULL', [id]);
+
+    const task = await client.query('SELECT creator_id FROM tasks WHERE id = $1 AND deleted_at IS NULL', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
       await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
-    
+
+    // التحقق من وجود تطبيقات قائمة
+    const activeExecutions = await client.query(
+      "SELECT 1 FROM task_executions WHERE task_id = $1 AND status IN ('applied','pending')",
+      [id]
+    );
+    if (activeExecutions.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: "Cannot fund task: active executions exist" });
+    }
+
     await client.query('UPDATE users SET balance = balance - $1 WHERE telegram_id = $2', [amount, user_id]);
-    await client.query('UPDATE tasks SET budget = budget + $1 WHERE id = $2', [amount, id]);
     
+    const updatedTask = await client.query(
+      "UPDATE tasks SET budget = budget + $1, is_active = true WHERE id = $2 RETURNING budget",
+      [amount, id]
+    );
+
     await client.query('COMMIT');
-    res.json({ success: true, message: "Funds added successfully", new_budget: parseFloat(task.rows[0].budget) + amount });
-    
+    res.json({ success: true, message: "Funds added successfully and task reactivated", new_budget: parseFloat(updatedTask.rows[0].budget) });
+
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ /api/tasks/:id/fund:', err);
