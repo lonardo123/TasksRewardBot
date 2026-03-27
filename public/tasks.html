@@ -553,7 +553,7 @@ async function loadAvailableTasks() {
     }
 }
 
-// ✅ دالة تطبيق الفلتر - معدلة للعمل مع settings
+  // ✅ دالة تطبيق الفلتر - معدلة للعمل مع settings
 function applyTaskFilters() {
     const categoryFilter = document.getElementById('categoryFilter')?.value || 'all';
     const priceFilter = document.getElementById('priceFilter')?.value || 'default';
@@ -606,18 +606,15 @@ function applyTaskFilters() {
         </div>
         `;
     }).join('');
-} catch (err) {
-        console.error('Filter error:', err);
-        list.innerHTML = '<p class="alert alert-error">Failed to filter tasks</p>';
-    }
+    // ✅ تمت إزالة catch الخاطئ من هنا
 }
 
-// ✅ دالة إعادة تعيين الفلتر
+  // ✅ دالة إعادة تعيين الفلتر
 function resetFilters() {
     document.getElementById('categoryFilter').value = 'all';
     document.getElementById('priceFilter').value = 'default';
     applyTaskFilters();
-}
+}  
 // ================= TASK DETAIL PAGE =================
 async function openTaskDetailPage(taskId) {
     try {
