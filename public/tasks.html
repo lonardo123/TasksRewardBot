@@ -711,7 +711,7 @@ async function loadMyTasks() {
         }
         list.innerHTML = data.data.map(task => {
             const remaining = task.budget - task.spent;
-            const canDelete = (task.applied_count === 0) && (task.pending_count === 0);
+            const canDelete = task.pending_count === 0 && task.disputed_count === 0;
             const statusClass = task.is_active ? 'status-approved' : 'status-rejected';
             const statusText = task.is_active ? '🟢 Active' : '🔴 Paused';
             return `
