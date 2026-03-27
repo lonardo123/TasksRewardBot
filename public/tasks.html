@@ -711,9 +711,14 @@ async function loadMyTasks() {
         }
         list.innerHTML = data.data.map(task => {
             const remaining = task.budget - task.spent;
-            const canDelete = task.pending_count === 0 && task.disputed_count === 0;
+            // ✅ استخدام || 0 لتجنب مشكلة undefined
+            const pendingCount = task.pending_count || 0;
+            const disputedCount = task.disputed_count || 0;
+            const canDelete = pendingCount === 0 && disputedCount === 0;
+            
             const statusClass = task.is_active ? 'status-approved' : 'status-rejected';
             const statusText = task.is_active ? '🟢 Active' : '🔴 Paused';
+            
             return `
             <div class="proof-item">
                 <table class="task-form-table" style="margin:0;border:none">
@@ -745,9 +750,9 @@ async function loadMyTasks() {
                                 <button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>
                                 ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
                                 ${canDelete 
-  ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete</button>` 
-  : `<button class="btn btn-danger btn-sm" onclick="showDeleteBlocked()">🗑️ Locked</button>`
-}
+                                    ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete</button>` 
+                                    : `<button class="btn btn-danger btn-sm" onclick="showDeleteBlocked(${pendingCount}, ${disputedCount})">🗑️ Locked</button>`
+                                }
                             </div>
                         </td>
                     </tr>
@@ -758,6 +763,19 @@ async function loadMyTasks() {
     } catch (err) {
         console.error(err);
         list.innerHTML = '<p class="alert alert-error">Failed to load</p>';
+    }
+}
+
+// ✅ دالة جديدة لعرض سبب قفل زر الحذف
+function showDeleteBlocked(pendingCount, disputedCount) {
+    if (pendingCount > 0 && disputedCount > 0) {
+        showAlert(`⚠️ Cannot delete: ${pendingCount} pending + ${disputedCount} disputed execution(s)`, 'error');
+    } else if (pendingCount > 0) {
+        showAlert(`⚠️ Cannot delete: ${pendingCount} pending execution(s) must be reviewed first`, 'error');
+    } else if (disputedCount > 0) {
+        showAlert(`⚠️ Cannot delete: ${disputedCount} disputed execution(s) under admin review`, 'error');
+    } else {
+        showAlert('⚠️ Cannot delete: there are active executions', 'error');
     }
 }
 
@@ -1103,9 +1121,15 @@ async function createTaskFromForm(event) {
 window.addEventListener('beforeunload', () => {
     Object.values(countdownTimers).forEach(timer => clearInterval(timer));
 });
-function showDeleteBlocked() {
-    showAlert('⚠️ Cannot delete task: there are applied or pending executions', 'error');
-}    
+function showDeleteBlocked(pendingCount, disputedCount) {
+  if (pendingCount > 0) {
+    showAlert(`⚠️ Cannot delete: ${pendingCount} pending execution(s)`, 'error');
+  } else if (disputedCount > 0) {
+    showAlert(`⚠️ Cannot delete: ${disputedCount} disputed execution(s)`, 'error');
+  } else {
+    showAlert('⚠️ Cannot delete: there are applied or pending executions', 'error');
+  }
+} 
 </script>
  <div id="rejectModal" class="modal">
 <div class="modal-content">
