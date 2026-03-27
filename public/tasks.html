@@ -742,11 +742,11 @@ async function loadMyTasks() {
                             <div class="btn-group">
                                 <button class="btn btn-primary btn-sm" onclick="openTaskDetailPage(${task.id})">⚙️ Manage</button>
                                 <button class="btn btn-warning btn-sm" onclick="viewTaskProofs(${task.id})">📋 Proofs</button>
-                                ${remaining > 0 ? `<button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>` : ''}
+                                <button class="btn btn-success btn-sm" onclick="openAddFundsModal(${task.id})">➕ Add Funds</button>
                                 ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
                                 ${canDelete 
   ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete</button>` 
-  : `<button class="btn btn-danger btn-sm" disabled>🗑️ Locked</button>`
+  : `<button class="btn btn-danger btn-sm" onclick="showDeleteBlocked()">🗑️ Locked</button>`
 }
                             </div>
                         </td>
@@ -1103,6 +1103,9 @@ async function createTaskFromForm(event) {
 window.addEventListener('beforeunload', () => {
     Object.values(countdownTimers).forEach(timer => clearInterval(timer));
 });
+function showDeleteBlocked() {
+    showAlert('⚠️ Cannot delete task: there are applied or pending executions', 'error');
+}    
 </script>
  <div id="rejectModal" class="modal">
 <div class="modal-content">
