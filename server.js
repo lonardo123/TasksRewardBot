@@ -3307,6 +3307,52 @@ if (parseInt(pendingExec.rows[0].count) > 0) {
   }
 });
 
+// ✅ GET /api/tasks/user-executions - جلب جميع تنفيذات المستخدم
+app.get('/api/tasks/user-executions', async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    
+    if (!user_id || !/^\d+$/.test(user_id.toString())) {
+      return res.status(400).json({ success: false, message: "Valid user_id required" });
+    }
+    
+    const executions = await pool.query(`
+      SELECT 
+        te.id,
+        te.task_id,
+        te.executor_id,
+        te.proof,
+        te.status,
+        te.submitted_at,
+        te.payment_amount,
+        t.title as task_title,
+        t.description as task_description,
+        t.executor_reward
+      FROM task_executions te
+      JOIN tasks t ON t.id = te.task_id
+      WHERE te.executor_id = $1
+      ORDER BY te.submitted_at DESC
+    `, [user_id]);
+    
+    // ✅ إضافة حقل has_dispute
+    const executionsWithDispute = await Promise.all(executions.rows.map(async (exec) => {
+      const dispute = await pool.query(
+        'SELECT id FROM task_disputes WHERE execution_id = $1', 
+        [exec.id]
+      );
+      return {
+        ...exec,
+        has_dispute: dispute.rows.length > 0
+      };
+    }));
+    
+    res.json({ success: true,  executionsWithDispute });
+    
+  } catch (err) {
+    console.error('❌ /api/tasks/user-executions:', err);
+    res.status(500).json({ success: false, message: "Failed to load executions", error: err.message });
+  }
+});
 // ======================= 🔄 CRON: CLEANUP EXPIRED =======================
 
 // ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 دقيقة)
