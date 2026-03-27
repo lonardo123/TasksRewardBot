@@ -3231,17 +3231,19 @@ app.delete('/api/tasks/:id', async (req, res) => {
     const task = taskRes.rows[0];
 
     // 2️⃣ التحقق من وجود تطبيقات pending أو disputed
-    const pendingExecRes = await client.query(
-      'SELECT COUNT(*) FROM task_executions WHERE task_id = $1 AND status = $2',
-      [id, 'pending']
-    );
-    if (parseInt(pendingExecRes.rows[0].count) > 0) {
-      await client.query('ROLLBACK');
-      return res.status(400).json({ 
-        success: false, 
-        message: `Cannot delete: ${pendingExecRes.rows[0].count} pending execution(s) exist` 
-      });
-    }
+    const pendingExec = await client.query(
+  `SELECT COUNT(*) FROM task_executions
+   WHERE task_id = $1 AND status IN ('pending','disputed')`,
+  [id]
+);
+
+if (parseInt(pendingExec.rows[0].count) > 0) {
+  await client.query('ROLLBACK');
+  return res.status(400).json({
+    success: false,
+    message: `Cannot delete task: ${pendingExec.rows[0].count} pending/disputed execution(s)`
+  });
+}
 
     const disputedExecRes = await client.query(
       'SELECT COUNT(*) FROM task_executions te JOIN task_disputes td ON te.id = td.execution_id WHERE te.task_id = $1 AND td.status = $2',
