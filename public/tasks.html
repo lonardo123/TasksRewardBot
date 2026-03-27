@@ -100,8 +100,25 @@ th,td{padding:8px;font-size:13px}
 <!-- Available Tasks Section -->
 <div id="availableTasks" class="card">
 <h3>🔍 Available Tasks for Execution</h3>
+<!-- ✅ فلتر المهمات -->
+<div style="display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap">
+    <select id="categoryFilter" onchange="applyTaskFilters()" style="padding:8px 12px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:white;font-size:13px">
+        <option value="all">📂 All Categories</option>
+        <option value="registration">📝 Registration</option>
+        <option value="clicks">👆 Clicks</option>
+        <option value="youtube">▶️ YouTube</option>
+        <option value="social">📱 Social Media</option>
+        <option value="other">📦 Other</option>
+    </select>
+    <select id="priceFilter" onchange="applyTaskFilters()" style="padding:8px 12px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:white;font-size:13px">
+        <option value="default">💰 Sort by Price</option>
+        <option value="high-low">💰 Highest to Lowest</option>
+        <option value="low-high">💰 Lowest to Highest</option>
+    </select>
+    <button onclick="resetFilters()" style="padding:8px 12px;border-radius:6px;border:none;background:#475569;color:white;font-size:13px;cursor:pointer">🔄 Reset</button>
+</div>    
 <div id="availableTasksList"></div>
-</div>
+</div>    
 <!-- My Tasks Section -->
 <div id="myTasks" class="card hidden">
 <h3>📋 Tasks You Created</h3>
@@ -354,6 +371,7 @@ let currentWithdrawTaskId = null;
 let taskToDelete = null;
 let windowMaxWithdrawAmount = 0;
 let countdownTimers = {};
+let allAvailableTasks = []; // ✅ لتخزين جميع المهمات للفلترة    
 let rejectTaskId = null;
 let rejectProofId = null;
 // ================= INIT =================
@@ -496,36 +514,72 @@ async function loadAvailableTasks() {
             list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No tasks available</p>';
             return;
         }
-        list.innerHTML = data.data.map(task => {
-            const remainingBudget = parseFloat(task.remaining_budget);
-            const reward = parseFloat(task.executor_reward);
-            const totalCost = reward * 1.20;
-            const totalSlots = Math.floor(remainingBudget / totalCost);
-            const availableSlots = Math.max(0, totalSlots - (task.pending_count || 0));
-            return `
-            <div class="proof-item">
-                <div class="proof-header">
-                    <strong>${task.title}</strong>
-                    <span class="price-tag">${formatPrice(task.executor_reward)}</span>
-                </div>
-                <p style="color:#cbd5e1;font-size:14px;margin:10px 0">${task.description}</p>
-                <small style="color:#94a3b8">
-                    💰 ${formatPrice(task.remaining_budget)} |
-                    ✅ ${task.completed_count} |
-                    🎯 ${availableSlots} slots
-                </small>
-                <div class="proof-actions" style="margin-top:12px">
-                    <button class="btn btn-success btn-sm" onclick="openTaskDetailPage(${task.id})">🚀 View & Apply</button>
-                </div>
-            </div>
-            `;
-        }).join('');
+        // ✅ تخزين جميع المهمات للفلترة
+        allAvailableTasks = data.data;
+        applyTaskFilters(); // ✅ تطبيق الفلتر
     } catch (err) {
         console.error(err);
         list.innerHTML = '<p class="alert alert-error">Failed to load tasks</p>';
     }
 }
 
+// ✅ دالة تطبيق الفلتر
+function applyTaskFilters() {
+    const categoryFilter = document.getElementById('categoryFilter')?.value || 'all';
+    const priceFilter = document.getElementById('priceFilter')?.value || 'default';
+    const list = document.getElementById('availableTasksList');
+    
+    let filteredTasks = [...allAvailableTasks];
+    
+    // ✅ فلتر الفئات
+    if (categoryFilter !== 'all') {
+        filteredTasks = filteredTasks.filter(task => task.category === categoryFilter);
+    }
+    
+    // ✅ فلتر الأسعار
+    if (priceFilter === 'high-low') {
+        filteredTasks.sort((a, b) => parseFloat(b.executor_reward) - parseFloat(a.executor_reward));
+    } else if (priceFilter === 'low-high') {
+        filteredTasks.sort((a, b) => parseFloat(a.executor_reward) - parseFloat(b.executor_reward));
+    }
+    
+    if (filteredTasks.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No tasks match your filters</p>';
+        return;
+    }
+    
+    list.innerHTML = filteredTasks.map(task => {
+        const remainingBudget = parseFloat(task.remaining_budget);
+        const reward = parseFloat(task.executor_reward);
+        const totalCost = reward * 1.20;
+        const totalSlots = Math.floor(remainingBudget / totalCost);
+        const availableSlots = Math.max(0, totalSlots - (task.pending_count || 0));
+        return `
+        <div class="proof-item">
+            <div class="proof-header">
+                <strong>${task.title}</strong>
+                <span class="price-tag">${formatPrice(task.executor_reward)}</span>
+            </div>
+            <p style="color:#cbd5e1;font-size:14px;margin:10px 0">${task.description}</p>
+            <small style="color:#94a3b8">
+                💰 ${formatPrice(task.remaining_budget)} |
+                ✅ ${task.completed_count} |
+                🎯 ${availableSlots} slots
+            </small>
+            <div class="proof-actions" style="margin-top:12px">
+                <button class="btn btn-success btn-sm" onclick="openTaskDetailPage(${task.id})">🚀 View & Apply</button>
+            </div>
+        </div>
+        `;
+    }).join('');
+}
+
+// ✅ دالة إعادة تعيين الفلتر
+function resetFilters() {
+    document.getElementById('categoryFilter').value = 'all';
+    document.getElementById('priceFilter').value = 'default';
+    applyTaskFilters();
+}
 // ================= TASK DETAIL PAGE =================
 async function openTaskDetailPage(taskId) {
     try {
@@ -548,27 +602,33 @@ async function openTaskDetailPage(taskId) {
         document.getElementById('taskDetailPage').classList.remove('hidden');
 
         let content = `
-            <h3 style="margin-bottom:15px">${task.title}</h3>
-            <p style="color:#cbd5e1;margin-bottom:20px">${task.description}</p>
-            <div style="background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px">
-                <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-                    <span>💰 Reward:</span>
-                    <strong style="color:#22c55e">${formatPrice(task.executor_reward)}</strong>
-                </div>
-                <div style="display:flex;justify-content:space-between;margin-bottom:10px">
-                    <span>💵 Budget:</span>
-                    <strong>${formatPrice(remainingBudget)}</strong>
-                </div>
-                <div style="display:flex;justify-content:space-between">
-                    <span>⏱️ Time:</span>
-                    <strong>${formatDuration(task.duration_seconds)}</strong>
-                </div>
-                <div style="display:flex;justify-content:space-between;margin-top:10px">
-                    <span>🎯 Slots:</span>
-                    <strong style="color:#22c55e">${availableSlots}</strong>
-                </div>
-            </div>
-        `;
+<h3 style="margin-bottom:15px">${task.title}</h3>
+<p style="color:#cbd5e1;margin-bottom:20px">${task.description}</p>
+<div style="background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span>💰 Reward:</span>
+        <strong style="color:#22c55e">${formatPrice(task.executor_reward)}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span>💵 Budget:</span>
+        <strong>${formatPrice(remainingBudget)}</strong>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span>⏱️ Time:</span>
+        <strong>${formatDuration(task.duration_seconds)}</strong>
+    </div>
+    ${task.target_url ? `
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span>🔗 Target URL:</span>
+        <a href="${task.target_url}" target="_blank" style="color:#60a5fa;text-decoration:underline;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${task.target_url}</a>
+    </div>
+    ` : ''}
+    <div style="display:flex;justify-content:space-between;margin-top:10px">
+        <span>🎯 Slots:</span>
+        <strong style="color:#22c55e">${availableSlots}</strong>
+    </div>
+</div>
+`;
 
         if (myExecution) {
     // ✅ تعديل 1: التعامل مع حالتين: applied و pending
