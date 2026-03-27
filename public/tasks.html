@@ -96,6 +96,7 @@ th,td{padding:8px;font-size:13px}
 <div class="tabs">
 <div class="tab active" data-tab="available" onclick="switchTab('available')">🔍 Available Tasks</div>
 <div class="tab" data-tab="my" onclick="switchTab('my')">📋 My Tasks</div>
+<div class="tab" data-tab="executions" onclick="switchTab('executions')">📋 My Executions</div>    
 </div>
 <!-- Available Tasks Section -->
 <div id="availableTasks" class="card">
@@ -124,6 +125,11 @@ th,td{padding:8px;font-size:13px}
 <h3>📋 Tasks You Created</h3>
 <div id="myTasksList"></div>
 </div>
+<!-- My Executions Section -->
+<div id="executionsSection" class="card hidden">
+    <h3>📋 My Executions History</h3>
+    <div id="executionsList"></div>
+</div>    
 <!-- Task Detail Page -->
 <div id="taskDetailPage" class="card hidden">
 <button class="btn btn-primary btn-sm" onclick="goBackToAvailable()">⬅️ Back to Available Tasks</button>
@@ -334,7 +340,7 @@ th,td{padding:8px;font-size:13px}
 <label>Reason <span class="required">*</span></label>
 <textarea id="disputeReason" rows="4" placeholder="Explain..."></textarea>
 </div>
-<button class="btn btn-warning" onclick="createDispute()">📤 Submit</button>
+<button class="btn btn-warning" onclick="submitDisputeForExecution()">📤 Submit Dispute</button>
 </div>
 </div>
 <!-- Delete Task Modal -->
@@ -440,6 +446,9 @@ function switchTab(tab) {
     } else if (tab === 'my') {
         document.getElementById('myTasks').classList.remove('hidden');
         loadMyTasks();
+        } else if (tab === 'executions') {  // ✅ قسم جديد: تنفيذات المستخدم
+        document.getElementById('executionsSection').classList.remove('hidden');
+        loadMyExecutions();
     }
 }
 
@@ -479,6 +488,18 @@ function formatCountdown(ms) {
     return `${seconds}s`;
 }
 
+// ================= STATUS TEXT =================
+function getStatusText(status) {
+    const map = { 
+        pending: '⏳ Pending', 
+        applied: '📝 Applied', 
+        approved: '✅ Approved', 
+        rejected: '❌ Rejected', 
+        disputed: '⚖️ Disputed' 
+    };
+    return map[status] || status;
+}
+    
 function updateCharCount(fieldId, countId) {
     const field = document.getElementById(fieldId);
     const counter = document.getElementById(countId);
@@ -825,7 +846,57 @@ async function loadMyTasks() {
         list.innerHTML = '<p class="alert alert-error">Failed to load</p>';
     }
 }
-
+// ================= MY EXECUTIONS =================
+async function loadMyExecutions() {
+    const list = document.getElementById('executionsList');
+    list.innerHTML = '<div class="loading">Loading your executions...</div>';
+    
+    try {
+        // ✅ جلب جميع تنفيذات المستخدم
+        const res = await fetch(`${API}/api/tasks/user-executions?user_id=${currentUser}`);
+        const data = await res.json();
+        
+        if (!data.success || !data.data?.length) {
+            list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">💡 You haven\'t executed any tasks yet</p>';
+            return;
+        }
+        
+        list.innerHTML = data.data.map(exec => {
+            const canDispute = exec.status === 'rejected' && !exec.has_dispute;
+            
+            return `
+            <div class="proof-item">
+                <div class="proof-header">
+                    <div>
+                        <strong>📋 ${exec.task_title}</strong>
+                        <span style="color:#94a3b8;font-size:12px;margin-left:10px">#${exec.task_id}</span>
+                    </div>
+                    <span class="status-badge status-${exec.status}">${getStatusText(exec.status)}</span>
+                </div>
+                <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+                    📅 Submitted: ${formatDate(exec.submitted_at)} |
+                    💰 Reward: <strong style="color:#22c55e">${formatPrice(exec.payment_amount)}</strong>
+                </p>
+                ${exec.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Your Proof:</strong><br>${exec.proof}</div>` : ''}
+                
+                ${canDispute ? `
+                <div class="proof-actions">
+                    <button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button>
+                </div>
+                ` : exec.status === 'disputed' ? `
+                <div class="alert alert-info" style="margin-top:10px">⏳ Dispute under admin review</div>
+                ` : exec.status === 'approved' ? `
+                <div class="alert alert-success" style="margin-top:10px">✅ Payment received</div>
+                ` : ''}
+            </div>
+            `;
+        }).join('');
+        
+    } catch (err) {
+        console.error(err);
+        list.innerHTML = '<p class="alert alert-error">Failed to load executions</p>';
+    }
+}
 // ✅ دالة جديدة لعرض سبب قفل زر الحذف
 function showDeleteBlocked(pendingCount, disputedCount) {
     if (pendingCount > 0 && disputedCount > 0) {
@@ -1109,6 +1180,40 @@ async function createDispute() {
     }
 }
 
+// ================= DISPUTE FOR EXECUTION =================
+function openDisputeModalForExecution(taskId, executionId) {
+    currentTask = { id: taskId };
+    currentProof = { id: executionId };
+    document.getElementById('disputeReason').value = '';
+    openModal('disputeModal');
+}
+
+async function submitDisputeForExecution() {
+    const reason = document.getElementById('disputeReason').value.trim();
+    if (!reason || reason.length < 20) {
+        showAlert('⚠️ Please explain the dispute in detail (min 20 characters)', 'error');
+        return;
+    }
+    
+    try {
+        const res = await fetch(`${API}/api/tasks/${currentTask.id}/proofs/${currentProof.id}/dispute`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ user_id: currentUser, reason: reason })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            showAlert('✅ Dispute created. Admin will review', 'success');
+            closeModal('disputeModal');
+            loadMyExecutions(); // تحديث القائمة
+        } else {
+            showAlert('❌ ' + data.message, 'error');
+        }
+    } catch (err) {
+        showAlert('⚠️ Connection error', 'error');
+    }
+}    
 // ================= ADD TASK =================
 function openAddTaskModal() {
     document.getElementById('addTaskForm').reset();
@@ -1181,15 +1286,7 @@ async function createTaskFromForm(event) {
 window.addEventListener('beforeunload', () => {
     Object.values(countdownTimers).forEach(timer => clearInterval(timer));
 });
-function showDeleteBlocked(pendingCount, disputedCount) {
-  if (pendingCount > 0) {
-    showAlert(`⚠️ Cannot delete: ${pendingCount} pending execution(s)`, 'error');
-  } else if (disputedCount > 0) {
-    showAlert(`⚠️ Cannot delete: ${disputedCount} disputed execution(s)`, 'error');
-  } else {
-    showAlert('⚠️ Cannot delete: there are applied or pending executions', 'error');
-  }
-} 
+
 </script>
  <div id="rejectModal" class="modal">
 <div class="modal-content">
