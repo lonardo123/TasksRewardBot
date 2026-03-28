@@ -2420,7 +2420,7 @@ app.get('/api/tasks/available', async (req, res) => {
         t.created_at,
         t.settings,
         t.target_url,
-        t.settings->>'category' as category,  -- ✅ استخراج الفئة من settings
+        t.settings->>'category' as category,
         (
           SELECT COUNT(*) 
           FROM task_executions 
@@ -2434,12 +2434,12 @@ app.get('/api/tasks/available', async (req, res) => {
       FROM tasks t
       WHERE t.is_active = true 
         AND t.budget > t.spent 
-        AND t.creator_id != $1
+        AND t.creator_id != $1::bigint
         AND t.deleted_at IS NULL
         AND NOT EXISTS (
           SELECT 1 FROM task_executions te 
           WHERE te.task_id = t.id 
-            AND te.executor_id = $1 
+            AND te.executor_id = $1::bigint 
             AND te.status IN ('pending', 'approved')
         )
       ORDER BY t.created_at DESC
@@ -2453,7 +2453,6 @@ app.get('/api/tasks/available', async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to load tasks", error: err.message });
   }
 });
-
 // ======================= 📋 TASKS: MY TASKS =======================
 
 app.get('/api/tasks/my', async (req, res) => {
@@ -2646,15 +2645,17 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     const { id } = req.params;
     const { user_id } = req.body;
     
+    // ✅ التحقق من صحة المدخلات
     if (!id || !user_id || !/^\d+$/.test(user_id.toString())) {
       return res.status(400).json({ success: false, message: "Invalid task ID or user ID" });
     }
     
     await client.query('BEGIN');
     
+    // ✅ التحقق من وجود تنفيذ سابق (مع تحويل bigint)
     const existing = await client.query(
       `SELECT id, status FROM task_executions 
-       WHERE task_id = $1 AND executor_id = $2 AND status IN ('applied','pending','approved')`,
+       WHERE task_id = $1::integer AND executor_id = $2::bigint AND status IN ('pending', 'approved')`,
       [id, user_id]
     );
     
@@ -2663,9 +2664,10 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       return res.status(400).json({ success: false, message: "You already have an active execution for this task" });
     }
     
+    // ✅ جلب تفاصيل المهمة (مع تحويل integer)
     const task = await client.query(
       `SELECT budget, spent, executor_reward, duration_seconds, is_active, deleted_at 
-       FROM tasks WHERE id = $1`, 
+       FROM tasks WHERE id = $1::integer`, 
       [id]
     );
     
@@ -2684,11 +2686,11 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       return res.status(400).json({ success: false, message: "Task has insufficient budget" });
     }
     
-    // ✅ استخدام submitted_at بدلاً من created_at
+    // ✅ الإدخال مع 'pending' وتحويل الأنواع
     await client.query(
       `INSERT INTO task_executions (
          task_id, executor_id, status, payment_amount, commission_amount, submitted_at
-       ) VALUES ($1, $2, 'applied', $3, $4, NOW())`,
+       ) VALUES ($1::integer, $2::bigint, 'pending', $3, $4, NOW())`,
       [id, user_id, executorReward, adminCommission]
     );
     
@@ -3309,36 +3311,6 @@ if (parseInt(pendingExec.rows[0].count) > 0) {
   }
 });
 
-// ======================= 🔄 CRON: CLEANUP EXPIRED =======================
-
-// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 دقيقة)
-setInterval(async () => {
-  try {
-    const now = new Date();
-    // ✅ استخدام submitted_at بدلاً من created_at
-    const { rows } = await pool.query(`
-      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
-      FROM task_executions te
-      JOIN tasks t ON t.id = te.task_id
-      WHERE te.status = 'pending'
-        AND te.proof IS NULL
-        AND te.submitted_at IS NOT NULL
-        AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
-    `, [now]);
-    
-    for (const exec of rows) {
-      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
-      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
-    }
-    
-    if (rows.length > 0) {
-      console.log(`✅ Cleaned ${rows.length} expired applications`);
-    }
-  } catch (err) {
-    console.error('❌ Expired applications cleanup error:', err);
-  }
-}, 60 * 1000); // كل 1 دقيقة
-
 // ======================= 🔍 TASK: DETAILS =======================
 
 app.get('/api/tasks/:id', async (req, res) => {
@@ -3397,6 +3369,36 @@ app.get('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// ======================= 🔄 CRON: CLEANUP EXPIRED =======================
+
+// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 دقيقة)
+setInterval(async () => {
+  try {
+    const now = new Date();
+    
+    // ✅ تنظيف كل من 'pending' و 'applied' التي انتهت مدتها
+    const { rows } = await pool.query(`
+      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
+      FROM task_executions te
+      JOIN tasks t ON t.id = te.task_id
+      WHERE te.status IN ('pending', 'applied')
+        AND te.proof IS NULL
+        AND te.submitted_at IS NOT NULL
+        AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
+    `, [now]);
+    
+    for (const exec of rows) {
+      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
+      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
+    }
+    
+    if (rows.length > 0) {
+      console.log(`✅ Cleaned ${rows.length} expired applications`);
+    }
+  } catch (err) {
+    console.error('❌ Expired applications cleanup error:', err);
+  }
+}, 60 * 1000); // كل 1 دقيقة
 // ======================= END TASKS SYSTEM API =======================
 
 
