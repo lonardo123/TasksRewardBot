@@ -864,20 +864,29 @@ async function loadMyTasks() {
 async function loadMyExecutions() {
     const list = document.getElementById('executionsList');
     list.innerHTML = '<div class="loading">Loading your executions...</div>';
-    
     try {
-        // ✅ جلب جميع تنفيذات المستخدم
         const res = await fetch(`${API}/api/tasks/user-executions?user_id=${currentUser}`);
         const data = await res.json();
         
-        if (!data.success || !data.data?.length) {
-            list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">💡 You haven\'t executed any tasks yet</p>';
+        // ✅ للتصحيح: اطبع في Console
+        console.log('✅ Executions API response:', data);
+        
+        // ✅ تحقق من هيكل الاستجابة
+        if (!data.success) {
+            console.log('❌ API returned success: false -', data.message);
+            list.innerHTML = `<p style="text-align:center;color:#94a3b8;padding:20px">❌ ${data.message || 'Failed to load'}</p>`;
             return;
         }
         
+        if (!data.data || data.data.length === 0) {
+            console.log('⚠️ No executions found');
+            list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">💡 You haven\'t executed any tasks yet</p>`;
+            return;
+        }
+        
+        // ✅ عرض البيانات
         list.innerHTML = data.data.map(exec => {
             const canDispute = exec.status === 'rejected' && !exec.has_dispute;
-            
             return `
             <div class="proof-item">
                 <div class="proof-header">
@@ -892,7 +901,6 @@ async function loadMyExecutions() {
                     💰 Reward: <strong style="color:#22c55e">${formatPrice(exec.payment_amount)}</strong>
                 </p>
                 ${exec.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Your Proof:</strong><br>${exec.proof}</div>` : ''}
-                
                 ${canDispute ? `
                 <div class="proof-actions">
                     <button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button>
@@ -907,7 +915,7 @@ async function loadMyExecutions() {
         }).join('');
         
     } catch (err) {
-        console.error(err);
+        console.error('❌ Load executions error:', err);
         list.innerHTML = '<p class="alert alert-error">Failed to load executions</p>';
     }
 }
