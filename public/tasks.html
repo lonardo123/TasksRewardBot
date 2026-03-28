@@ -492,10 +492,11 @@ function formatCountdown(ms) {
 // ================= STATUS TEXT =================
 function getStatusText(status) {
     const map = {
-        pending: '⏳ Pending',      // ✅ بعد Apply وبعد Submit Proof
-        approved: '✅ Approved',    // ✅ بعد الموافقة
-        rejected: '❌ Rejected',    // ✅ بعد الرفض
-        disputed: '⚖️ Disputed'     // ✅ بعد النزاع
+        applied: '📝 Applied',      // ✅ حجز المكان
+        pending: '⏳ Pending',      // ✅ إثبات مقدم بانتظار المراجعة
+        approved: '✅ Approved',    // ✅ تم الموافقة
+        rejected: '❌ Rejected',    // ✅ تم الرفض
+        disputed: '⚖️ Disputed'     // ✅ يوجد نزاع
     };
     return map[status] || status;
 }
@@ -667,8 +668,8 @@ async function openTaskDetailPage(taskId) {
 </div>
 `;
 
-        if (myExecution) {
-    // ✅ تعديل 1: التعامل مع حالتين: applied و pending
+       if (myExecution) {
+    // ✅ التعامل مع حالتين: applied (حجز) و pending (إثبات مقدم)
     if (myExecution.status === 'applied' || myExecution.status === 'pending') {
         const appliedAt = new Date(myExecution.submitted_at || myExecution.created_at);
         const deadline = new Date(appliedAt.getTime() + (task.duration_seconds * 1000));
@@ -676,7 +677,7 @@ async function openTaskDetailPage(taskId) {
         const remaining = deadline - now;
         
         if (remaining > 0) {
-            // ✅ تعديل 2: عرض الحالة ديناميكياً
+            // ✅ عرض الحالة ديناميكياً
             const statusText = myExecution.status === 'applied' ? 'Applied' : 'Pending';
             
             content += `
@@ -754,17 +755,25 @@ async function applyForTaskFromDetail(taskId) {
 // ================= SUBMIT PROOF =================
 async function submitProofForTask(taskId, executionId) {
     const proof = document.getElementById('proofText').value.trim();
+    
+    // ✅ قبول أي إثبات بطول 1 حرف أو أكثر
     if (!proof || proof.length < 1) {
-        showAlert('⚠️ Proof must be 1 characters', 'error');
+        showAlert('⚠️ Please enter at least 1 character as proof', 'error');
         return;
     }
+    
     try {
         const res = await fetch(`${API}/api/tasks/${taskId}/submit-proof`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: currentUser, proof, execution_id: executionId })
+            body: JSON.stringify({ 
+                user_id: currentUser, 
+                proof: proof, 
+                execution_id: executionId 
+            })
         });
         const data = await res.json();
+        
         if (data.success) {
             showAlert('✅ Proof submitted!', 'success');
             setTimeout(() => goBackToAvailable(taskId), 1000);
