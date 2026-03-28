@@ -2455,6 +2455,7 @@ app.get('/api/tasks/my', async (req, res) => {
 
 // ======================= ✅  تنفيذات المستخدم TASK =======================
 
+
 app.get('/api/tasks/user-executions', async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -2484,17 +2485,20 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       ORDER BY te.submitted_at DESC
     `, [user_id]);
     
-    // إضافة حقل has_dispute
     const executionsWithDispute = await Promise.all(
       executions.rows.map(async (exec) => {
         const dispute = await pool.query(
           'SELECT id FROM task_disputes WHERE execution_id = $1', 
           [exec.id]
         );
-        return { ...exec, has_dispute: dispute.rows.length > 0 };
+        return { 
+          ...exec, 
+          has_dispute: dispute.rows.length > 0 
+        };
       })
     );
     
+    // ✅ هيكل الاستجابة الصحيح
     res.json({ success: true,  executionsWithDispute });
     
   } catch (err) {
@@ -2506,63 +2510,8 @@ app.get('/api/tasks/user-executions', async (req, res) => {
     });
   }
 });
-// ======================= 🔍 TASK: DETAILS =======================
 
-app.get('/api/tasks/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { user_id } = req.query;
-    
-    if (!id || isNaN(id)) {
-      return res.status(400).json({ success: false, message: "Invalid task ID" });
-    }
-    
-    const task = await pool.query(`
-      SELECT 
-        t.*,
-        (t.budget - t.spent) as remaining_budget,
-        COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
-        COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count,
-        COUNT(te.id) FILTER (WHERE te.status = 'pending') AS pending_count,
-        COUNT(te.id) FILTER (WHERE te.status = 'disputed') AS disputed_count
-      FROM tasks t
-      LEFT JOIN task_executions te ON t.id = te.task_id
-      WHERE t.id = $1 AND t.deleted_at IS NULL
-      GROUP BY t.id
-    `, [id]);
-    
-    if (task.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Task not found" });
-    }
-    
-    const taskData = task.rows[0];
-    const isCreator = taskData.creator_id?.toString() === user_id;
-    
-    let myExecution = null;
-    if (user_id) {
-      // ✅ استخدام submitted_at بدلاً من created_at
-      const exec = await pool.query(
-        `SELECT id, task_id, executor_id, proof, status, submitted_at, payment_amount, commission_amount
-         FROM task_executions 
-         WHERE task_id = $1 AND executor_id = $2 
-         ORDER BY submitted_at DESC LIMIT 1`,
-        [id, user_id]
-      );
-      if (exec.rows.length > 0) myExecution = exec.rows[0];
-    }
-    
-    res.json({ 
-      success: true, 
-      task: taskData, 
-      is_creator: isCreator,
-      my_execution: myExecution
-    });
-    
-  } catch (err) {
-    console.error('❌ /api/tasks/:id:', err);
-    res.status(500).json({ success: false, message: "Failed to load task", error: err.message });
-  }
-});
+
 
 // ======================= ➕ CREATE TASK =======================
 
@@ -3392,6 +3341,65 @@ setInterval(async () => {
     console.error('❌ Expired applications cleanup error:', err);
   }
 }, 60 * 1000); // كل 1 دقيقة
+
+// ======================= 🔍 TASK: DETAILS =======================
+
+app.get('/api/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { user_id } = req.query;
+    
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ success: false, message: "Invalid task ID" });
+    }
+    
+    const task = await pool.query(`
+      SELECT 
+        t.*,
+        (t.budget - t.spent) as remaining_budget,
+        COUNT(te.id) FILTER (WHERE te.id IS NOT NULL) AS total_executions,
+        COUNT(te.id) FILTER (WHERE te.status = 'approved') AS approved_count,
+        COUNT(te.id) FILTER (WHERE te.status = 'pending') AS pending_count,
+        COUNT(te.id) FILTER (WHERE te.status = 'disputed') AS disputed_count
+      FROM tasks t
+      LEFT JOIN task_executions te ON t.id = te.task_id
+      WHERE t.id = $1 AND t.deleted_at IS NULL
+      GROUP BY t.id
+    `, [id]);
+    
+    if (task.rows.length === 0) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+    
+    const taskData = task.rows[0];
+    const isCreator = taskData.creator_id?.toString() === user_id;
+    
+    let myExecution = null;
+    if (user_id) {
+      // ✅ استخدام submitted_at بدلاً من created_at
+      const exec = await pool.query(
+        `SELECT id, task_id, executor_id, proof, status, submitted_at, payment_amount, commission_amount
+         FROM task_executions 
+         WHERE task_id = $1 AND executor_id = $2 
+         ORDER BY submitted_at DESC LIMIT 1`,
+        [id, user_id]
+      );
+      if (exec.rows.length > 0) myExecution = exec.rows[0];
+    }
+    
+    res.json({ 
+      success: true, 
+      task: taskData, 
+      is_creator: isCreator,
+      my_execution: myExecution
+    });
+    
+  } catch (err) {
+    console.error('❌ /api/tasks/:id:', err);
+    res.status(500).json({ success: false, message: "Failed to load task", error: err.message });
+  }
+});
+
 // ======================= END TASKS SYSTEM API =======================
 
 
