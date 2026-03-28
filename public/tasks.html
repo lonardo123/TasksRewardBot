@@ -886,29 +886,26 @@ async function loadMyExecutions() {
             return;
         }
         
-        if (data.data === undefined) {
-            console.error('❌ data.data is undefined - Response keys:', Object.keys(data));
-            list.innerHTML = '<p style="text-align:center;color:#ef4444;padding:20px">❌ Invalid response format</p>';
-            return;
-        }
+        // ✅ دعم كلا الهيكلين: "data" أو "executionsWithDispute"
+        const executions = data.data || data.executionsWithDispute || [];
         
-        if (!Array.isArray(data.data)) {
-            console.error('❌ data.data is not an array:', typeof data.data, data.data);
+        if (!Array.isArray(executions)) {
+            console.error('❌ Executions is not an array:', typeof executions, executions);
             list.innerHTML = '<p style="text-align:center;color:#ef4444;padding:20px">❌ Invalid data format</p>';
             return;
         }
         
-        if (data.data.length === 0) {
+        if (executions.length === 0) {
             console.log('⚠️ No executions found');
             list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">💡 You haven\'t executed any tasks yet</p>';
             return;
         }
         
-        console.log(`🎉 Found ${data.data.length} execution(s)`);
+        console.log(`🎉 Found ${executions.length} execution(s)`);
         
         // ✅ عرض البيانات بأمان
         let html = '';
-        for (const exec of data.data) {
+        for (const exec of executions) {
             try {
                 const status = exec.status || 'unknown';
                 const statusText = getStatusText(status);
