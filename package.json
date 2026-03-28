@@ -4,7 +4,6 @@
   "main": "bot.js",
   "scripts": {
     "start": "node server.js"
-    "start-app": "node server-app.js"
   },
   "dependencies": {
     "telegraf": "^4.14.0",
