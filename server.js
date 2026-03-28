@@ -3392,12 +3392,12 @@ setInterval(async () => {
   try {
     const now = new Date();
     
-    // ✅ تنظيف كل من 'pending' و 'applied' التي انتهت مدتها
+    // ✅ تنظيف حالة 'applied' فقط (الحجوزات التي لم تُقدّم إثباتاً)
     const { rows } = await pool.query(`
       SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
       FROM task_executions te
       JOIN tasks t ON t.id = te.task_id
-      WHERE te.status IN ('pending', 'applied')
+      WHERE te.status = 'applied'  ← فقط الحجوزات
         AND te.proof IS NULL
         AND te.submitted_at IS NOT NULL
         AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
@@ -3414,8 +3414,7 @@ setInterval(async () => {
   } catch (err) {
     console.error('❌ Expired applications cleanup error:', err);
   }
-}, 60 * 1000); // كل 1 دقيقة
-// ======================= END TASKS SYSTEM API =======================
+}, 60 * 1000); // كل 1 دقيقة// ======================= END TASKS SYSTEM API =======================
 
 
 /* =========================
