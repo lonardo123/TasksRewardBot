@@ -928,7 +928,15 @@ async function loadMyExecutions() {
                     html += '<div class="proof-content" style="margin:10px 0"><strong>Your Proof:</strong><br>' + exec.proof + '</div>';
                 }
                 
-                if (canDispute) {
+                // ✅ إضافة زر "🚀 View & Apply" لحالة pending
+                if (status === 'pending') {
+                    html += '<div class="proof-actions">';
+                    html += '<button class="btn btn-primary btn-sm" onclick="openTaskDetailPage(' + exec.task_id + ')">🚀 View & Apply</button>';
+                    html += '</div>';
+                    html += '<small style="color:#facc15;font-size:12px;margin-top:5px;display:block">';
+                    html += '⏱️ Submit your proof before time expires';
+                    html += '</small>';
+                } else if (canDispute) {
                     html += '<div class="proof-actions">';
                     html += '<button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(' + exec.task_id + ', ' + exec.id + ')">⚠️ Create Dispute</button>';
                     html += '</div>';
