@@ -2454,9 +2454,6 @@ app.get('/api/tasks/my', async (req, res) => {
 });
 
 // ======================= ✅  تنفيذات المستخدم TASK =======================
-
-
-// ✅ 1. مسار تنفيذات المستخدم (مخصص - يجب أن يأتي أولاً)
 app.get('/api/tasks/user-executions', async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -2486,6 +2483,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       ORDER BY te.submitted_at DESC
     `, [user_id]);
     
+    // ✅ إضافة حقل has_dispute
     const executionsWithDispute = await Promise.all(
       executions.rows.map(async (exec) => {
         const dispute = await pool.query(
@@ -2499,8 +2497,11 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       })
     );
     
-    // ✅ هيكل الاستجابة الصحيح
-    res.json({ success: true,  executionsWithDispute });
+    // ✅ الهيكل الصحيح للاستجابة (هذا هو السطر الحاسم)
+    res.json({ 
+      success: true, 
+     executionsWithDispute  // ← مصفوفة داخل حقل "data"
+    });
     
   } catch (err) {
     console.error('❌ /api/tasks/user-executions:', err);
@@ -2511,9 +2512,6 @@ app.get('/api/tasks/user-executions', async (req, res) => {
     });
   }
 });
-
-
-
 // ======================= ➕ CREATE TASK =======================
 
 app.post('/api/tasks/create', async (req, res) => {
