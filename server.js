@@ -2690,7 +2690,7 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     await client.query(
       `INSERT INTO task_executions (
          task_id, executor_id, status, payment_amount, commission_amount, submitted_at
-       ) VALUES ($1::integer, $2::bigint, 'pending', $3, $4, NOW())`,
+       ) VALUES ($1::integer, $2::bigint, 'applied', $3, $4, NOW())`,
       [id, user_id, executorReward, adminCommission]
     );
     
