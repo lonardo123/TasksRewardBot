@@ -634,6 +634,8 @@ async function openTaskDetailPage(taskId) {
         const availableSlots = Math.max(0, totalSlots - (task.pending_count || 0));
 
         document.getElementById('availableTasks').classList.add('hidden');
+        document.getElementById('myTasks').classList.add('hidden');
+        document.getElementById('executionsSection').classList.add('hidden');  
         document.getElementById('taskDetailPage').classList.remove('hidden');
 
         let content = `
