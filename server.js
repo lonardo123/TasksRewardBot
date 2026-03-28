@@ -17,24 +17,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ======== BOT SETUP ========
-const { Telegraf } = require('telegraf');
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
-(async () => {
-  try {
-    // حذف أي Webhook قديم تلقائيًا
-    await bot.telegram.deleteWebhook();
-    console.log('✅ Webhook deleted');
-
-    // تشغيل البوت Polling
-    await bot.launch();
-    console.log('✅ Bot started');
-  } catch (err) {
-    console.error('❌ Bot failed:', err.message);
-  }
-})();
-
 
 // =======================
 // معالج المبيعات المؤجلة (Pending Sales Processor)
