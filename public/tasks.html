@@ -754,8 +754,8 @@ async function applyForTaskFromDetail(taskId) {
 // ================= SUBMIT PROOF =================
 async function submitProofForTask(taskId, executionId) {
     const proof = document.getElementById('proofText').value.trim();
-    if (!proof || proof.length < 10) {
-        showAlert('⚠️ Proof must be 10+ characters', 'error');
+    if (!proof || proof.length < 1) {
+        showAlert('⚠️ Proof must be 1 characters', 'error');
         return;
     }
     try {
