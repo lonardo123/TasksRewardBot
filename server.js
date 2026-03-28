@@ -3310,6 +3310,7 @@ if (parseInt(pendingExec.rows[0].count) > 0) {
 });
 
 // ✅ GET /api/tasks/user-executions - جلب تنفيذات المستخدم
+// ✅ GET /api/tasks/user-executions - جلب تنفيذات المستخدم (مصحح)
 app.get('/api/tasks/user-executions', async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -3333,7 +3334,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
         t.executor_reward
       FROM task_executions te
       JOIN tasks t ON t.id = te.task_id
-      WHERE te.executor_id = $1
+      WHERE te.executor_id = $1::bigint  -- ✅ إضافة ::bigint لتحويل النص إلى رقم
       ORDER BY te.submitted_at DESC
     `, [user_id]);
     
