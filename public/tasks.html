@@ -877,17 +877,23 @@ async function loadMyExecutions() {
         console.log('📡 Response status:', res.status);
         
         const data = await res.json();
-        console.log('✅ API response:', data);
+        console.log('✅ Full API response:', JSON.stringify(data, null, 2));
         
-        // ✅ تحقق من هيكل الاستجابة
+        // ✅ تحقق موسع من هيكل الاستجابة
         if (!data.success) {
             console.error('❌ API returned success: false -', data.message);
             list.innerHTML = `<p style="text-align:center;color:#ef4444;padding:20px">❌ ${data.message || 'Failed to load'}</p>`;
             return;
         }
         
-        if (!data.data || !Array.isArray(data.data)) {
-            console.error('❌ data.data is not an array:', data.data);
+        if (data.data === undefined) {
+            console.error('❌ data.data is undefined - Response keys:', Object.keys(data));
+            list.innerHTML = '<p style="text-align:center;color:#ef4444;padding:20px">❌ Invalid response format</p>';
+            return;
+        }
+        
+        if (!Array.isArray(data.data)) {
+            console.error('❌ data.data is not an array:', typeof data.data, data.data);
             list.innerHTML = '<p style="text-align:center;color:#ef4444;padding:20px">❌ Invalid data format</p>';
             return;
         }
@@ -904,7 +910,6 @@ async function loadMyExecutions() {
         let html = '';
         for (const exec of data.data) {
             try {
-                // ✅ تحقق آمن من الحقول
                 const status = exec.status || 'unknown';
                 const statusText = getStatusText(status);
                 const hasDispute = exec.has_dispute === true;
