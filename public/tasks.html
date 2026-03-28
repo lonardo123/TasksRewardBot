@@ -939,8 +939,8 @@ async function loadMyExecutions() {
                     html += '<div class="proof-content" style="margin:10px 0"><strong>Your Proof:</strong><br>' + exec.proof + '</div>';
                 }
                 
-                // ✅ إضافة زر "🚀 View & Apply" لحالة pending
-                if (status === 'pending') {
+                // ✅ إضافة زر "🚀 View & Apply" لحالة Applied
+                if (status === 'Applied') {
                     html += '<div class="proof-actions">';
                     html += '<button class="btn btn-primary btn-sm" onclick="openTaskDetailPage(' + exec.task_id + ')">🚀 View & Apply</button>';
                     html += '</div>';
