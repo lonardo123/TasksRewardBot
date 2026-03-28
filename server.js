@@ -2456,6 +2456,7 @@ app.get('/api/tasks/my', async (req, res) => {
 // ======================= ✅  تنفيذات المستخدم TASK =======================
 
 
+// ✅ 1. مسار تنفيذات المستخدم (مخصص - يجب أن يأتي أولاً)
 app.get('/api/tasks/user-executions', async (req, res) => {
   try {
     const { user_id } = req.query;
