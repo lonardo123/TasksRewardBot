@@ -2645,17 +2645,16 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
     const { id } = req.params;
     const { user_id } = req.body;
     
-    // ✅ التحقق من صحة المدخلات
     if (!id || !user_id || !/^\d+$/.test(user_id.toString())) {
       return res.status(400).json({ success: false, message: "Invalid task ID or user ID" });
     }
     
     await client.query('BEGIN');
     
-    // ✅ التحقق من وجود تنفيذ سابق (مع تحويل bigint)
+    // ✅ التحقق من وجود تنفيذ سابق (مع 'applied' و 'pending')
     const existing = await client.query(
       `SELECT id, status FROM task_executions 
-       WHERE task_id = $1::integer AND executor_id = $2::bigint AND status IN ('pending', 'approved')`,
+       WHERE task_id = $1::integer AND executor_id = $2::bigint AND status IN ('applied', 'pending', 'approved')`,
       [id, user_id]
     );
     
@@ -2664,7 +2663,6 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       return res.status(400).json({ success: false, message: "You already have an active execution for this task" });
     }
     
-    // ✅ جلب تفاصيل المهمة (مع تحويل integer)
     const task = await client.query(
       `SELECT budget, spent, executor_reward, duration_seconds, is_active, deleted_at 
        FROM tasks WHERE id = $1::integer`, 
@@ -2686,7 +2684,7 @@ app.post('/api/tasks/:id/apply', async (req, res) => {
       return res.status(400).json({ success: false, message: "Task has insufficient budget" });
     }
     
-    // ✅ الإدخال مع 'pending' وتحويل الأنواع
+    // ✅ استخدام 'applied' للحجز (بدلاً من 'pending')
     await client.query(
       `INSERT INTO task_executions (
          task_id, executor_id, status, payment_amount, commission_amount, submitted_at
@@ -2722,41 +2720,59 @@ app.post('/api/tasks/:id/submit-proof', async (req, res) => {
     const { id } = req.params;
     const { user_id, proof, execution_id } = req.body;
     
+    // ✅ قبول أي إثبات بطول 1+ حرف
     if (!proof || proof.trim().length < 1) {
-      return res.status(400).json({ success: false, message: "Proof must be at least 1 characters" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Proof must contain at least 1 character" 
+      });
     }
     
+    // ✅ البحث عن التنفيذ بحالة 'applied' (الحجز)
     let exec;
     if (execution_id) {
       exec = await pool.query(
-        `SELECT id, status, submitted_at FROM task_executions 
-         WHERE id = $1 AND task_id = $2 AND executor_id = $3 AND status = 'applied'`,
+        `SELECT id, status, submitted_at, executor_id 
+         FROM task_executions 
+         WHERE id = $1::integer AND task_id = $2::integer AND executor_id = $3::bigint AND status = 'applied'`,
         [execution_id, id, user_id]
       );
     } else {
       exec = await pool.query(
-        `SELECT id, status, submitted_at FROM task_executions 
-         WHERE task_id = $1 AND executor_id = $2 AND status = 'applied'`,
+        `SELECT id, status, submitted_at, executor_id 
+         FROM task_executions 
+         WHERE task_id = $1::integer AND executor_id = $2::bigint AND status = 'applied'`,
         [id, user_id]
       );
     }
     
     if (exec.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "No applied execution found for this task" });
+      return res.status(404).json({ 
+        success: false, 
+        message: "No applied execution found for this task" 
+      });
     }
     
+    // ✅ تحديث الحالة من 'applied' إلى 'pending' بعد تقديم الإثبات
     await pool.query(
       `UPDATE task_executions 
-       SET proof = $1, submitted_at = COALESCE(submitted_at, NOW()), status = 'pending' 
-       WHERE id = $2`, 
+       SET proof = $1, status = 'pending', submitted_at = COALESCE(submitted_at, NOW()) 
+       WHERE id = $2::integer`, 
       [proof, exec.rows[0].id]
     );
     
-    res.json({ success: true, message: "Proof submitted successfully", execution_id: exec.rows[0].id });
+    res.json({ 
+      success: true, 
+      message: "Proof submitted successfully", 
+      execution_id: exec.rows[0].id 
+    });
     
   } catch (err) {
     console.error('❌ /api/tasks/:id/submit-proof:', err);
-    res.status(500).json({ success: false, message: "Failed to submit proof: " + err.message });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to submit proof: " + err.message 
+    });
   }
 });
 
