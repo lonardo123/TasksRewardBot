@@ -2722,8 +2722,8 @@ app.post('/api/tasks/:id/submit-proof', async (req, res) => {
     const { id } = req.params;
     const { user_id, proof, execution_id } = req.body;
     
-    if (!proof || proof.trim().length < 10) {
-      return res.status(400).json({ success: false, message: "Proof must be at least 10 characters" });
+    if (!proof || proof.trim().length < 1) {
+      return res.status(400).json({ success: false, message: "Proof must be at least 1 characters" });
     }
     
     let exec;
