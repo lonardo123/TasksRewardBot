@@ -158,28 +158,31 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 
-  <!-- Resolve Dispute Modal -->
-  <div id="resolveModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>⚖️ Resolve Dispute #<span id="resolveDisputeId"></span></h3>
-        <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
-      </div>
-      <div class="alert alert-info">Review the proof and decide the outcome.</div>
-      <div id="resolveProofContent" style="margin:15px 0"></div>
-      <div class="input-group">
-        <label>Decision:</label>
-        <select id="resolveDecision">
-          <option value="executor">✅ Pay executor (full amount)</option>
-          <option value="none">❌ No payment (refund to creator)</option>
-        </select>
-      </div>
-      <div class="input-group">
-        <label>Resolution Note:</label>
-        <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
-      </div>
-      <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
+ <!-- Resolve Dispute Modal -->
+<div id="resolveModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>⚖️ Resolve Dispute #<span id="resolveDisputeId"></span></h3>
+      <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
     </div>
+    <div class="alert alert-info">Review the proof and decide the outcome.</div>
+    
+    <!-- ✅ هذا العنصر مطلوب لعرض الإثبات -->
+    <div id="resolveProofContent" style="margin:15px 0"></div>
+    
+    <div class="input-group">
+      <label>Decision:</label>
+      <select id="resolveDecision">
+        <option value="executor">✅ Pay executor (full amount)</option>
+        <option value="none">❌ No payment (refund to creator)</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Resolution Note:</label>
+      <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
+    </div>
+    <!-- ✅ تأكد أن onclick يستدعي submitResolution() -->
+    <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
   </div>
 </div>
 
@@ -387,6 +390,8 @@ async function rejectProof(taskId, proofId) {
 }
 
 // ================= DISPUTES =================
+let currentDispute = null;
+
 async function loadDisputes() {
   const list = document.getElementById('disputesList');
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
@@ -405,65 +410,46 @@ async function loadDisputes() {
     
     list.innerHTML = data.data.map(d => `
       <div class="proof-item" style="border-left:4px solid #8b5cf6">
-        
-        <!-- Header: Dispute Info -->
         <div class="proof-header" style="border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:15px">
-          <strong>⚠️ Dispute #${d.id}</strong>
+          <strong>⚠️ Dispute #${d.dispute_id}</strong>
           <span class="status-badge status-disputed">Open</span>
         </div>
         
-        <!-- Task Info Grid: Creator vs Executor -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
-          
-          <!-- Creator/Task Column -->
           <div style="background:#0f172a;padding:12px;border-radius:8px">
-            <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">📋 Task Details (Creator)</h4>
+            <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">📋 Task Details</h4>
             <p style="font-size:13px"><strong>Title:</strong> ${d.task_title} <span style="color:#94a3b8">#${d.task_id}</span></p>
             <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username || d.creator_telegram}</p>
             <p style="font-size:13px"><strong>Reward:</strong> <span style="color:#22c55e">${formatPrice(d.executor_reward)}</span></p>
             ${d.target_url ? `<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open Link ↗</a></p>` : ''}
           </div>
           
-          <!-- Executor Column -->
           <div style="background:#0f172a;padding:12px;border-radius:8px">
             <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">👤 Executor Details</h4>
             <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username || d.executor_telegram}</p>
             <p style="font-size:13px"><strong>Submitted:</strong> ${formatDate(d.proof_submitted_at)}</p>
             <p style="font-size:13px"><strong>Amount:</strong> <span style="color:#22c55e">${formatPrice(d.payment_amount)}</span></p>
-            <p style="font-size:13px"><strong>Dispute Date:</strong> ${formatDate(d.dispute_created_at)}</p>
           </div>
         </div>
         
-        <!-- Task Description from Creator -->
         <div style="margin-bottom:15px">
           <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4>
-          <div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">
-            ${d.task_description || 'No description provided'}
-          </div>
+          <div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">${d.task_description || 'No description'}</div>
         </div>
         
-        <!-- Executor's Proof -->
         <div style="margin-bottom:15px">
           <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4>
-          <div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">
-            ${d.executor_proof ? d.executor_proof : '<span style="color:#ef4444">No proof submitted</span>'}
-          </div>
+          <div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">${d.executor_proof || '<span style="color:#ef4444">No proof</span>'}</div>
         </div>
         
-        <!-- Dispute Reason -->
         <div style="margin-bottom:15px">
           <h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4>
-          <div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">
-            ${d.reason}
-          </div>
+          <div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">${d.reason}</div>
         </div>
         
-        <!-- Actions -->
         <div class="proof-actions" style="border-top:1px solid #334155;padding-top:15px">
-          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g, "\\'") || ''}')">⚖️ Review & Resolve</button>
-          <button class="btn btn-warning btn-sm" onclick="viewTaskDetail(${d.task_id})">🔍 View Full Task</button>
+          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.dispute_id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g, "\\'") || ''}')">⚖️ Review & Resolve</button>
         </div>
-        
       </div>
     `).join('');
     
@@ -473,6 +459,64 @@ async function loadDisputes() {
   }
 }
 
+function openResolveModal(disputeId, executionId, proof = '') {
+  currentDispute = { id: disputeId, executionId, proof };
+  
+  document.getElementById('resolveDisputeId').textContent = disputeId;
+  document.getElementById('resolveDecision').value = 'executor';
+  document.getElementById('resolveNote').value = '';
+  
+  const proofContent = document.getElementById('resolveProofContent');
+  if (proofContent) {
+    if (proof && proof.trim()) {
+      proofContent.innerHTML = `
+        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
+          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
+          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
+        </div>
+      `;
+    } else {
+      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
+    }
+  }
+  
+  openModal('resolveModal');
+}
+
+async function submitResolution() {
+  const payout = document.getElementById('resolveDecision').value;
+  const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
+  
+  if (!currentDispute) {
+    showAlert('⚠️ No dispute selected', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        admin_id: REQUIRED_ADMIN_ID,
+        payout_to: payout,
+        resolution
+      })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Dispute resolved', 'success');
+      closeModal('resolveModal');
+      loadDisputes();
+      loadDashboardStats();
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+    console.error('❌ submitResolution:', err);
+  }
+}
 // ✅ دالة مساعدة لعرض تفاصيل المهمة الكاملة
 function viewTaskDetail(taskId) {
   window.open(`/tasks.html?user_id=${REQUIRED_ADMIN_ID}#task-${taskId}`, '_blank');
