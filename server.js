@@ -2444,7 +2444,7 @@ app.get('/api/tasks/available', async (req, res) => {
           FROM task_executions te 
           WHERE te.task_id = t.id 
             AND te.executor_id = $1::bigint 
-            AND te.status IN ('applied', 'pending', 'approved')
+            AND te.status IN ('applied', 'pending', 'approved', 'disputed')
         )
       ORDER BY t.created_at DESC
       LIMIT 50
