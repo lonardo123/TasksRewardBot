@@ -2432,7 +2432,7 @@ app.get('/api/tasks/available', async (req, res) => {
         (
           SELECT COUNT(*) 
           FROM task_executions 
-          WHERE task_id = t.id AND status = ('applied', 'pending')
+          WHERE task_id = t.id AND status IN ('applied', 'pending')
         ) as pending_count
       FROM tasks t
       WHERE t.is_active = true 
@@ -2440,16 +2440,17 @@ app.get('/api/tasks/available', async (req, res) => {
         AND t.creator_id != $1::bigint
         AND t.deleted_at IS NULL
         AND NOT EXISTS (
-          SELECT 1 FROM task_executions te 
+          SELECT 1 
+          FROM task_executions te 
           WHERE te.task_id = t.id 
             AND te.executor_id = $1::bigint 
-            AND te.status IN ('pending', 'approved')
+            AND te.status IN ('applied', 'pending', 'approved')
         )
       ORDER BY t.created_at DESC
       LIMIT 50
     `, [user_id]);
     
-    res.json({ success: true, data: tasks.rows });
+    res.json({ success: true,  tasks.rows });
     
   } catch (err) {
     console.error('❌ /api/tasks/available:', err);
