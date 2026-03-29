@@ -3378,6 +3378,7 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY td.created_at DESC
     `);
     
+    // ✅ التصحيح النهائي: استخدم data: disputes.rows
     res.json({ success: true,  disputes.rows });
     
   } catch (err) {
