@@ -186,65 +186,43 @@ tr:hover{background:#1e293b/50}
 <script>
 // ================= CONFIG =================
 const API = "https://perceptive-victory-production.up.railway.app";
-const REQUIRED_ADMIN_ID = "7171208519"; // 🔐 Hard-coded required admin ID
-// ✅ تم إزالة process.env لأنه لا يعمل في المتصفح
-// ملاحظة: التحقق الحقيقي يتم في السيرفر عبر isAdminAuthenticated middleware
+const REQUIRED_ADMIN_ID = "7171208519";
 
-// ================= 🔐 ACCESS CONTROL - URL PARAMETER CHECK =================
+// ================= 🔐 ACCESS CONTROL =================
 function checkAdminAccess() {
-  const REQUIRED_ADMIN_ID = "7171208519"; // 🔐 الرقم الثابت للأدمن
-  
-  // 🔹 استخراج admin_id من الرابط باستخدام طريقة موثوقة
   const url = window.location.href;
   let adminIdFromUrl = null;
   
-  // طريقة 1: استخدام URLSearchParams (الأفضل)
   try {
     const urlObj = new URL(url);
     adminIdFromUrl = urlObj.searchParams.get('admin_id');
   } catch (e) {
-    // طريقة 2: fallback باستخدام regex
     const match = url.match(/[?&]admin_id=([^&]+)/);
     if (match && match[1]) {
       adminIdFromUrl = decodeURIComponent(match[1].trim());
     }
   }
   
-  // 🔹 التحقق الصارم: يجب أن يطابق الرقم تماماً
   if (!adminIdFromUrl || adminIdFromUrl.toString().trim() !== REQUIRED_ADMIN_ID) {
     console.error('🔐 Access denied. Required: admin_id=' + REQUIRED_ADMIN_ID);
-    console.log('Received:', adminIdFromUrl);
-    
-    // عرض صفحة الرفض
     document.getElementById('accessDenied').style.display = 'flex';
     document.getElementById('adminContent').classList.add('hidden');
     return false;
   }
   
-  // ✅ الدخول مسموح
   console.log('✅ Admin access granted');
   document.getElementById('accessDenied').style.display = 'none';
   document.getElementById('adminContent').classList.remove('hidden');
-  
-  // حفظ الجلسة (اختياري)
   localStorage.setItem('admin_verified', 'true');
   localStorage.setItem('admin_id', REQUIRED_ADMIN_ID);
-  
   return true;
 }
 
 // ================= INIT =================
 window.addEventListener('load', async () => {
-  // 🔐 FIRST: Check admin access via URL parameter
   const hasAccess = checkAdminAccess();
-  
-  if (!hasAccess) {
-    // Stop here - access denied page is already shown
-    return;
-  }
-  
-  // ✅ If access granted, initialize admin panel
-  await refreshAll();
+  if (!hasAccess) return;
+  await loadDashboardStats(); // ✅ تحميل الإحصائيات عند الفتح
 });
 
 // ================= UTILS =================
@@ -281,7 +259,7 @@ function switchTab(tab) {
     loadDisputes();
   } else if (tab === 'stats') {
     document.getElementById('statsSection').classList.remove('hidden');
-    loadStats();
+    loadCommissionStats();
   }
 }
 
@@ -297,19 +275,26 @@ function formatDate(date) {
 }
 
 function logout() {
-  // Clear admin session
   localStorage.removeItem('admin_verified');
   localStorage.removeItem('admin_id');
-  // Redirect to main app
   window.location.href = '/';
 }
 
-// ================= REFRESH ALL =================
-async function refreshAll() {
-  await loadPendingProofs();
-  await loadDisputes();
-  await loadStats();
-  showAlert('🔄 Data refreshed', 'success');
+// ================= DASHBOARD STATS =================
+async function loadDashboardStats() {
+  try {
+    const res = await fetch(`${API}/api/admin/stats?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    
+    if (data.success) {
+      document.getElementById('pendingProofsCount').textContent = data.data.pending_proofs;
+      document.getElementById('openDisputesCount').textContent = data.data.open_disputes;
+      document.getElementById('approvedTodayCount').textContent = data.data.approved_today;
+      document.getElementById('adminCommissionTotal').textContent = formatPrice(data.data.admin_commission);
+    }
+  } catch (err) {
+    console.error('❌ loadDashboardStats:', err);
+  }
 }
 
 // ================= PENDING PROOFS =================
@@ -318,39 +303,18 @@ async function loadPendingProofs() {
   list.innerHTML = '<div class="loading">Loading pending proofs...</div>';
   
   try {
-    // Get all active tasks first (created by anyone, admin can review all)
-    const tasksRes = await fetch(`${API}/api/tasks/my?user_id=${REQUIRED_ADMIN_ID}`);
-    const tasksData = await tasksRes.json();
+    const res = await fetch(`${API}/api/admin/pending-proofs?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
     
-    let allProofs = [];
-    
-    if (tasksData.success && tasksData.data?.length) {
-      // Fetch proofs for each task created by admin
-      for (const task of tasksData.data) {
-        const proofsRes = await fetch(`${API}/api/tasks/${task.id}/proofs?user_id=${REQUIRED_ADMIN_ID}`);
-        const proofsData = await proofsRes.json();
-        if (proofsData.success && proofsData.data) {
-          const pending = proofsData.data.filter(p => p.status === 'pending');
-          allProofs = allProofs.concat(pending.map(p => ({
-            ...p, 
-            task_id: task.id, 
-            task_title: task.title, 
-            task_description: task.description, 
-            task_reward: task.executor_reward
-          })));
-        }
-      }
-    }
-    
-    // Update counter
-    document.getElementById('pendingProofsCount').textContent = allProofs.length;
-    
-    if (allProofs.length === 0) {
+    if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs to review</p>';
+      document.getElementById('pendingProofsCount').textContent = '0';
       return;
     }
     
-    list.innerHTML = allProofs.map(proof => `
+    document.getElementById('pendingProofsCount').textContent = data.data.length;
+    
+    list.innerHTML = data.data.map(proof => `
       <div class="proof-item">
         <div class="proof-header">
           <div>
@@ -367,7 +331,7 @@ async function loadPendingProofs() {
           💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong>
         </p>
         <p style="color:#cbd5e1;font-size:13px;margin:5px 0">
-          📝 Task Description: ${proof.task_description?.substring(0, 100)}${proof.task_description?.length > 100 ? '...' : ''}
+          📝 Task: ${proof.task_description?.substring(0, 100)}${proof.task_description?.length > 100 ? '...' : ''}
         </p>
         ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>` : ''}
         <div class="proof-actions">
@@ -393,7 +357,10 @@ async function approveProof(taskId, proofId) {
     });
     const data = await res.json();
     showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) loadPendingProofs();
+    if (data.success) {
+      loadPendingProofs();
+      loadDashboardStats(); // ✅ تحديث الإحصائيات
+    }
   } catch (err) {
     showAlert('⚠️ Connection error', 'error');
   }
@@ -410,7 +377,10 @@ async function rejectProof(taskId, proofId) {
     });
     const data = await res.json();
     showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) loadPendingProofs();
+    if (data.success) {
+      loadPendingProofs();
+      loadDashboardStats();
+    }
   } catch (err) {
     showAlert('⚠️ Connection error', 'error');
   }
@@ -422,11 +392,9 @@ async function loadDisputes() {
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
   
   try {
-    // ✅ إرسال admin_id كـ user_id في الرابط
-const res = await fetch(`${API}/api/admin/task-disputes?user_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/disputes?user_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
     
-    // Update counter
     const count = data.success && data.data ? data.data.length : 0;
     document.getElementById('openDisputesCount').textContent = count;
     
@@ -458,6 +426,8 @@ const res = await fetch(`${API}/api/admin/task-disputes?user_id=${REQUIRED_ADMIN
   }
 }
 
+let currentDispute = null;
+
 function openResolveModal(disputeId, executionId) {
   currentDispute = { id: disputeId, executionId };
   document.getElementById('resolveDisputeId').textContent = disputeId;
@@ -476,12 +446,11 @@ async function submitResolution() {
     const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      // ✅ إرسال فقط ما يحتاجه السيرفر (user_id)
-body: JSON.stringify({
-  admin_id: REQUIRED_ADMIN_ID,  // ← السيرفر يتحقق منه في middleware
-  payout_to: payout,
-  resolution
-})
+      body: JSON.stringify({
+        admin_id: REQUIRED_ADMIN_ID,
+        payout_to: payout,
+        resolution
+      })
     });
     const data = await res.json();
     
@@ -489,6 +458,7 @@ body: JSON.stringify({
       showAlert('✅ Dispute resolved', 'success');
       closeModal('resolveModal');
       loadDisputes();
+      loadDashboardStats();
     } else {
       showAlert('❌ ' + data.message, 'error');
     }
@@ -497,33 +467,42 @@ body: JSON.stringify({
   }
 }
 
-// ================= STATISTICS =================
-async function loadStats() {
+// ================= COMMISSION STATS =================
+async function loadCommissionStats() {
   const content = document.getElementById('statsContent');
   content.innerHTML = '<div class="loading">Loading statistics...</div>';
   
   try {
-    // Fetch commission stats (placeholder for now)
+    const res = await fetch(`${API}/api/admin/commission-stats?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    
+    if (!data.success) {
+      content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
+      return;
+    }
+    
+    const stats = data.data;
+    
     content.innerHTML = `
       <div style="display:grid;gap:15px">
         <div class="card">
           <h4>💰 Today's Commission</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.today)}</p>
           <p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p>
         </div>
         <div class="card">
           <h4>📊 This Week</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.week)}</p>
           <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
         </div>
         <div class="card">
           <h4>📈 This Month</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.month)}</p>
           <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
         </div>
         <div class="card">
           <h4>🏆 All Time</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">$0.00</p>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.all_time)}</p>
           <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p>
         </div>
       </div>
@@ -532,6 +511,15 @@ async function loadStats() {
     console.error(err);
     content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
   }
+}
+
+// ================= REFRESH ALL =================
+async function refreshAll() {
+  await loadDashboardStats();
+  await loadPendingProofs();
+  await loadDisputes();
+  await loadCommissionStats();
+  showAlert('🔄 Data refreshed', 'success');
 }
 </script>
 </body>
