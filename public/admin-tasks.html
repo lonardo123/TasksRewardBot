@@ -404,35 +404,105 @@ async function loadDisputes() {
     }
     
     list.innerHTML = data.data.map(d => `
-      <div class="proof-item">
-        <div class="proof-header">
+      <div class="proof-item" style="border-left:4px solid #8b5cf6">
+        
+        <!-- Header: Dispute Info -->
+        <div class="proof-header" style="border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:15px">
           <strong>⚠️ Dispute #${d.id}</strong>
           <span class="status-badge status-disputed">Open</span>
         </div>
-        <p><strong>Task:</strong> ${d.task_title} (#${d.task_id})</p>
-        <p><strong>Executor:</strong> @${d.executor_username || d.executor_id}</p>
-        <p><strong>Creator:</strong> @${d.creator_username || d.creator_id}</p>
-        <p><strong>Amount:</strong> ${formatPrice(d.payment_amount)}</p>
-        <p><strong>Reason:</strong></p>
-        <div class="proof-content" style="margin:10px 0">${d.reason}</div>
-        <div class="proof-actions">
-          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.id}, ${d.execution_id})">⚖️ Review & Resolve</button>
+        
+        <!-- Task Info Grid: Creator vs Executor -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
+          
+          <!-- Creator/Task Column -->
+          <div style="background:#0f172a;padding:12px;border-radius:8px">
+            <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">📋 Task Details (Creator)</h4>
+            <p style="font-size:13px"><strong>Title:</strong> ${d.task_title} <span style="color:#94a3b8">#${d.task_id}</span></p>
+            <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username || d.creator_telegram}</p>
+            <p style="font-size:13px"><strong>Reward:</strong> <span style="color:#22c55e">${formatPrice(d.executor_reward)}</span></p>
+            ${d.target_url ? `<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open Link ↗</a></p>` : ''}
+          </div>
+          
+          <!-- Executor Column -->
+          <div style="background:#0f172a;padding:12px;border-radius:8px">
+            <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">👤 Executor Details</h4>
+            <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username || d.executor_telegram}</p>
+            <p style="font-size:13px"><strong>Submitted:</strong> ${formatDate(d.proof_submitted_at)}</p>
+            <p style="font-size:13px"><strong>Amount:</strong> <span style="color:#22c55e">${formatPrice(d.payment_amount)}</span></p>
+            <p style="font-size:13px"><strong>Dispute Date:</strong> ${formatDate(d.dispute_created_at)}</p>
+          </div>
         </div>
+        
+        <!-- Task Description from Creator -->
+        <div style="margin-bottom:15px">
+          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4>
+          <div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">
+            ${d.task_description || 'No description provided'}
+          </div>
+        </div>
+        
+        <!-- Executor's Proof -->
+        <div style="margin-bottom:15px">
+          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4>
+          <div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">
+            ${d.executor_proof ? d.executor_proof : '<span style="color:#ef4444">No proof submitted</span>'}
+          </div>
+        </div>
+        
+        <!-- Dispute Reason -->
+        <div style="margin-bottom:15px">
+          <h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4>
+          <div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">
+            ${d.reason}
+          </div>
+        </div>
+        
+        <!-- Actions -->
+        <div class="proof-actions" style="border-top:1px solid #334155;padding-top:15px">
+          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g, "\\'") || ''}')">⚖️ Review & Resolve</button>
+          <button class="btn btn-warning btn-sm" onclick="viewTaskDetail(${d.task_id})">🔍 View Full Task</button>
+        </div>
+        
       </div>
     `).join('');
+    
   } catch (err) {
-    console.error(err);
+    console.error('❌ loadDisputes:', err);
     list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
   }
 }
 
+// ✅ دالة مساعدة لعرض تفاصيل المهمة الكاملة
+function viewTaskDetail(taskId) {
+  window.open(`/tasks.html?user_id=${REQUIRED_ADMIN_ID}#task-${taskId}`, '_blank');
+}
+
+// ================= RESOLVE MODAL =================
 let currentDispute = null;
 
-function openResolveModal(disputeId, executionId) {
-  currentDispute = { id: disputeId, executionId };
+function openResolveModal(disputeId, executionId, proof = '') {
+  currentDispute = { id: disputeId, executionId, proof };
+  
   document.getElementById('resolveDisputeId').textContent = disputeId;
   document.getElementById('resolveDecision').value = 'executor';
   document.getElementById('resolveNote').value = '';
+  
+  // ✅ عرض الإثبات داخل المودال للمراجعة السريعة
+  const proofContent = document.getElementById('resolveProofContent');
+  if (proofContent) {
+    if (proof && proof.trim()) {
+      proofContent.innerHTML = `
+        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
+          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
+          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
+        </div>
+      `;
+    } else {
+      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
+    }
+  }
+  
   openModal('resolveModal');
 }
 
