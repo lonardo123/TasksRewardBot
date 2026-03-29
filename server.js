@@ -3341,7 +3341,7 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/disputes - مطابق للواجهة ومخطط القاعدة
+// ✅ GET /api/admin/disputes - مطابق تماماً لمخطط قاعدة البيانات
 app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
@@ -3377,6 +3377,7 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY d.created_at DESC
     `);
     
+    // ✅ التصحيح النهائي:  بدون أي مسافة بعد النقطتين
     res.json({ success: true,  disputes.rows });
     
   } catch (err) {
@@ -3384,7 +3385,6 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
   }
 });
-
 // ✅ GET /api/admin/commission-stats
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
