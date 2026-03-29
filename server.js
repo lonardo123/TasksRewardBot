@@ -2951,6 +2951,8 @@ app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
     }
     
     await client.query('COMMIT');
+
+    await distributeReferralCommission(executorId, paymentAmount);
     
     res.json({ 
       success: true, 
@@ -3535,6 +3537,9 @@ setInterval(async () => {
         await client.query('COMMIT');
         
         console.log(`✅ Auto-approved execution ${exec.id} for task ${exec.task_id}`);
+
+          // ✅ توزيع عمولة الريفيرال 5% ← أضف هذا السطر هنا
+        await distributeReferralCommission(exec.executor_id, exec.payment_amount);
         
         // ✅ إرسال إشعار للأدمن (اختياري)
         if (typeof bot !== 'undefined' && bot?.telegram && process.env.ADMIN_ID) {
