@@ -2450,7 +2450,8 @@ app.get('/api/tasks/available', async (req, res) => {
       LIMIT 50
     `, [user_id]);
     
-    res.json({ success: true,  tasks.rows });
+    // ✅ التصحيح: أضف "data:" قبل tasks.rows
+    res.json({ success: true,  data: tasks.rows });
     
   } catch (err) {
     console.error('❌ /api/tasks/available:', err);
