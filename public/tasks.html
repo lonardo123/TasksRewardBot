@@ -820,8 +820,20 @@ async function loadMyTasks() {
             // ✅ استخدام || 0 لتجنب مشكلة undefined
             const pendingCount = task.pending_count || 0;
             const disputedCount = task.disputed_count || 0;
-            const canDelete = pendingCount === 0 && disputedCount === 0;
+            const appliedCount = task.applied_count || 0;  // ✅ إضافة: عدّاد الحالة applied
+            const canDelete = pendingCount === 0 && disputedCount === 0 && appliedCount === 0;  // ✅ إضافة: appliedCount في الشرط
+
             
+// ✅ رسالة تنبيه للمعلن عن الإثباتات المعلقة
+let pendingAlert = '';
+if (pendingCount > 0) {
+    pendingAlert = `
+    <div class="alert alert-info" style="margin:10px 0;font-size:12px">
+        ⚠️ You have ${pendingCount} pending proof(s) to review<br>
+        <small>ℹ️ Proofs not reviewed within 24 hours will be auto-approved</small>
+    </div>
+    `;
+}
             const statusClass = task.is_active ? 'status-approved' : 'status-rejected';
             const statusText = task.is_active ? '🟢 Active' : '🔴 Paused';
             
@@ -836,6 +848,7 @@ async function loadMyTasks() {
                             </div>
                         </td>
                     </tr>
+                    ${pendingAlert}
                     <tr>
                         <td style="border:none">💰 Reward:</td>
                         <td style="border:none;color:#22c55e">${formatPrice(task.executor_reward)}</td>
@@ -857,7 +870,7 @@ async function loadMyTasks() {
                                 ${remaining > 0 ? `<button class="btn btn-warning btn-sm" onclick="openWithdrawFundsModal(${task.id})">↩️ Withdraw</button>` : ''}
                                 ${canDelete 
                                     ? `<button class="btn btn-danger btn-sm" onclick="openDeleteTaskModal(${task.id})">🗑️ Delete</button>` 
-                                    : `<button class="btn btn-danger btn-sm" onclick="showDeleteBlocked(${pendingCount}, ${disputedCount})">🗑️ Locked</button>`
+                                    : `<button class="btn btn-danger btn-sm" onclick="showDeleteBlocked(${pendingCount}, ${disputedCount}, ${appliedCount})">🗑️ Locked</button>`
                                 }
                             </div>
                         </td>
@@ -871,6 +884,7 @@ async function loadMyTasks() {
         list.innerHTML = '<p class="alert alert-error">Failed to load</p>';
     }
 }
+
 // ================= MY EXECUTIONS =================
 async function loadMyExecutions() {
     const list = document.getElementById('executionsList');
@@ -947,6 +961,13 @@ async function loadMyExecutions() {
                     html += '<small style="color:#facc15;font-size:12px;margin-top:5px;display:block">';
                     html += '⏱️ Submit your proof before time expires';
                     html += '</small>';
+                } else if (status === 'pending') {
+                    // ✅ رسالة المستخدم عند تقديم الإثبات والانتظار
+                    html += '<div class="alert alert-info" style="margin-top:10px">';
+                    html += '⏳ Proof submitted - awaiting advertiser review<br>';
+                    html += '<small style="color:#94a3b8;font-size:11px">';
+                    html += 'ℹ️ If not reviewed within 24 hours, proof will be auto-approved and payment will be released';
+                    html += '</small></div>';
                 } else if (canDispute) {
                     html += '<div class="proof-actions">';
                     html += '<button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(' + exec.task_id + ', ' + exec.id + ')">⚠️ Create Dispute</button>';
@@ -971,9 +992,11 @@ async function loadMyExecutions() {
         list.innerHTML = '<p class="alert alert-error">Failed to load executions. Check console for details.</p>';
     }
 }
-// ✅ دالة جديدة لعرض سبب قفل زر الحذف
-function showDeleteBlocked(pendingCount, disputedCount) {
-    if (pendingCount > 0 && disputedCount > 0) {
+// ✅ دالة جديدة لعرض سبب قفل زر الحذف (محدثة لإضافة appliedCount)
+function showDeleteBlocked(pendingCount, disputedCount, appliedCount) {
+    if (appliedCount > 0) {
+        showAlert(`⚠️ Cannot delete: ${appliedCount} applied execution(s) must be completed or expired first`, 'error');
+    } else if (pendingCount > 0 && disputedCount > 0) {
         showAlert(`⚠️ Cannot delete: ${pendingCount} pending + ${disputedCount} disputed execution(s)`, 'error');
     } else if (pendingCount > 0) {
         showAlert(`⚠️ Cannot delete: ${pendingCount} pending execution(s) must be reviewed first`, 'error');
@@ -983,7 +1006,6 @@ function showDeleteBlocked(pendingCount, disputedCount) {
         showAlert('⚠️ Cannot delete: there are active executions', 'error');
     }
 }
-
 // ================= ADD FUNDS =================
 function openAddFundsModal(taskId) {
     currentFundTaskId = taskId;
