@@ -3341,7 +3341,7 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/disputes
+// ✅ GET /api/admin/disputes - نسخة مبسطة ومضمونة
 app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
@@ -3355,32 +3355,34 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
         te.executor_id,
         te.proof as executor_proof,
         te.payment_amount,
-        te.commission_amount,
         te.submitted_at as proof_submitted_at,
         t.title as task_title,
         t.description as task_description,
-        t.proof_requirements,
         t.target_url,
         t.creator_id,
         t.executor_reward,
-        eu.username as executor_username,
         eu.telegram_id as executor_telegram,
-        cu.username as creator_username,
         cu.telegram_id as creator_telegram
       FROM task_disputes td
-      JOIN task_executions te ON td.execution_id = te.id
-      JOIN tasks t ON te.task_id = t.id
+      INNER JOIN task_executions te ON td.execution_id = te.id
+      INNER JOIN tasks t ON te.task_id = t.id
       LEFT JOIN users eu ON te.executor_id = eu.telegram_id
       LEFT JOIN users cu ON t.creator_id = cu.telegram_id
       WHERE td.status = 'open'
       ORDER BY td.created_at DESC
     `);
     
-    res.json({ success: true, data: disputes.rows });
+    res.json({ success: true,  disputes.rows });
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
-    res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
+    // ✅ إرسال تفاصيل الخطأ للفرونت إند للمساعدة في التشخيص
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to load disputes", 
+      error: err.message,
+      hint: "Check if all columns exist in your database schema"
+    });
   }
 });
 
