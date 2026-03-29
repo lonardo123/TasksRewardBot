@@ -3219,6 +3219,54 @@ if (parseInt(pendingExec.rows[0].count) > 0) {
   }
 });
 
+// ======================= 🔧 DEBUG: ADMIN DISPUTES (بدون Middleware) =======================
+app.get('/api/admin/disputes-debug', async (req, res) => {
+  try {
+    console.log('🔍 Debug: Fetching disputes...');
+    
+    const disputes = await pool.query(`
+      SELECT 
+        td.id,
+        td.execution_id,
+        td.reason as dispute_reason,
+        td.status,
+        td.created_at as dispute_created_at,
+        te.task_id,
+        te.executor_id,
+        te.proof as executor_proof,
+        te.payment_amount,
+        te.submitted_at as proof_submitted_at,
+        t.title as task_title,
+        t.description as task_description,
+        t.target_url,
+        t.creator_id,
+        t.executor_reward,
+        eu.username as executor_username,
+        eu.telegram_id as executor_telegram,
+        cu.username as creator_username,
+        cu.telegram_id as creator_telegram
+      FROM task_disputes td
+      INNER JOIN task_executions te ON td.execution_id = te.id
+      INNER JOIN tasks t ON te.task_id = t.id
+      LEFT JOIN users eu ON te.executor_id = eu.telegram_id
+      LEFT JOIN users cu ON t.creator_id = cu.telegram_id
+      WHERE td.status = 'open'
+      ORDER BY td.created_at DESC
+    `);
+    
+    console.log('✅ Found', disputes.rows.length, 'disputes');
+    res.json({ success: true,  disputes.rows });
+    
+  } catch (err) {
+    console.error('❌ Debug error:', err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed: " + err.message,
+      stack: err.stack 
+    });
+  }
+});
+
 // ======================= 🔍 TASK: DETAILS =======================
 
 app.get('/api/tasks/:id', async (req, res) => {
