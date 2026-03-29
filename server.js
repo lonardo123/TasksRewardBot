@@ -3381,11 +3381,7 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to load disputes", 
-      error: err.message 
-    });
+    res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
   }
 });
 
