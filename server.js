@@ -3418,20 +3418,29 @@ app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) =>
   }
 });
 
-// ✅ POST /api/admin/task-disputes/:id/resolve
+// ✅ POST /api/admin/task-disputes/:id/resolve - حل النزاع
 app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
     const { payout_to, resolution, admin_id } = req.body;
     
+    console.log('🔍 Resolve dispute:', { id, payout_to, admin_id });
+    
     await client.query('BEGIN');
     
+    // ✅ جلب تفاصيل النزاع مع جميع الحقول المطلوبة
     const dispute = await client.query(`
-      SELECT td.*, te.task_id, te.executor_id, te.payment_amount, te.commission_amount, t.creator_id
+      SELECT 
+        td.id,
+        td.execution_id,
+        te.task_id,
+        te.executor_id,
+        te.payment_amount,
+        t.creator_id
       FROM task_disputes td
-      JOIN task_executions te ON td.execution_id = te.id
-      JOIN tasks t ON te.task_id = t.id
+      INNER JOIN task_executions te ON td.execution_id = te.id
+      INNER JOIN tasks t ON te.task_id = t.id
       WHERE td.id = $1::integer
     `, [id]);
     
@@ -3442,32 +3451,57 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
     
     const d = dispute.rows[0];
     
+    // ✅ تحديث حالة النزاع إلى "محل"
     await client.query(
-      `UPDATE task_disputes SET status = 'resolved', resolved_at = NOW(), resolved_by = $1::bigint, resolution = $2 WHERE id = $3::integer`,
+      `UPDATE task_disputes 
+       SET status = 'resolved', resolved_at = NOW(), resolved_by = $1::bigint, resolution = $2
+       WHERE id = $3::integer`,
       [admin_id, resolution, id]
     );
     
+    // ✅ تنفيذ قرار الدفع
     if (payout_to === 'executor') {
-      await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2::bigint', [d.payment_amount, d.executor_id]);
-      await client.query('UPDATE task_executions SET status = \'approved\', reviewed_at = NOW() WHERE id = $1::integer', [d.execution_id]);
-      const totalCost = parseFloat(d.payment_amount) + parseFloat(d.commission_amount || 0);
-      await client.query('UPDATE tasks SET spent = spent + $1 WHERE id = $2::integer', [totalCost, d.task_id]);
+      // دفع للمنفيذ
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2::bigint',
+        [d.payment_amount, d.executor_id]
+      );
+      // تحديث حالة التنفيذ إلى approved
+      await client.query(
+        'UPDATE task_executions SET status = \'approved\', reviewed_at = NOW() WHERE id = $1::integer',
+        [d.execution_id]
+      );
+      // تحديث الميزانية المستهلكة في المهمة
+      await client.query(
+        'UPDATE tasks SET spent = spent + $1 WHERE id = $2::integer',
+        [d.payment_amount, d.task_id]
+      );
     } else {
-      await client.query('UPDATE task_executions SET status = \'rejected\', reviewed_at = NOW() WHERE id = $1::integer', [d.execution_id]);
+      // لا دفع - تحديث الحالة إلى rejected
+      await client.query(
+        'UPDATE task_executions SET status = \'rejected\', reviewed_at = NOW() WHERE id = $1::integer',
+        [d.execution_id]
+      );
     }
     
     await client.query('COMMIT');
     
-    if (payout_to === 'executor') {
+    // ✅ توزيع عمولة الريفيرال إذا دُفع للمنفذ
+    if (payout_to === 'executor' && typeof distributeReferralCommission === 'function') {
       await distributeReferralCommission(d.executor_id, d.payment_amount);
     }
     
+    console.log('✅ Dispute resolved:', id);
     res.json({ success: true, message: "Dispute resolved successfully" });
     
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ /api/admin/task-disputes/:id/resolve:', err);
-    res.status(500).json({ success: false, message: "Failed to resolve dispute", error: err.message });
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to resolve dispute", 
+      error: err.message 
+    });
   } finally {
     client.release();
   }
