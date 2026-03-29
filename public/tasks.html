@@ -742,8 +742,16 @@ async function applyForTaskFromDetail(taskId) {
         });
         const data = await res.json();
         if (data.success) {
-            showAlert('✅ Applied successfully - slot reserved', 'success');  // ✅ إضافة رسالة تأكيد
-            // ✅ تحديث قائمة المهام المتاحة لعكس نقصان الـ Slots
+            showAlert('✅ Applied successfully', 'success');
+            // ✅ إخفاء عنصر المهمة فوراً من القائمة (تأثير فوري)
+            const taskElement = document.querySelector(`#availableTasksList .proof-item button[onclick*="openTaskDetailPage(${taskId})"]`)?.closest('.proof-item');
+            if (taskElement) {
+                taskElement.style.transition = 'opacity 0.3s, transform 0.3s';
+                taskElement.style.opacity = '0';
+                taskElement.style.transform = 'scale(0.95)';
+                setTimeout(() => taskElement.remove(), 300);
+            }
+            // ✅ تحديث القائمة لضمان التطابق مع السيرفر
             if (!document.getElementById('availableTasks')?.classList.contains('hidden')) {
                 loadAvailableTasks();
             }
