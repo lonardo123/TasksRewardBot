@@ -3341,7 +3341,7 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/disputes - نسخة مبسطة ومضمونة
+// ✅ GET /api/admin/disputes - مطابق تماماً لمخطط قاعدة البيانات
 app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
@@ -3361,7 +3361,9 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
         t.target_url,
         t.creator_id,
         t.executor_reward,
+        eu.username as executor_username,
         eu.telegram_id as executor_telegram,
+        cu.username as creator_username,
         cu.telegram_id as creator_telegram
       FROM task_disputes td
       INNER JOIN task_executions te ON td.execution_id = te.id
@@ -3376,16 +3378,13 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
-    // ✅ إرسال تفاصيل الخطأ للفرونت إند للمساعدة في التشخيص
     res.status(500).json({ 
       success: false, 
       message: "Failed to load disputes", 
-      error: err.message,
-      hint: "Check if all columns exist in your database schema"
+      error: err.message 
     });
   }
 });
-
 // ✅ GET /api/admin/commission-stats
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
