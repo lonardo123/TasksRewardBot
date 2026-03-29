@@ -3291,7 +3291,7 @@ function isAdminAuthenticated(req, res, next) {
   }
 }
 
-// ✅ GET /api/admin/stats - إحصائيات لوحة التحكم
+// ✅ GET /api/admin/stats
 app.get('/api/admin/stats', isAdminAuthenticated, async (req, res) => {
   try {
     const [pendingProofs, openDisputes, approvedToday, commissionStats] = await Promise.all([
@@ -3301,9 +3301,10 @@ app.get('/api/admin/stats', isAdminAuthenticated, async (req, res) => {
       pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved'`)
     ]);
     
+    // ✅ التصحيح: data: {...} بدون مسافة بعد النقطتين
     res.json({
       success: true,
-       {  // ✅ أضف "data:" هنا
+      data: {
         pending_proofs: parseInt(pendingProofs.rows[0].count),
         open_disputes: parseInt(openDisputes.rows[0].count),
         approved_today: parseInt(approvedToday.rows[0].count),
@@ -3317,7 +3318,7 @@ app.get('/api/admin/stats', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/pending-proofs - جلب كل الإثباتات المعلقة
+// ✅ GET /api/admin/pending-proofs
 app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   try {
     const proofs = await pool.query(`
@@ -3333,7 +3334,8 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
       ORDER BY te.submitted_at ASC
     `);
     
-    res.json({ success: true,  proofs.rows });  // ✅ أضف "data:" هنا
+    // ✅ التصحيح: data: proofs.rows
+    res.json({ success: true, data: proofs.rows });
     
   } catch (err) {
     console.error('❌ /api/admin/pending-proofs:', err);
@@ -3341,7 +3343,7 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/disputes - جلب كل النزاعات المفتوحة
+// ✅ GET /api/admin/disputes
 app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
@@ -3359,7 +3361,8 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY td.created_at DESC
     `);
     
-    res.json({ success: true,  disputes.rows });  // ✅ أضف "data:" هنا
+    // ✅ التصحيح: data: disputes.rows
+    res.json({ success: true, data: disputes.rows });
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
@@ -3367,7 +3370,7 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/commission-stats - إحصائيات العمولات
+// ✅ GET /api/admin/commission-stats
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
     const [today, week, month, allTime] = await Promise.all([
@@ -3377,9 +3380,10 @@ app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) =>
       pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved'`)
     ]);
     
+    // ✅ التصحيح: data: {...}
     res.json({
       success: true,
-       {  // ✅ أضف "data:" هنا
+      data: {
         today: parseFloat(today.rows[0].total),
         week: parseFloat(week.rows[0].total),
         month: parseFloat(month.rows[0].total),
@@ -3393,7 +3397,7 @@ app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) =>
   }
 });
 
-// ✅ POST /api/admin/task-disputes/:id/resolve - حل النزاع
+// ✅ POST /api/admin/task-disputes/:id/resolve
 app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (req, res) => {
   const client = await pool.connect();
   try {
