@@ -2341,7 +2341,8 @@ async function validateUser(telegramId) {
   return result.rows.length > 0;
 }
 
-// ======================= ✅  تنفيذات المستخدم TASK =======================
+// ======================= ✅ تنفيذات المستخدم TASK =======================
+
 app.get('/api/tasks/user-executions', async (req, res) => {
   try {
     const { user_id } = req.query;
@@ -2361,6 +2362,8 @@ app.get('/api/tasks/user-executions', async (req, res) => {
         te.proof,
         te.status,
         te.submitted_at,
+        te.reviewed_at,
+        te.reviewed_by,
         te.payment_amount,
         t.title as task_title,
         t.description as task_description,
@@ -3385,36 +3388,7 @@ app.get('/api/tasks/:id', async (req, res) => {
   }
 });
 
-// ======================= 🔄 CRON: CLEANUP EXPIRED =======================
-
-// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 دقيقة)
-setInterval(async () => {
-  try {
-    const now = new Date();
-    
-    // ✅ تنظيف حالة 'applied' فقط (الحجوزات التي لم تُقدّم إثباتاً)
-    const { rows } = await pool.query(`
-      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
-      FROM task_executions te
-      JOIN tasks t ON t.id = te.task_id
-      WHERE te.status = 'applied'  ← فقط الحجوزات
-        AND te.proof IS NULL
-        AND te.submitted_at IS NOT NULL
-        AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
-    `, [now]);
-    
-    for (const exec of rows) {
-      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
-      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
-    }
-    
-    if (rows.length > 0) {
-      console.log(`✅ Cleaned ${rows.length} expired applications`);
-    }
-  } catch (err) {
-    console.error('❌ Expired applications cleanup error:', err);
-  }
-}, 60 * 1000); // كل 1 دقيقة// ======================= END TASKS SYSTEM API =======================
+// ======================= END TASKS SYSTEM API =======================
 
 
 /* =========================
@@ -3473,6 +3447,121 @@ async function distributeReferralCommission(telegramId, earningAmount) {
     console.error("distributeReferralCommission error:", err);
   }
 }
+
+// ======================= 🔄 CRON: CLEANUP EXPIRED =======================
+
+// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 ساعة)
+setInterval(async () => {
+  try {
+    const now = new Date();
+    
+    // ✅ تنظيف حالة 'applied' فقط (الحجوزات التي لم تُقدّم إثباتاً)
+    const { rows } = await pool.query(`
+      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
+      FROM task_executions te
+      JOIN tasks t ON t.id = te.task_id
+      WHERE te.status = 'applied'  ← فقط الحجوزات
+        AND te.proof IS NULL
+        AND te.submitted_at IS NOT NULL
+        AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
+    `, [now]);
+    
+    for (const exec of rows) {
+      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
+      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
+    }
+    
+    if (rows.length > 0) {
+      console.log(`✅ Cleaned ${rows.length} expired applications`);
+    }
+  } catch (err) {
+    console.error('❌ Expired applications cleanup error:', err);
+  }
+}, 60 * 60 * 1000); // كل 1 ساعة
+// ======================= 🔄 CRON: AUTO-APPROVE PROOFS =======================
+
+// ✅ التحقق من الإثباتات المعلقة وقبولها تلقائياً بعد 24 ساعة
+setInterval(async () => {
+  const client = await pool.connect();
+  try {
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+    
+    // ✅ جلب الإثباتات المعلقة منذ أكثر من 24 ساعة
+    const { rows } = await client.query(`
+      SELECT 
+        te.id,
+        te.task_id,
+        te.executor_id,
+        te.payment_amount,
+        te.commission_amount,
+        t.creator_id,
+        t.title as task_title
+      FROM task_executions te
+      JOIN tasks t ON t.id = te.task_id
+      WHERE te.status = 'pending'
+        AND te.proof IS NOT NULL
+        AND te.submitted_at < $1
+        AND t.deleted_at IS NULL
+    `, [twentyFourHoursAgo]);
+    
+    for (const exec of rows) {
+      try {
+        await client.query('BEGIN');
+        
+        // ✅ دفع المكافأة للمنفيذ
+        await client.query(
+          'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2',
+          [exec.payment_amount, exec.executor_id]
+        );
+        
+        // ✅ خصم التكلفة الكاملة من المهمة (مكافأة + عمولة)
+        const totalCost = parseFloat(exec.payment_amount) + parseFloat(exec.commission_amount || 0);
+        await client.query(
+          'UPDATE tasks SET spent = spent + $1 WHERE id = $2',
+          [totalCost, exec.task_id]
+        );
+        
+        // ✅ تحديث حالة التنفيذ إلى approved
+        await client.query(
+          `UPDATE task_executions 
+           SET status = 'approved', reviewed_at = NOW(), reviewed_by = 'auto'
+           WHERE id = $1`,
+          [exec.id]
+        );
+        
+        await client.query('COMMIT');
+        
+        console.log(`✅ Auto-approved execution ${exec.id} for task ${exec.task_id}`);
+        
+        // ✅ إرسال إشعار للأدمن (اختياري)
+        if (typeof bot !== 'undefined' && bot?.telegram && process.env.ADMIN_ID) {
+          try {
+            await bot.telegram.sendMessage(
+              process.env.ADMIN_ID,
+              `✅ Auto-Approved Proof:\n📋 Task: ${exec.task_title} (#${exec.task_id})\n👤 Executor: ${exec.executor_id}\n💰 Paid: $${exec.payment_amount}`
+            );
+          } catch (_) {}
+        }
+        
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(`❌ Auto-approve failed for execution ${exec.id}:`, err);
+      }
+    }
+    
+    if (rows.length > 0) {
+      console.log(`✅ Auto-approved ${rows.length} pending proof(s) after 24 hours`);
+    }
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('❌ Auto-approve cron error:', err);
+  } finally {
+    client.release();
+  }
+}, 3 * 60 * 60 * 1000); // كل 3 ساعات
+
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
