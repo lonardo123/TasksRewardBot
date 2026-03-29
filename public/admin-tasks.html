@@ -479,7 +479,6 @@ function viewTaskDetail(taskId) {
 }
 
 // ================= RESOLVE MODAL =================
-let currentDispute = null;
 
 function openResolveModal(disputeId, executionId, proof = '') {
   currentDispute = { id: disputeId, executionId, proof };
@@ -488,7 +487,7 @@ function openResolveModal(disputeId, executionId, proof = '') {
   document.getElementById('resolveDecision').value = 'executor';
   document.getElementById('resolveNote').value = '';
   
-  // ✅ عرض الإثبات داخل المودال للمراجعة السريعة
+  // ✅ عرض الإثبات داخل المودال
   const proofContent = document.getElementById('resolveProofContent');
   if (proofContent) {
     if (proof && proof.trim()) {
@@ -505,38 +504,6 @@ function openResolveModal(disputeId, executionId, proof = '') {
   
   openModal('resolveModal');
 }
-
-async function submitResolution() {
-  const payout = document.getElementById('resolveDecision').value;
-  const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
-  
-  if (!currentDispute) return;
-  
-  try {
-    const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        admin_id: REQUIRED_ADMIN_ID,
-        payout_to: payout,
-        resolution
-      })
-    });
-    const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Dispute resolved', 'success');
-      closeModal('resolveModal');
-      loadDisputes();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + data.message, 'error');
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
-}
-
 // ================= COMMISSION STATS =================
 async function loadCommissionStats() {
   const content = document.getElementById('statsContent');
