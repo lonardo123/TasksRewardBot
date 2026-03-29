@@ -3353,7 +3353,7 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
         td.resolved_at,
         td.resolution,
         td.execution_id,
-        te.id as execution_id_value,
+        te.id as exec_id,
         te.task_id,
         te.executor_id,
         te.proof as executor_proof,
@@ -3378,8 +3378,8 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY td.created_at DESC
     `);
     
-    // ✅ استخدام متغير لتجنب مشكلة المسافات
-    const responseData = { success: true,  disputes.rows };
+    // ✅ الحل المضمون: استخدم متغيراً مؤقتاً
+    const responseData = { success: true, data: disputes.rows };
     res.json(responseData);
     
   } catch (err) {
