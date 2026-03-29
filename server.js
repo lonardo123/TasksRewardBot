@@ -3342,49 +3342,31 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
 });
 
 // ✅ GET /api/admin/disputes - مطابق تماماً لمخطط قاعدة البيانات
-app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
+app.get('/api/admin/task-disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
       SELECT 
-        td.id,
-        td.execution_id,
-        td.reason as dispute_reason,
-        td.status,
-        td.created_at as dispute_created_at,
-        te.task_id,
-        te.executor_id,
-        te.proof as executor_proof,
-        te.payment_amount,
-        te.submitted_at as proof_submitted_at,
-        t.title as task_title,
-        t.description as task_description,
-        t.target_url,
-        t.creator_id,
-        t.executor_reward,
-        eu.username as executor_username,
-        eu.telegram_id as executor_telegram,
-        cu.username as creator_username,
-        cu.telegram_id as creator_telegram
-      FROM task_disputes td
-      INNER JOIN task_executions te ON td.execution_id = te.id
-      INNER JOIN tasks t ON te.task_id = t.id
-      LEFT JOIN users eu ON te.executor_id = eu.telegram_id
-      LEFT JOIN users cu ON t.creator_id = cu.telegram_id
-      WHERE td.status = 'open'
-      ORDER BY td.created_at DESC
+        d.id, d.reason, d.status, d.created_at, d.resolved_at, d.resolution,
+        te.task_id, te.executor_id, te.proof, te.payment_amount, te.status as execution_status,
+        t.title as task_title, t.creator_id, t.description as task_description,
+        u1.username as executor_username, u2.username as creator_username
+      FROM task_disputes d
+      JOIN task_executions te ON d.execution_id = te.id
+      JOIN tasks t ON te.task_id = t.id
+      LEFT JOIN users u1 ON te.executor_id = u1.telegram_id
+      LEFT JOIN users u2 ON t.creator_id = u2.telegram_id
+      WHERE d.status = 'open'
+      ORDER BY d.created_at DESC
     `);
     
-    res.json({ success: true,  disputes.rows });
+    res.json({ success: true, data: disputes.rows });
     
   } catch (err) {
-    console.error('❌ /api/admin/disputes:', err);
-    res.status(500).json({ 
-      success: false, 
-      message: "Failed to load disputes", 
-      error: err.message 
-    });
+    console.error('❌ /api/admin/task-disputes:', err);
+    res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
   }
 });
+
 // ✅ GET /api/admin/commission-stats
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
