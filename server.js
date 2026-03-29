@@ -3301,7 +3301,6 @@ app.get('/api/admin/stats', isAdminAuthenticated, async (req, res) => {
       pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved'`)
     ]);
     
-    // ✅ التصحيح: data: {...} بدون مسافة بعد النقطتين
     res.json({
       success: true,
       data: {
@@ -3334,7 +3333,6 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
       ORDER BY te.submitted_at ASC
     `);
     
-    // ✅ التصحيح: data: proofs.rows
     res.json({ success: true, data: proofs.rows });
     
   } catch (err) {
@@ -3343,7 +3341,7 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/disputes - جلب كل النزاعات المفتوحة مع التفاصيل
+// ✅ GET /api/admin/disputes
 app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
@@ -3378,15 +3376,14 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY td.created_at DESC
     `);
     
-    // ✅ التصحيح النهائي: استخدم data: disputes.rows
-    res.json({ success: true,  disputes.rows });
+    res.json({ success: true, data: disputes.rows });
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
     res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
   }
 });
-    
+
 // ✅ GET /api/admin/commission-stats
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
@@ -3397,7 +3394,6 @@ app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) =>
       pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved'`)
     ]);
     
-    // ✅ التصحيح: data: {...}
     res.json({
       success: true,
       data: {
