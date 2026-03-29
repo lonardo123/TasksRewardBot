@@ -3343,15 +3343,32 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   }
 });
 
-// ✅ GET /api/admin/disputes
+// ✅ GET /api/admin/disputes - جلب كل النزاعات المفتوحة مع التفاصيل
 app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
       SELECT 
-        td.id, td.execution_id, td.reason, td.status, td.created_at,
-        te.task_id, te.executor_id, te.payment_amount, te.commission_amount,
-        t.title as task_title, t.creator_id,
-        eu.username as executor_username, cu.username as creator_username
+        td.id,
+        td.execution_id,
+        td.reason as dispute_reason,
+        td.status,
+        td.created_at as dispute_created_at,
+        te.task_id,
+        te.executor_id,
+        te.proof as executor_proof,
+        te.payment_amount,
+        te.commission_amount,
+        te.submitted_at as proof_submitted_at,
+        t.title as task_title,
+        t.description as task_description,
+        t.proof_requirements,
+        t.target_url,
+        t.creator_id,
+        t.executor_reward,
+        eu.username as executor_username,
+        eu.telegram_id as executor_telegram,
+        cu.username as creator_username,
+        cu.telegram_id as creator_telegram
       FROM task_disputes td
       JOIN task_executions te ON td.execution_id = te.id
       JOIN tasks t ON te.task_id = t.id
@@ -3361,15 +3378,14 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY td.created_at DESC
     `);
     
-    // ✅ التصحيح: data: disputes.rows
-    res.json({ success: true, data: disputes.rows });
+    res.json({ success: true,  disputes.rows });
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
     res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
   }
 });
-
+    
 // ✅ GET /api/admin/commission-stats
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
