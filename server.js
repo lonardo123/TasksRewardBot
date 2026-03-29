@@ -2317,29 +2317,6 @@ app.get("/api/contact/history", async (req, res) => {
 
 // ======================= 📝 TASKS SYSTEM API - FULL COMPATIBLE =======================
 
-// ======================= 🔐 AUTH MIDDLEWARE =======================
-
-// ✅ Admin Authentication - يدعم query و body
-function isAdminAuthenticated(req, res, next) {
-  const { user_id: queryUserId, admin_key } = req.query;
-  const { admin_id: bodyAdminId } = req.body;
-  const ADMIN_ID = process.env.ADMIN_ID || '7171208519';
-  
-  const userIdToCheck = queryUserId || bodyAdminId;
-  
-  if (userIdToCheck?.toString() === ADMIN_ID || admin_key === process.env.ADMIN_SECRET) {
-    next();
-  } else {
-    res.status(403).json({ success: false, message: "Unauthorized: Admin access required" });
-  }
-}
-
-// ✅ User Authentication - بسيط للتحقق من وجود المستخدم
-async function validateUser(telegramId) {
-  if (!telegramId || !/^\d+$/.test(telegramId.toString())) return false;
-  const result = await pool.query('SELECT 1 FROM users WHERE telegram_id = $1', [telegramId]);
-  return result.rows.length > 0;
-}
 
 // ======================= ✅ تنفيذات المستخدم TASK =======================
 
@@ -3045,98 +3022,6 @@ app.post('/api/tasks/:id/proofs/:proofId/dispute', async (req, res) => {
   }
 });
 
-app.get('/api/admin/task-disputes', isAdminAuthenticated, async (req, res) => {
-  try {
-    const disputes = await pool.query(`
-      SELECT 
-        d.id, d.reason, d.status, d.created_at, d.resolved_at, d.resolution,
-        te.task_id, te.executor_id, te.proof, te.payment_amount, te.status as execution_status,
-        t.title as task_title, t.creator_id, t.description as task_description,
-        u1.username as executor_username, u2.username as creator_username
-      FROM task_disputes d
-      JOIN task_executions te ON d.execution_id = te.id
-      JOIN tasks t ON te.task_id = t.id
-      LEFT JOIN users u1 ON te.executor_id = u1.telegram_id
-      LEFT JOIN users u2 ON t.creator_id = u2.telegram_id
-      WHERE d.status = 'open'
-      ORDER BY d.created_at DESC
-    `);
-    
-    res.json({ success: true, data: disputes.rows });
-    
-  } catch (err) {
-    console.error('❌ /api/admin/task-disputes:', err);
-    res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
-  }
-});
-
-app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { id: disputeId } = req.params;
-    const { resolution, payout_to, admin_id } = req.body;
-    
-    const dispute = await client.query('SELECT * FROM task_disputes WHERE id = $1', [disputeId]);
-    if (dispute.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Dispute not found" });
-    }
-    
-    const exec = await client.query(
-      'SELECT * FROM task_executions WHERE id = $1', 
-      [dispute.rows[0].execution_id]
-    );
-    if (exec.rows.length === 0) {
-      return res.status(404).json({ success: false, message: "Execution not found" });
-    }
-    
-    await client.query('BEGIN');
-    
-    if (payout_to === 'executor') {
-      await client.query(
-        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', 
-        [exec.rows[0].payment_amount, exec.rows[0].executor_id]
-      );
-      const totalCost = exec.rows[0].payment_amount * 1.20;
-      await client.query(
-        'UPDATE tasks SET spent = spent + $1 WHERE id = $2', 
-        [totalCost, exec.rows[0].task_id]
-      );
-      await client.query(
-        'UPDATE task_executions SET status = $1 WHERE id = $2', 
-        ['approved', exec.rows[0].id]
-      );
-    } else if (payout_to === 'none') {
-      const task = await client.query('SELECT creator_id FROM tasks WHERE id = $1', [exec.rows[0].task_id]);
-      if (task.rows.length > 0) {
-        await client.query(
-          'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2', 
-          [exec.rows[0].payment_amount, task.rows[0].creator_id]
-        );
-      }
-      await client.query(
-        'UPDATE task_executions SET status = $1 WHERE id = $2', 
-        ['rejected', exec.rows[0].id]
-      );
-    }
-    
-    await client.query(`
-      UPDATE task_disputes 
-      SET status = 'resolved', resolved_at = NOW(), resolved_by = $1, resolution = $2
-      WHERE id = $3
-    `, [admin_id || process.env.ADMIN_ID, resolution, disputeId]);
-    
-    await client.query('COMMIT');
-    res.json({ success: true, message: "Dispute resolved successfully" });
-    
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ Resolve dispute:', err);
-    res.status(500).json({ success: false, message: "Failed to resolve: " + err.message });
-  } finally {
-    client.release();
-  }
-});
-
 // ======================= 💰 FUND & WITHDRAW =======================
 
 app.post('/api/tasks/:id/fund', async (req, res) => {
@@ -3392,6 +3277,263 @@ app.get('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// ======================= ⚙️ ADMIN PANEL ROUTES =======================
+
+// ✅ Middleware للتحقق من صلاحية الأدمن
+function isAdminAuthenticated(req, res, next) {
+  const adminId = req.query.user_id || req.body.user_id || req.body.admin_id;
+  const REQUIRED_ADMIN_ID = process.env.ADMIN_ID || "7171208519";
+  
+  if (adminId?.toString().trim() === REQUIRED_ADMIN_ID) {
+    next();
+  } else {
+    res.status(403).json({ success: false, message: "Admin access required" });
+  }
+}
+
+// ✅ GET /api/admin/stats - إحصائيات لوحة التحكم
+app.get('/api/admin/stats', isAdminAuthenticated, async (req, res) => {
+  try {
+    const [pendingProofs, openDisputes, approvedToday, commissionStats] = await Promise.all([
+      // عدد الإثباتات المعلقة
+      pool.query(`
+        SELECT COUNT(*) as count 
+        FROM task_executions 
+        WHERE status = 'pending' AND proof IS NOT NULL
+      `),
+      
+      // عدد النزاعات المفتوحة
+      pool.query(`
+        SELECT COUNT(*) as count 
+        FROM task_disputes 
+        WHERE status = 'open'
+      `),
+      
+      // المهام المعتمدة اليوم
+      pool.query(`
+        SELECT COUNT(*) as count 
+        FROM task_executions 
+        WHERE status = 'approved' 
+          AND reviewed_at::date = CURRENT_DATE
+      `),
+      
+      // إجمالي عمولة الأدمن (20% من كل مهمة)
+      pool.query(`
+        SELECT COALESCE(SUM(commission_amount), 0) as total 
+        FROM task_executions 
+        WHERE status = 'approved'
+      `)
+    ]);
+    
+    res.json({
+      success: true,
+       {
+        pending_proofs: parseInt(pendingProofs.rows[0].count),
+        open_disputes: parseInt(openDisputes.rows[0].count),
+        approved_today: parseInt(approvedToday.rows[0].count),
+        admin_commission: parseFloat(commissionStats.rows[0].total)
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ /api/admin/stats:', err);
+    res.status(500).json({ success: false, message: "Failed to load stats", error: err.message });
+  }
+});
+
+// ✅ GET /api/admin/pending-proofs - جلب كل الإثباتات المعلقة
+app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
+  try {
+    const proofs = await pool.query(`
+      SELECT 
+        te.id,
+        te.task_id,
+        te.executor_id,
+        te.proof,
+        te.status,
+        te.submitted_at,
+        te.payment_amount,
+        te.commission_amount,
+        t.title as task_title,
+        t.description as task_description,
+        t.executor_reward,
+        t.creator_id,
+        u.username as executor_username
+      FROM task_executions te
+      JOIN tasks t ON t.id = te.task_id
+      LEFT JOIN users u ON te.executor_id = u.telegram_id
+      WHERE te.status = 'pending' 
+        AND te.proof IS NOT NULL
+        AND t.deleted_at IS NULL
+      ORDER BY te.submitted_at ASC
+    `);
+    
+    res.json({ success: true,  proofs.rows });
+    
+  } catch (err) {
+    console.error('❌ /api/admin/pending-proofs:', err);
+    res.status(500).json({ success: false, message: "Failed to load pending proofs", error: err.message });
+  }
+});
+
+// ✅ GET /api/admin/disputes - جلب كل النزاعات المفتوحة
+app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
+  try {
+    const disputes = await pool.query(`
+      SELECT 
+        td.id,
+        td.execution_id,
+        td.reason,
+        td.status,
+        td.created_at,
+        te.task_id,
+        te.executor_id,
+        te.payment_amount,
+        t.title as task_title,
+        t.creator_id,
+        eu.username as executor_username,
+        cu.username as creator_username
+      FROM task_disputes td
+      JOIN task_executions te ON td.execution_id = te.id
+      JOIN tasks t ON te.task_id = t.id
+      LEFT JOIN users eu ON te.executor_id = eu.telegram_id
+      LEFT JOIN users cu ON t.creator_id = cu.telegram_id
+      WHERE td.status = 'open'
+      ORDER BY td.created_at DESC
+    `);
+    
+    res.json({ success: true,  disputes.rows });
+    
+  } catch (err) {
+    console.error('❌ /api/admin/disputes:', err);
+    res.status(500).json({ success: false, message: "Failed to load disputes", error: err.message });
+  }
+});
+
+// ✅ GET /api/admin/commission-stats - إحصائيات العمولات
+app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
+  try {
+    const [today, week, month, allTime] = await Promise.all([
+      // اليوم
+      pool.query(`
+        SELECT COALESCE(SUM(commission_amount), 0) as total 
+        FROM task_executions 
+        WHERE status = 'approved' 
+          AND reviewed_at::date = CURRENT_DATE
+      `),
+      // الأسبوع
+      pool.query(`
+        SELECT COALESCE(SUM(commission_amount), 0) as total 
+        FROM task_executions 
+        WHERE status = 'approved' 
+          AND reviewed_at >= NOW() - INTERVAL '7 days'
+      `),
+      // الشهر
+      pool.query(`
+        SELECT COALESCE(SUM(commission_amount), 0) as total 
+        FROM task_executions 
+        WHERE status = 'approved' 
+          AND reviewed_at >= NOW() - INTERVAL '30 days'
+      `),
+      // الكل
+      pool.query(`
+        SELECT COALESCE(SUM(commission_amount), 0) as total 
+        FROM task_executions 
+        WHERE status = 'approved'
+      `)
+    ]);
+    
+    res.json({
+      success: true,
+       {
+        today: parseFloat(today.rows[0].total),
+        week: parseFloat(week.rows[0].total),
+        month: parseFloat(month.rows[0].total),
+        all_time: parseFloat(allTime.rows[0].total)
+      }
+    });
+    
+  } catch (err) {
+    console.error('❌ /api/admin/commission-stats:', err);
+    res.status(500).json({ success: false, message: "Failed to load commission stats", error: err.message });
+  }
+});
+
+// ✅ POST /api/admin/task-disputes/:id/resolve - حل النزاع
+app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { payout_to, resolution, admin_id } = req.body;
+    
+    await client.query('BEGIN');
+    
+    // ✅ جلب تفاصيل النزاع
+    const dispute = await client.query(`
+      SELECT td.*, te.task_id, te.executor_id, te.payment_amount, t.creator_id
+      FROM task_disputes td
+      JOIN task_executions te ON td.execution_id = te.id
+      JOIN tasks t ON te.task_id = t.id
+      WHERE td.id = $1::integer
+    `, [id]);
+    
+    if (dispute.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: "Dispute not found" });
+    }
+    
+    const d = dispute.rows[0];
+    
+    // ✅ تحديث حالة النزاع
+    await client.query(
+      `UPDATE task_disputes 
+       SET status = 'resolved', resolved_at = NOW(), resolved_by = $1::bigint, resolution = $2
+       WHERE id = $3::integer`,
+      [admin_id, resolution, id]
+    );
+    
+    // ✅ تنفيذ قرار الدفع
+    if (payout_to === 'executor') {
+      // دفع للمنفيذ
+      await client.query(
+        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2::bigint',
+        [d.payment_amount, d.executor_id]
+      );
+      await client.query(
+        'UPDATE task_executions SET status = \'approved\', reviewed_at = NOW() WHERE id = $1::integer',
+        [d.execution_id]
+      );
+      // تحديث الميزانية
+      const totalCost = parseFloat(d.payment_amount) + parseFloat(d.commission_amount || 0);
+      await client.query(
+        'UPDATE tasks SET spent = spent + $1 WHERE id = $2::integer',
+        [totalCost, d.task_id]
+      );
+    } else {
+      // لا دفع - إعادة للمعلن (الميزانية تُسترد تلقائياً عند الحذف أو تبقى كما هي)
+      await client.query(
+        'UPDATE task_executions SET status = \'rejected\', reviewed_at = NOW() WHERE id = $1::integer',
+        [d.execution_id]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    // ✅ توزيع عمولة الريفيرال إذا دُفع للمنفذ
+    if (payout_to === 'executor') {
+      await distributeReferralCommission(d.executor_id, d.payment_amount);
+    }
+    
+    res.json({ success: true, message: "Dispute resolved successfully" });
+    
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('❌ /api/admin/task-disputes/:id/resolve:', err);
+    res.status(500).json({ success: false, message: "Failed to resolve dispute", error: err.message });
+  } finally {
+    client.release();
+  }
+});
 // ======================= END TASKS SYSTEM API =======================
 
 
