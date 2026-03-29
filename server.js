@@ -3295,39 +3295,15 @@ function isAdminAuthenticated(req, res, next) {
 app.get('/api/admin/stats', isAdminAuthenticated, async (req, res) => {
   try {
     const [pendingProofs, openDisputes, approvedToday, commissionStats] = await Promise.all([
-      // عدد الإثباتات المعلقة
-      pool.query(`
-        SELECT COUNT(*) as count 
-        FROM task_executions 
-        WHERE status = 'pending' AND proof IS NOT NULL
-      `),
-      
-      // عدد النزاعات المفتوحة
-      pool.query(`
-        SELECT COUNT(*) as count 
-        FROM task_disputes 
-        WHERE status = 'open'
-      `),
-      
-      // المهام المعتمدة اليوم
-      pool.query(`
-        SELECT COUNT(*) as count 
-        FROM task_executions 
-        WHERE status = 'approved' 
-          AND reviewed_at::date = CURRENT_DATE
-      `),
-      
-      // إجمالي عمولة الأدمن (20% من كل مهمة)
-      pool.query(`
-        SELECT COALESCE(SUM(commission_amount), 0) as total 
-        FROM task_executions 
-        WHERE status = 'approved'
-      `)
+      pool.query(`SELECT COUNT(*) as count FROM task_executions WHERE status = 'pending' AND proof IS NOT NULL`),
+      pool.query(`SELECT COUNT(*) as count FROM task_disputes WHERE status = 'open'`),
+      pool.query(`SELECT COUNT(*) as count FROM task_executions WHERE status = 'approved' AND reviewed_at::date = CURRENT_DATE`),
+      pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved'`)
     ]);
     
     res.json({
       success: true,
-       {
+       {  // ✅ أضف "data:" هنا
         pending_proofs: parseInt(pendingProofs.rows[0].count),
         open_disputes: parseInt(openDisputes.rows[0].count),
         approved_today: parseInt(approvedToday.rows[0].count),
@@ -3346,29 +3322,18 @@ app.get('/api/admin/pending-proofs', isAdminAuthenticated, async (req, res) => {
   try {
     const proofs = await pool.query(`
       SELECT 
-        te.id,
-        te.task_id,
-        te.executor_id,
-        te.proof,
-        te.status,
-        te.submitted_at,
-        te.payment_amount,
-        te.commission_amount,
-        t.title as task_title,
-        t.description as task_description,
-        t.executor_reward,
-        t.creator_id,
+        te.id, te.task_id, te.executor_id, te.proof, te.status, te.submitted_at,
+        te.payment_amount, te.commission_amount, t.title as task_title,
+        t.description as task_description, t.executor_reward, t.creator_id,
         u.username as executor_username
       FROM task_executions te
       JOIN tasks t ON t.id = te.task_id
       LEFT JOIN users u ON te.executor_id = u.telegram_id
-      WHERE te.status = 'pending' 
-        AND te.proof IS NOT NULL
-        AND t.deleted_at IS NULL
+      WHERE te.status = 'pending' AND te.proof IS NOT NULL AND t.deleted_at IS NULL
       ORDER BY te.submitted_at ASC
     `);
     
-    res.json({ success: true,  proofs.rows });
+    res.json({ success: true,  proofs.rows });  // ✅ أضف "data:" هنا
     
   } catch (err) {
     console.error('❌ /api/admin/pending-proofs:', err);
@@ -3381,18 +3346,10 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
   try {
     const disputes = await pool.query(`
       SELECT 
-        td.id,
-        td.execution_id,
-        td.reason,
-        td.status,
-        td.created_at,
-        te.task_id,
-        te.executor_id,
-        te.payment_amount,
-        t.title as task_title,
-        t.creator_id,
-        eu.username as executor_username,
-        cu.username as creator_username
+        td.id, td.execution_id, td.reason, td.status, td.created_at,
+        te.task_id, te.executor_id, te.payment_amount, te.commission_amount,
+        t.title as task_title, t.creator_id,
+        eu.username as executor_username, cu.username as creator_username
       FROM task_disputes td
       JOIN task_executions te ON td.execution_id = te.id
       JOIN tasks t ON te.task_id = t.id
@@ -3402,7 +3359,7 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
       ORDER BY td.created_at DESC
     `);
     
-    res.json({ success: true,  disputes.rows });
+    res.json({ success: true,  disputes.rows });  // ✅ أضف "data:" هنا
     
   } catch (err) {
     console.error('❌ /api/admin/disputes:', err);
@@ -3414,38 +3371,15 @@ app.get('/api/admin/disputes', isAdminAuthenticated, async (req, res) => {
 app.get('/api/admin/commission-stats', isAdminAuthenticated, async (req, res) => {
   try {
     const [today, week, month, allTime] = await Promise.all([
-      // اليوم
-      pool.query(`
-        SELECT COALESCE(SUM(commission_amount), 0) as total 
-        FROM task_executions 
-        WHERE status = 'approved' 
-          AND reviewed_at::date = CURRENT_DATE
-      `),
-      // الأسبوع
-      pool.query(`
-        SELECT COALESCE(SUM(commission_amount), 0) as total 
-        FROM task_executions 
-        WHERE status = 'approved' 
-          AND reviewed_at >= NOW() - INTERVAL '7 days'
-      `),
-      // الشهر
-      pool.query(`
-        SELECT COALESCE(SUM(commission_amount), 0) as total 
-        FROM task_executions 
-        WHERE status = 'approved' 
-          AND reviewed_at >= NOW() - INTERVAL '30 days'
-      `),
-      // الكل
-      pool.query(`
-        SELECT COALESCE(SUM(commission_amount), 0) as total 
-        FROM task_executions 
-        WHERE status = 'approved'
-      `)
+      pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved' AND reviewed_at::date = CURRENT_DATE`),
+      pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved' AND reviewed_at >= NOW() - INTERVAL '7 days'`),
+      pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved' AND reviewed_at >= NOW() - INTERVAL '30 days'`),
+      pool.query(`SELECT COALESCE(SUM(commission_amount), 0) as total FROM task_executions WHERE status = 'approved'`)
     ]);
     
     res.json({
       success: true,
-       {
+       {  // ✅ أضف "data:" هنا
         today: parseFloat(today.rows[0].total),
         week: parseFloat(week.rows[0].total),
         month: parseFloat(month.rows[0].total),
@@ -3468,9 +3402,8 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
     
     await client.query('BEGIN');
     
-    // ✅ جلب تفاصيل النزاع
     const dispute = await client.query(`
-      SELECT td.*, te.task_id, te.executor_id, te.payment_amount, t.creator_id
+      SELECT td.*, te.task_id, te.executor_id, te.payment_amount, te.commission_amount, t.creator_id
       FROM task_disputes td
       JOIN task_executions te ON td.execution_id = te.id
       JOIN tasks t ON te.task_id = t.id
@@ -3484,42 +3417,22 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
     
     const d = dispute.rows[0];
     
-    // ✅ تحديث حالة النزاع
     await client.query(
-      `UPDATE task_disputes 
-       SET status = 'resolved', resolved_at = NOW(), resolved_by = $1::bigint, resolution = $2
-       WHERE id = $3::integer`,
+      `UPDATE task_disputes SET status = 'resolved', resolved_at = NOW(), resolved_by = $1::bigint, resolution = $2 WHERE id = $3::integer`,
       [admin_id, resolution, id]
     );
     
-    // ✅ تنفيذ قرار الدفع
     if (payout_to === 'executor') {
-      // دفع للمنفيذ
-      await client.query(
-        'UPDATE users SET balance = balance + $1 WHERE telegram_id = $2::bigint',
-        [d.payment_amount, d.executor_id]
-      );
-      await client.query(
-        'UPDATE task_executions SET status = \'approved\', reviewed_at = NOW() WHERE id = $1::integer',
-        [d.execution_id]
-      );
-      // تحديث الميزانية
+      await client.query('UPDATE users SET balance = balance + $1 WHERE telegram_id = $2::bigint', [d.payment_amount, d.executor_id]);
+      await client.query('UPDATE task_executions SET status = \'approved\', reviewed_at = NOW() WHERE id = $1::integer', [d.execution_id]);
       const totalCost = parseFloat(d.payment_amount) + parseFloat(d.commission_amount || 0);
-      await client.query(
-        'UPDATE tasks SET spent = spent + $1 WHERE id = $2::integer',
-        [totalCost, d.task_id]
-      );
+      await client.query('UPDATE tasks SET spent = spent + $1 WHERE id = $2::integer', [totalCost, d.task_id]);
     } else {
-      // لا دفع - إعادة للمعلن (الميزانية تُسترد تلقائياً عند الحذف أو تبقى كما هي)
-      await client.query(
-        'UPDATE task_executions SET status = \'rejected\', reviewed_at = NOW() WHERE id = $1::integer',
-        [d.execution_id]
-      );
+      await client.query('UPDATE task_executions SET status = \'rejected\', reviewed_at = NOW() WHERE id = $1::integer', [d.execution_id]);
     }
     
     await client.query('COMMIT');
     
-    // ✅ توزيع عمولة الريفيرال إذا دُفع للمنفذ
     if (payout_to === 'executor') {
       await distributeReferralCommission(d.executor_id, d.payment_amount);
     }
