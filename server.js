@@ -2432,7 +2432,7 @@ app.get('/api/tasks/available', async (req, res) => {
         (
           SELECT COUNT(*) 
           FROM task_executions 
-          WHERE task_id = t.id AND status = 'pending'
+          WHERE task_id = t.id AND status = ('applied', 'pending')
         ) as pending_count
       FROM tasks t
       WHERE t.is_active = true 
