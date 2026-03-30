@@ -2319,46 +2319,7 @@ app.get("/api/contact/history", async (req, res) => {
 
 // ======================= ✅ تنفيذات المستخدم TASK =======================
 
-app.get('/api/tasks/user-executions', async (req, res) => {
-  try {
-    const { user_id } = req.query;
-    
-    if (!user_id || !/^\d+$/.test(user_id.toString())) {
-      return res.status(400).json({ success: false, message: "Valid user_id required" });
-    }
-    
-    // ✅ أضف LEFT JOIN مع task_disputes لجلب resolution
-    const executions = await pool.query(`
-      SELECT 
-        te.id, te.task_id, te.executor_id, te.proof, te.status, te.submitted_at, 
-        te.reviewed_at, te.reviewed_by, te.payment_amount,
-        t.title as task_title, t.description as task_description, t.executor_reward,
-        td.resolution as admin_resolution
-      FROM task_executions te
-      JOIN tasks t ON t.id = te.task_id
-      LEFT JOIN task_disputes td ON te.id = td.execution_id
-      WHERE te.executor_id = $1::bigint
-      ORDER BY te.submitted_at DESC
-    `, [user_id]);
-    
-    const executionsWithDispute = await Promise.all(
-      executions.rows.map(async (exec) => {
-        const dispute = await pool.query('SELECT id FROM task_disputes WHERE execution_id = $1', [exec.id]);
-        return { 
-          ...exec, 
-          has_dispute: dispute.rows.length > 0 
-        };
-      })
-    );
-    
-    // ✅ التصحيح: استخدم data: بدون مسافة
-    res.json({ success: true,  executionsWithDispute });
-    
-  } catch (err) {  // ← catch يجب أن يكون داخل try
-    console.error('❌ /api/tasks/user-executions:', err);
-    res.status(500).json({ success: false, message: "Failed to load executions", error: err.message });
-  }
-});  // ← هذا القوس يغلق app.get() في النهاية فقط
+app.get('/api/tasks/user-executions',async(req,res)=>{try{const{user_id}=req.query;if(!user_id||!/^\d+$/.test(user_id.toString())){return res.status(400).json({success:false,message:"Valid user_id required"});}const executions=await pool.query(`SELECT te.id,te.task_id,te.executor_id,te.proof,te.status,te.submitted_at,te.reviewed_at,te.reviewed_by,te.payment_amount,t.title as task_title,t.description as task_description,t.executor_reward,td.resolution as admin_resolution FROM task_executions te JOIN tasks t ON t.id=te.task_id LEFT JOIN task_disputes td ON te.id=td.execution_id WHERE te.executor_id=$1::bigint ORDER BY te.submitted_at DESC`,[user_id]);const executionsWithDispute=await Promise.all(executions.rows.map(async(exec)=>{const dispute=await pool.query('SELECT id FROM task_disputes WHERE execution_id=$1',[exec.id]);return{...exec,has_dispute:dispute.rows.length>0};}));const dataToSend=executionsWithDispute;res.json({success:true,data:dataToSend});}catch(err){console.error('❌ /api/tasks/user-executions:',err);res.status(500).json({success:false,message:"Failed to load executions",error:err.message});}});في النهاية فقط
 
 // ======================= 📊 TASKS: AVAILABLE =======================
 
@@ -2743,59 +2704,7 @@ app.post('/api/tasks/:id/submit-proof', async (req, res) => {
 
 // ======================= 📋 TASK PROOFS =======================
 
-app.get('/api/tasks/:id/proofs', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { user_id } = req.query;
-    
-    if (!id) {
-      return res.status(400).json({ success: false, message: "Task ID required" });
-    }
-    
-    const task = await pool.query('SELECT creator_id, deleted_at FROM tasks WHERE id = $1', [id]);
-    if (task.rows.length === 0 || task.rows[0].deleted_at) {
-      return res.status(404).json({ success: false, message: "Task not found" });
-    }
-    
-    const isCreator = task.rows[0].creator_id?.toString() === user_id;
-    let query, params;
-    
-    if (isCreator) {
-      query = `
-        SELECT 
-          te.id, te.proof, te.status, te.submitted_at, te.payment_amount, te.commission_amount, te.executor_id,
-          u.username as executor_username, u.telegram_id,
-          td.resolution as admin_resolution
-        FROM task_executions te
-        LEFT JOIN users u ON te.executor_id = u.telegram_id
-        LEFT JOIN task_disputes td ON te.id = td.execution_id
-        WHERE te.task_id = $1 AND te.proof IS NOT NULL
-        ORDER BY CASE WHEN te.status = 'pending' THEN 1 WHEN te.status = 'disputed' THEN 2 WHEN te.status = 'approved' THEN 3 WHEN te.status = 'rejected' THEN 4 ELSE 5 END, te.submitted_at DESC
-      `;
-      params = [id];
-    } else if (user_id) {
-      query = `
-        SELECT 
-          te.id, te.proof, te.status, te.submitted_at, te.payment_amount, te.executor_id,
-          td.resolution as admin_resolution
-        FROM task_executions te
-        LEFT JOIN task_disputes td ON te.id = td.execution_id
-        WHERE te.task_id = $1 AND te.executor_id = $2 AND te.proof IS NOT NULL
-        ORDER BY te.submitted_at DESC
-      `;
-      params = [id, user_id];
-    } else {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
-    
-    const proofs = await pool.query(query, params);
-    res.json({ success: true,  proofs.rows });
-    
-  } catch (err) {
-    console.error('❌ /api/tasks/:id/proofs:', err);
-    res.status(500).json({ success: false, message: "Failed to load proofs", error: err.message });
-  }
-});
+app.get('/api/tasks/:id/proofs',async(req,res)=>{try{const{id}=req.params;const{user_id}=req.query;if(!id){return res.status(400).json({success:false,message:"Task ID required"});}const task=await pool.query('SELECT creator_id,deleted_at FROM tasks WHERE id=$1',[id]);if(task.rows.length===0||task.rows[0].deleted_at){return res.status(404).json({success:false,message:"Task not found"});}const isCreator=task.rows[0].creator_id?.toString()===user_id;let query,params;if(isCreator){query=`SELECT te.id,te.proof,te.status,te.submitted_at,te.payment_amount,te.commission_amount,te.executor_id,u.username as executor_username,u.telegram_id,td.resolution as admin_resolution FROM task_executions te LEFT JOIN users u ON te.executor_id=u.telegram_id LEFT JOIN task_disputes td ON te.id=td.execution_id WHERE te.task_id=$1 AND te.proof IS NOT NULL ORDER BY CASE WHEN te.status='pending' THEN 1 WHEN te.status='disputed' THEN 2 WHEN te.status='approved' THEN 3 WHEN te.status='rejected' THEN 4 ELSE 5 END,te.submitted_at DESC`;params=[id];}else if(user_id){query=`SELECT te.id,te.proof,te.status,te.submitted_at,te.payment_amount,te.executor_id,td.resolution as admin_resolution FROM task_executions te LEFT JOIN task_disputes td ON te.id=td.execution_id WHERE te.task_id=$1 AND te.executor_id=$2 AND te.proof IS NOT NULL ORDER BY te.submitted_at DESC`;params=[id,user_id];}else{return res.status(401).json({success:false,message:"Authentication required"});}const proofs=await pool.query(query,params);const dataToSend=proofs.rows;res.json({success:true,data:dataToSend});}catch(err){console.error('❌ /api/tasks/:id/proofs:',err);res.status(500).json({success:false,message:"Failed to load proofs",error:err.message});}});
 // ======================= ✅ APPROVE PROOF =======================
 
 app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
