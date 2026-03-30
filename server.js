@@ -2352,9 +2352,9 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       })
     );
     
-    const responseData = { success: true,  executionsWithDispute };
-    res.json(responseData);
     
+    res.json({ success: true,  executionsWithDispute });
+
   } catch (err) {
     console.error('❌ /api/tasks/user-executions:', err);
     res.status(500).json({ success: false, message: "Failed to load executions", error: err.message });
