@@ -2337,7 +2337,6 @@ app.get('/api/tasks/user-executions', async (req, res) => {
         te.task_id,
         te.executor_id,
         te.proof,
-        te.resolution,
         te.status,
         te.submitted_at,
         te.reviewed_at,
@@ -2360,7 +2359,8 @@ app.get('/api/tasks/user-executions', async (req, res) => {
         );
         return { 
           ...exec, 
-          has_dispute: dispute.rows.length > 0 
+          has_dispute: dispute.rows.length > 0,
+          resolution: dispute.rows[0]?.resolution || null
         };
       })
     );
@@ -2798,7 +2798,6 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
         SELECT 
           te.id, 
           te.proof, 
-          te.resolution,
           te.status, 
           te.submitted_at,
           te.payment_amount, 
@@ -2828,7 +2827,6 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
         SELECT 
           te.id, 
           te.proof,
-          te.resolution,
           te.status, 
           te.submitted_at,
           te.payment_amount, 
