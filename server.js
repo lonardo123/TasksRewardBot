@@ -2317,7 +2317,6 @@ app.get("/api/contact/history", async (req, res) => {
 
 // ======================= 📝 TASKS SYSTEM API - FULL COMPATIBLE =======================
 
-
 // ======================= ✅ تنفيذات المستخدم TASK =======================
 
 app.get('/api/tasks/user-executions', async (req, res) => {
@@ -2334,10 +2333,10 @@ app.get('/api/tasks/user-executions', async (req, res) => {
         te.id, te.task_id, te.executor_id, te.proof, te.status, te.submitted_at, 
         te.reviewed_at, te.reviewed_by, te.payment_amount,
         t.title as task_title, t.description as task_description, t.executor_reward,
-        td.resolution as admin_resolution  -- ✅ جلب رسالة الأدمن من جدول النزاعات
+        td.resolution as admin_resolution
       FROM task_executions te
       JOIN tasks t ON t.id = te.task_id
-      LEFT JOIN task_disputes td ON te.id = td.execution_id  -- ✅ أضف هذا السطر
+      LEFT JOIN task_disputes td ON te.id = td.execution_id
       WHERE te.executor_id = $1::bigint
       ORDER BY te.submitted_at DESC
     `, [user_id]);
@@ -2352,14 +2351,14 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       })
     );
     
-     res.json({ success: true,  executionsWithDispute });
-
-    });
-  } catch (err) {
+    // ✅ التصحيح: استخدم data: بدون مسافة
+    res.json({ success: true,  executionsWithDispute });
+    
+  } catch (err) {  // ← catch يجب أن يكون داخل try
     console.error('❌ /api/tasks/user-executions:', err);
     res.status(500).json({ success: false, message: "Failed to load executions", error: err.message });
   }
-});
+});  // ← هذا القوس يغلق app.get() في النهاية فقط
 
 // ======================= 📊 TASKS: AVAILABLE =======================
 
@@ -2762,27 +2761,25 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     let query, params;
     
     if (isCreator) {
-      // ✅ أضف LEFT JOIN مع task_disputes لجلب resolution
       query = `
         SELECT 
           te.id, te.proof, te.status, te.submitted_at, te.payment_amount, te.commission_amount, te.executor_id,
           u.username as executor_username, u.telegram_id,
-          td.resolution as admin_resolution  -- ✅ جلب رسالة الأدمن من جدول النزاعات
+          td.resolution as admin_resolution
         FROM task_executions te
         LEFT JOIN users u ON te.executor_id = u.telegram_id
-        LEFT JOIN task_disputes td ON te.id = td.execution_id  -- ✅ أضف هذا السطر
+        LEFT JOIN task_disputes td ON te.id = td.execution_id
         WHERE te.task_id = $1 AND te.proof IS NOT NULL
         ORDER BY CASE WHEN te.status = 'pending' THEN 1 WHEN te.status = 'disputed' THEN 2 WHEN te.status = 'approved' THEN 3 WHEN te.status = 'rejected' THEN 4 ELSE 5 END, te.submitted_at DESC
       `;
       params = [id];
     } else if (user_id) {
-      // ✅ نفس الشيء للمستخدم العادي
       query = `
         SELECT 
           te.id, te.proof, te.status, te.submitted_at, te.payment_amount, te.executor_id,
-          td.resolution as admin_resolution  -- ✅ جلب رسالة الأدمن
+          td.resolution as admin_resolution
         FROM task_executions te
-        LEFT JOIN task_disputes td ON te.id = td.execution_id  -- ✅ أضف هذا السطر
+        LEFT JOIN task_disputes td ON te.id = td.execution_id
         WHERE te.task_id = $1 AND te.executor_id = $2 AND te.proof IS NOT NULL
         ORDER BY te.submitted_at DESC
       `;
@@ -2792,10 +2789,7 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     }
     
     const proofs = await pool.query(query, params);
-    res.json({ 
-      success: true, 
-      data: proofs.rows 
-    });
+    res.json({ success: true,  proofs.rows });
     
   } catch (err) {
     console.error('❌ /api/tasks/:id/proofs:', err);
