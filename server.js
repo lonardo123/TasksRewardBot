@@ -2365,6 +2365,8 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       })
     );
     
+    const responseData = { success: true,  executionsWithDispute };
+    res.json(responseData);
     // ✅ الهيكل الصحيح: استخدم "data" بدلاً من "executionsWithDispute"
     res.json({ success: true,  executionsWithDispute });
     
@@ -2825,7 +2827,8 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
       query = `
         SELECT 
           te.id, 
-          te.proof, 
+          te.proof,
+          te.resolution,
           te.status, 
           te.submitted_at,
           te.payment_amount, 
