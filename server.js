@@ -2352,9 +2352,9 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       })
     );
     
-    
-    res.json({ success: true,  executionsWithDispute });
+     res.json({ success: true,  executionsWithDispute });
 
+    });
   } catch (err) {
     console.error('❌ /api/tasks/user-executions:', err);
     res.status(500).json({ success: false, message: "Failed to load executions", error: err.message });
@@ -2792,8 +2792,10 @@ app.get('/api/tasks/:id/proofs', async (req, res) => {
     }
     
     const proofs = await pool.query(query, params);
-    const responseData = { success: true,  proofs.rows };
-    res.json(responseData);
+    res.json({ 
+      success: true, 
+      data: proofs.rows 
+    });
     
   } catch (err) {
     console.error('❌ /api/tasks/:id/proofs:', err);
