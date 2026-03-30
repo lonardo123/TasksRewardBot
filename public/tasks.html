@@ -984,10 +984,33 @@ async function loadMyExecutions() {
                     html += '<button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(' + exec.task_id + ', ' + exec.id + ')">⚠️ Create Dispute</button>';
                     html += '</div>';
                 } else if (status === 'disputed') {
-                    html += '<div class="alert alert-info" style="margin-top:10px">⏳ Dispute under admin review</div>';
-                } else if (status === 'approved') {
-                    html += '<div class="alert alert-success" style="margin-top:10px">✅ Payment received</div>';
-                }
+    // ✅ عرض رسالة الانتظار + رسالة الأدمن إذا وجدت
+    html += '<div class="alert alert-info" style="margin-top:10px">⚖️ Dispute under admin review</div>';
+    if (exec.resolution) {
+        html += `<div class="alert" style="margin-top:10px;background:#8b5cf620;border:1px solid #8b5cf640;color:#a78bfa;font-size:13px">
+            <strong>Admin Note:</strong> ${exec.resolution}
+        </div>`;
+    }
+} else if (status === 'approved') {
+    // ✅ عرض رسالة الموافقة + رسالة الأدمن إذا وجدت
+    html += '<div class="alert alert-success" style="margin-top:10px">✅ Payment received';
+    if (exec.resolution) {
+        html += `<br><strong>Admin Note:</strong> ${exec.resolution}`;
+    }
+    html += '</div>';
+} else if (status === 'rejected') {
+    // ✅ عرض رسالة الرفض + رسالة الأدمن إذا وجدت
+    html += '<div class="alert alert-error" style="margin-top:10px">❌ Rejected';
+    if (exec.resolution) {
+        html += `<br><strong>Admin Note:</strong> ${exec.resolution}`;
+    }
+    html += '</div>';
+    if (canDispute) {
+        html += `<div class="proof-actions">
+            <button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button>
+        </div>`;
+    }
+}
                 
                 html += '</div>';
                 
@@ -1180,22 +1203,37 @@ async function viewTaskProofs(taskId) {
             list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">No proofs</p>';
             return;
         }
-        list.innerHTML = data.data.map(proof => `
-            <div class="proof-item">
-                <div class="proof-header">
-                    <strong>@${proof.executor_username || proof.executor_id}</strong>
-                    <span class="status-badge status-${proof.status}">${proof.status}</span>
-                </div>
-                <small style="color:#94a3b8">📅 ${formatDate(proof.submitted_at)}</small>
-                ${proof.proof ? `<div class="proof-content">${proof.proof}</div>` : ''}
-                ${proof.status === 'pending' ? `
-                    <div class="proof-actions">
-                        <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve</button>
-                        <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
-                    </div>
-                ` : ''}
+        list.innerHTML = data.data.map(proof => {
+    // ✅ تحديد نص الحالة ورسالة إضافية
+    let statusBadge = `<span class="status-badge status-${proof.status}">${proof.status}</span>`;
+    let statusMessage = '';
+    
+    if (proof.status === 'disputed') {
+        statusMessage = `<div class="alert alert-info" style="margin-top:10px;font-size:13px">⚖️ Disputed - Waiting for admin review</div>`;
+    } else if (proof.status === 'approved' && proof.resolution) {
+        statusMessage = `<div class="alert alert-success" style="margin-top:10px;font-size:13px">✅ Approved by admin<br><strong>Note:</strong> ${proof.resolution}</div>`;
+    } else if (proof.status === 'rejected' && proof.resolution) {
+        statusMessage = `<div class="alert alert-error" style="margin-top:10px;font-size:13px">❌ Rejected by admin<br><strong>Note:</strong> ${proof.resolution}</div>`;
+    }
+    
+    return `
+    <div class="proof-item">
+        <div class="proof-header">
+            <strong>@${proof.executor_username || proof.executor_id}</strong>
+            ${statusBadge}
+        </div>
+        <small style="color:#94a3b8">📅 ${formatDate(proof.submitted_at)}</small>
+        ${proof.proof ? `<div class="proof-content">${proof.proof}</div>` : ''}
+        ${statusMessage}
+        ${proof.status === 'pending' ? `
+            <div class="proof-actions">
+                <button class="btn btn-success btn-sm" onclick="approveProof(${taskId}, ${proof.id})">✅ Approve</button>
+                <button class="btn btn-danger btn-sm" onclick="rejectProof(${taskId}, ${proof.id})">❌ Reject</button>
             </div>
-        `).join('');
+        ` : ''}
+    </div>
+    `;
+}).join('');
     } catch (err) {
         list.innerHTML = '<p class="alert alert-error">Failed</p>';
     }
