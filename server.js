@@ -2523,7 +2523,7 @@ app.post('/api/tasks/create', async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid budget: min $0.10" });
     }
     
-    const adminCommission = executorReward * 0.20;
+    const adminCommission = executorReward * 0.25;
     const totalCostPerExecution = executorReward + adminCommission;
     
     const userRes = await client.query(
@@ -2886,7 +2886,7 @@ app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
     
     const executorId = exec.rows[0].executor_id;
     const paymentAmount = parseFloat(exec.rows[0].payment_amount);
-    const adminCommission = parseFloat(exec.rows[0].commission_amount || (paymentAmount * 0.20));
+    const adminCommission = parseFloat(exec.rows[0].commission_amount || (paymentAmount * 0.25));
     const totalCost = paymentAmount + adminCommission;
     
     await client.query('BEGIN');
@@ -3450,6 +3450,10 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
     }
     
     const d = dispute.rows[0];
+    const executorId = d.executor_id;
+    const paymentAmount = parseFloat(d.payment_amount);
+    const adminCommission = parseFloat(d.commission_amount || (paymentAmount * 0.25));
+    const totalCost = paymentAmount + adminCommission;
     
     // ✅ تحديث حالة النزاع إلى "محل"
     await client.query(
@@ -3474,7 +3478,7 @@ app.post('/api/admin/task-disputes/:id/resolve', isAdminAuthenticated, async (re
       // تحديث الميزانية المستهلكة في المهمة
       await client.query(
         'UPDATE tasks SET spent = spent + $1 WHERE id = $2::integer',
-        [d.payment_amount, d.task_id]
+         [totalCost, d.task_id]
       );
     } else {
       // لا دفع - تحديث الحالة إلى rejected
