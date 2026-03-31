@@ -2404,22 +2404,14 @@ app.get('/api/tasks/available', async (req, res) => {
           FROM task_executions te 
           WHERE te.task_id = t.id 
             AND te.executor_id = $1::bigint
-            AND te.status IN ('pending', 'approved', 'disputed', 'rejected')
-        )
-        AND NOT EXISTS (
-          SELECT 1 
-          FROM task_executions te 
-          WHERE te.task_id = t.id 
-            AND te.executor_id = $1::bigint
-            AND te.status = 'applied'
-            AND te.submitted_at + (t.duration_seconds * interval '1 second') >= NOW()
+            AND te.status IN ('applied', 'pending', 'approved', 'disputed', 'rejected')
         )
       ORDER BY t.created_at DESC
       LIMIT 50
     `, [user_id]);
     
-    const dataToSend = tasks.rows;
-    res.json({ success: true,  dataToSend });
+    // ✅ التصحيح: أضف "data:" قبل tasks.rows
+    res.json({ success: true,  data: tasks.rows });
     
   } catch (err) {
     console.error('❌ /api/tasks/available:', err);
@@ -3519,34 +3511,23 @@ async function distributeReferralCommission(telegramId, earningAmount) {
 
 // ======================= 🔄 CRON: CLEANUP EXPIRED =======================
 
-// ✅ تنظيف الحجوزات المنتهية تلقائياً (كل 1 ساعة)
 setInterval(async () => {
   try {
-    const now = new Date();
-    
-    // ✅ تنظيف حالة 'applied' فقط (الحجوزات التي لم تُقدّم إثباتاً)
-    const { rows } = await pool.query(`
-      SELECT te.id, te.task_id, te.executor_id, t.duration_seconds, te.submitted_at
-      FROM task_executions te
-      JOIN tasks t ON t.id = te.task_id
-      WHERE te.status = 'applied'  ← فقط الحجوزات
-        AND te.proof IS NULL
-        AND te.submitted_at IS NOT NULL
-        AND (te.submitted_at + COALESCE(t.duration_seconds, 86400) * INTERVAL '1 second') < $1
-    `, [now]);
-    
-    for (const exec of rows) {
-      await pool.query('DELETE FROM task_executions WHERE id = $1', [exec.id]);
-      console.log(`🔄 Released expired slot: execution ${exec.id}, task ${exec.task_id}`);
-    }
-    
-    if (rows.length > 0) {
-      console.log(`✅ Cleaned ${rows.length} expired applications`);
+    const { rowCount } = await pool.query(`
+      DELETE FROM task_executions
+      WHERE status = 'applied'
+        AND proof IS NULL
+        AND expires_at < NOW()
+    `);
+
+    if (rowCount > 0) {
+      console.log(`🧹 Cleaned ${rowCount} expired applications`);
     }
   } catch (err) {
-    console.error('❌ Expired applications cleanup error:', err);
+    console.error('❌ Cleanup error:', err);
   }
-}, 60 * 60 * 1000); // كل 1 ساعة
+}, 60 * 1000); // كل ساعة
+
 // ======================= 🔄 CRON: AUTO-APPROVE PROOFS =======================
 
 // ✅ التحقق من الإثباتات المعلقة وقبولها تلقائياً بعد 24 ساعة
