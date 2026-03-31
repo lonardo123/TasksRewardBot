@@ -3533,24 +3533,6 @@ async function distributeReferralCommission(telegramId, earningAmount) {
   }
 }
 
-// ======================= 🔄 CRON: CLEANUP EXPIRED =======================
-
-setInterval(async () => {
-  try {
-    const { rowCount } = await pool.query(`
-      DELETE FROM task_executions
-      WHERE status = 'applied'
-        AND proof IS NULL
-        AND expires_at < NOW()
-    `);
-
-    if (rowCount > 0) {
-      console.log(`🧹 Cleaned ${rowCount} expired applications`);
-    }
-  } catch (err) {
-    console.error('❌ Cleanup error:', err);
-  }
-}, 6 * 60 * 60 * 1000); // كل ساعة
 
 // ======================= 🔄 CRON: AUTO-APPROVE PROOFS =======================
 
@@ -3637,7 +3619,7 @@ setInterval(async () => {
   } finally {
     client.release();
   }
-}, 6 * 60 * 60 * 1000); // كل 3 ساعات
+}, 12 * 60 * 60 * 1000); // كل 3 ساعات
 
 
 // === بدء التشغيل ===
