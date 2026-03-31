@@ -2360,7 +2360,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
   }
 });
 
-  // ======================= 📊 TASKS: AVAILABLE =======================
+// ======================= 📊 TASKS: AVAILABLE =======================
 
 app.get('/api/tasks/available', async (req, res) => {
   try {
@@ -2404,10 +2404,15 @@ app.get('/api/tasks/available', async (req, res) => {
           FROM task_executions te 
           WHERE te.task_id = t.id 
             AND te.executor_id = $1::bigint
-            AND (
-              te.status IN ('pending', 'approved', 'disputed', 'rejected')
-              OR (te.status = 'applied' AND te.submitted_at + (t.duration_seconds * interval '1 second') >= NOW())
-            )
+            AND te.status IN ('pending', 'approved', 'disputed', 'rejected')
+        )
+        AND NOT EXISTS (
+          SELECT 1 
+          FROM task_executions te 
+          WHERE te.task_id = t.id 
+            AND te.executor_id = $1::bigint
+            AND te.status = 'applied'
+            AND te.submitted_at + (t.duration_seconds * interval '1 second') >= NOW()
         )
       ORDER BY t.created_at DESC
       LIMIT 50
