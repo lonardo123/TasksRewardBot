@@ -2896,10 +2896,10 @@ app.post('/api/tasks/:id/proofs/:proofId/reject', async (req, res) => {
   try {
     const { id } = req.params;
     const { proofId } = req.params;
-    const { user_id, reason } = req.body;  // ✅ استلام سبب الرفض
+    const { user_id, reason } = req.body;
     
-    if (!reason || reason.length < 10) {
-      return res.status(400).json({ success: false, message: "Rejection reason must be at least 10 characters" });
+    if (!reason || reason.length < 20) {
+      return res.status(400).json({ success: false, message: "Rejection reason must be at least 20 characters" });
     }
     
     await client.query('BEGIN');
@@ -2911,12 +2911,19 @@ app.post('/api/tasks/:id/proofs/:proofId/reject', async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     
-    // ✅ تحديث حالة التنفيذ وحفظ سبب الرفض
+    // ✅ التصحيح: ترتيب المعاملات الصحيح
+    // $1 = user_id (reviewed_by)
+    // $2 = reason (rejection_reason) ← النص وليس الرقم
+    // $3 = proofId (WHERE id)
+    // $4 = id (WHERE task_id)
     await client.query(
       `UPDATE task_executions 
-       SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $1, rejection_reason = $2
-       WHERE id = $2::integer AND task_id = $3::integer`,
-      [user_id, proofId, id]
+       SET status = 'rejected', 
+           reviewed_at = NOW(), 
+           reviewed_by = $1::bigint, 
+           rejection_reason = $2
+       WHERE id = $3::integer AND task_id = $4::integer`,
+      [user_id, reason, proofId, id]  // ← الترتيب الصحيح
     );
     
     await client.query('COMMIT');
