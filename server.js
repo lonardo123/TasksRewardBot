@@ -2337,6 +2337,10 @@ app.get('/api/tasks/user-executions', async (req, res) => {
       JOIN tasks t ON t.id = te.task_id
       LEFT JOIN task_disputes td ON te.id = td.execution_id
       WHERE te.executor_id = $1::bigint
+      AND NOT (
+          te.status = 'applied' 
+          AND te.submitted_at + (t.duration_seconds || ' seconds')::interval < NOW()
+        )  -- ✅ استبعاد الحالات المنتهية
       ORDER BY te.submitted_at DESC
     `, [user_id]);
     
@@ -2399,7 +2403,13 @@ app.get('/api/tasks/available', async (req, res) => {
           SELECT 1 
           FROM task_executions te 
           WHERE te.task_id = t.id 
-            AND te.executor_id = $1::bigint 
+            AND te.executor_id = $1::bigint
+            AND te.status IN ('pending', 'approved', 'rejected', 'disputed')  -- ✅ حذف 'applied' من القائمة
+            OR (
+              te.status = 'applied' 
+              AND te.submitted_at + (t.duration_seconds || ' seconds')::interval >= NOW()  -- ✅ فقط الحالات غير المنتهية
+            )
+        )
             AND te.status IN ('applied', 'pending', 'approved', 'disputed', 'rejected')
         )
       ORDER BY t.created_at DESC
@@ -3622,6 +3632,28 @@ setInterval(async () => {
   }
 }, 3 * 60 * 60 * 1000); // كل 3 ساعات
 
+// ======================= 🔄 CRON: CLEAN EXPIRED APPLICATIONS =======================
+
+// ✅ تنظيف حالات applied المنتهية كل ساعة
+setInterval(async () => {
+  try {
+    const result = await pool.query(`
+      UPDATE task_executions te
+      SET status = 'expired'
+      FROM tasks t
+      WHERE te.task_id = t.id
+        AND te.status = 'applied'
+        AND te.submitted_at + (t.duration_seconds || ' seconds')::interval < NOW()
+    `);
+    
+    if (result.rowCount > 0) {
+      console.log(`✅ Cleaned ${result.rowCount} expired application(s)`);
+    }
+    
+  } catch (err) {
+    console.error('❌ Clean expired applications error:', err);
+  }
+}, 60 * 60 * 1000); // كل ساعة
 // === بدء التشغيل ===
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, '0.0.0.0', () => {
