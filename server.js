@@ -2360,7 +2360,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
   }
 });
 
-// ======================= 📊 TASKS: AVAILABLE =======================
+  // ======================= 📊 TASKS: AVAILABLE =======================
 
 app.get('/api/tasks/available', async (req, res) => {
   try {
@@ -2404,18 +2404,14 @@ app.get('/api/tasks/available', async (req, res) => {
           FROM task_executions te 
           WHERE te.task_id = t.id 
             AND te.executor_id = $1::bigint
-            AND (
-              te.status IN ('pending', 'approved', 'rejected', 'disputed')
-              OR 
-              (te.status = 'applied' AND te.submitted_at + (t.duration_seconds * interval '1 second') >= NOW())
-            )
+            AND te.status IN ('applied', 'pending', 'approved', 'disputed', 'rejected')
         )
       ORDER BY t.created_at DESC
       LIMIT 50
     `, [user_id]);
     
-    const dataToSend = tasks.rows;
-    res.json({ success: true,  dataToSend });
+    // ✅ التصحيح: أضف "data:" قبل tasks.rows
+    res.json({ success: true,  data: tasks.rows });
     
   } catch (err) {
     console.error('❌ /api/tasks/available:', err);
