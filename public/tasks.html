@@ -671,7 +671,7 @@ async function openTaskDetailPage(taskId) {
     // ✅ التعامل مع حالتين: applied (حجز) و pending (إثبات مقدم)
     if (myExecution.status === 'applied' || myExecution.status === 'pending') {
     const appliedAt = new Date(myExecution.submitted_at || myExecution.created_at);
-    const expiresAt = new Date(appliedAt.getTime() + task.duration_seconds * 1000); 
+    const deadline = new Date(appliedAt.getTime() + (task.duration_seconds * 1000));
     const now = new Date();
     const remaining = deadline - now;
         
