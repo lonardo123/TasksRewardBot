@@ -2406,10 +2406,8 @@ app.get('/api/tasks/available', async (req, res) => {
             AND te.executor_id = $1::bigint
             AND (
               te.status IN ('pending', 'approved', 'rejected', 'disputed')
-              OR (
-                te.status = 'applied' 
-                AND te.submitted_at + (t.duration_seconds || ' seconds')::interval >= NOW()
-              )
+              OR 
+              (te.status = 'applied' AND te.submitted_at + (t.duration_seconds * interval '1 second') >= NOW())
             )
         )
       ORDER BY t.created_at DESC
