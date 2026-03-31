@@ -2330,7 +2330,7 @@ app.get('/api/tasks/user-executions', async (req, res) => {
     const executions = await pool.query(`
       SELECT 
         te.id, te.task_id, te.executor_id, te.proof, te.status, te.submitted_at, 
-        te.reviewed_at, te.reviewed_by, te.payment_amount,
+        te.reviewed_at, te.reviewed_by, te.payment_amount, te.rejection_reason,
         t.title as task_title, t.description as task_description, t.executor_reward,
         td.resolution as admin_resolution
       FROM task_executions te
@@ -2892,26 +2892,43 @@ app.post('/api/tasks/:id/proofs/:proofId/approve', async (req, res) => {
 // ======================= ❌ REJECT PROOF =======================
 
 app.post('/api/tasks/:id/proofs/:proofId/reject', async (req, res) => {
+  const client = await pool.connect();
   try {
-    const { id: taskId, proofId } = req.params;
-    const { user_id, reason } = req.body;
+    const { id } = req.params;
+    const { proofId } = req.params;
+    const { user_id, reason } = req.body;  // ✅ استلام سبب الرفض
     
-    const task = await pool.query('SELECT creator_id FROM tasks WHERE id = $1 AND deleted_at IS NULL', [taskId]);
+    if (!reason || reason.length < 10) {
+      return res.status(400).json({ success: false, message: "Rejection reason must be at least 10 characters" });
+    }
+    
+    await client.query('BEGIN');
+    
+    // ✅ التحقق من ملكية المهمة
+    const task = await client.query('SELECT creator_id FROM tasks WHERE id = $1', [id]);
     if (task.rows.length === 0 || task.rows[0].creator_id?.toString() !== user_id) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     
-    await pool.query(`
-      UPDATE task_executions 
-      SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $1
-      WHERE id = $2 AND status = 'pending'
-    `, [user_id, proofId]);
+    // ✅ تحديث حالة التنفيذ وحفظ سبب الرفض
+    await client.query(
+      `UPDATE task_executions 
+       SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $1, rejection_reason = $2
+       WHERE id = $2::integer AND task_id = $3::integer`,
+      [user_id, proofId, id]
+    );
     
-    res.json({ success: true, message: "Proof rejected", reason: reason || "Does not meet requirements" });
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: "Proof rejected" });
     
   } catch (err) {
-    console.error('❌ Reject proof:', err);
-    res.status(500).json({ success: false, message: "Failed to reject: " + err.message });
+    await client.query('ROLLBACK');
+    console.error('❌ /api/tasks/:id/proofs/:proofId/reject:', err);
+    res.status(500).json({ success: false, message: "Failed to reject proof", error: err.message });
+  } finally {
+    client.release();
   }
 });
 
