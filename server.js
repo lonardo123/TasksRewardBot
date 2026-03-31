@@ -3550,7 +3550,7 @@ setInterval(async () => {
   } catch (err) {
     console.error('❌ Cleanup error:', err);
   }
-}, 60 * 1000); // كل ساعة
+}, 6 * 60 * 60 * 1000); // كل ساعة
 
 // ======================= 🔄 CRON: AUTO-APPROVE PROOFS =======================
 
@@ -3637,7 +3637,7 @@ setInterval(async () => {
   } finally {
     client.release();
   }
-}, 3 * 60 * 60 * 1000); // كل 3 ساعات
+}, 6 * 60 * 60 * 1000); // كل 3 ساعات
 
 
 // === بدء التشغيل ===
