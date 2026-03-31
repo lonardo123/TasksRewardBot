@@ -966,33 +966,25 @@ async function loadMyExecutions() {
             html += `<br><strong>Admin Note:</strong> ${exec.admin_resolution}`;
           }
           html += '</div>';
-        } else if (status === 'rejected') {
-    html += '<div class="alert alert-error" style="margin-top:10px">❌ Rejected';
-    
-    // ✅ عرض سبب الرفض إذا وجد
-    if (exec.rejection_reason) {
-        html += `<br><strong>Reason:</strong> ${exec.rejection_reason}`;
-    }
-    
-    html += '</div>';
-    
-    if (canDispute) {
-        html += `<div class="proof-actions">
-            <button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button>
-        </div>`;
-    }
-}
-     html += '</div>';     
-          if (exec.admin_resolution) {
-            html += `<br><strong>Admin Note:</strong> ${exec.admin_resolution}`;
+       
+     } else if (status === 'rejected') {
+          html += '<div class="alert alert-error" style="margin-top:10px">❌ Rejected';
+          
+          // ✅ عرض سبب الرفض إذا وجد
+          if (exec.rejection_reason) {
+              html += `<br><strong>Reason:</strong> ${exec.rejection_reason}`;
           }
+          
           html += '</div>';
+          
           if (canDispute) {
-            html += `<div class="proof-actions"><button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button></div>`;
+              html += `<div class="proof-actions">
+                  <button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button>
+              </div>`;
           }
         }
         
-        html += '</div>';
+        html += '</div>'; // ← إغلاق proof-item
         
       } catch (itemErr) {
         console.error('❌ Error rendering execution:', itemErr, exec);
