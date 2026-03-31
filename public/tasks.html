@@ -967,7 +967,21 @@ async function loadMyExecutions() {
           }
           html += '</div>';
         } else if (status === 'rejected') {
-          html += '<div class="alert alert-error" style="margin-top:10px">❌ Rejected';
+    html += '<div class="alert alert-error" style="margin-top:10px">❌ Rejected';
+    
+    // ✅ عرض سبب الرفض إذا وجد
+    if (exec.rejection_reason) {
+        html += `<br><strong>Reason:</strong> ${exec.rejection_reason}`;
+    }
+    
+    html += '</div>';
+    
+    if (canDispute) {
+        html += `<div class="proof-actions">
+            <button class="btn btn-warning btn-sm" onclick="openDisputeModalForExecution(${exec.task_id}, ${exec.id})">⚠️ Create Dispute</button>
+        </div>`;
+    }
+}
           if (exec.admin_resolution) {
             html += `<br><strong>Admin Note:</strong> ${exec.admin_resolution}`;
           }
@@ -1225,14 +1239,16 @@ function rejectProof(taskId, proofId) {
     rejectTaskId = taskId;
     rejectProofId = proofId;
     document.getElementById('rejectReason').value = '';
+    document.getElementById('rejectMinChars').textContent = '20'; // ✅ عرض الحد الأدنى
     openModal('rejectModal');
 }
 
 async function confirmRejectProof() {
     const reason = document.getElementById('rejectReason').value.trim();
+    const minChars = 20;
 
-    if (!reason || reason.length < 5) {
-        showAlert('⚠️ Please enter a valid reason', 'error');
+    if (!reason || reason.length < minChars) {
+        showAlert(`⚠️ Please enter at least ${minChars} characters (current: ${reason.length})`, 'error');
         return;
     }
 
@@ -1240,7 +1256,10 @@ async function confirmRejectProof() {
         const res = await fetch(`${API}/api/tasks/${rejectTaskId}/proofs/${rejectProofId}/reject`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ user_id: currentUser, reason: reason })
+            body: JSON.stringify({ 
+                user_id: currentUser, 
+                reason: reason  // ✅ إرسال سبب الرفض
+            })
         });
 
         const data = await res.json();
@@ -1397,25 +1416,47 @@ window.addEventListener('beforeunload', () => {
     Object.values(countdownTimers).forEach(timer => clearInterval(timer));
 });
 
+
+// ✅ عداد أحرف سبب الرفض
+document.getElementById('rejectReason')?.addEventListener('input', function() {
+    const current = this.value.length;
+    const min = 20;
+    document.getElementById('rejectCurrentChars').textContent = current;
+    
+    if (current < min) {
+        this.style.borderColor = '#ef4444';
+    } else {
+        this.style.borderColor = '#22c55e';
+    }
+});    
 </script>
- <div id="rejectModal" class="modal">
-<div class="modal-content">
-<div class="modal-header">
-<h3>❌ Reject Proof</h3>
-<button class="modal-close" onclick="closeModal('rejectModal')">&times;</button>
-</div>
+<div id="rejectModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>❌ Reject Proof</h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')">&times;</button>
+    </div>
 
-<div class="input-group">
-<label>Reason <span class="required">*</span></label>
-<textarea id="rejectReason" rows="4" placeholder="Enter rejection reason..."></textarea>
-</div>
+    <!-- ✅ رسالة توضيحية -->
+    <div class="alert alert-info" style="margin-bottom:15px">
+      ⚠️ Please provide a clear reason for rejection.<br>
+      <small>This will be visible to the executor and help them understand what went wrong.</small>
+    </div>
 
-<div class="btn-group" style="justify-content:center;margin-top:15px">
-<button class="btn btn-danger" onclick="confirmRejectProof()">❌ Reject</button>
-<button class="btn btn-primary" onclick="closeModal('rejectModal')">Cancel</button>
-</div>
+    <div class="input-group">
+      <label>Rejection Reason <span class="required">*</span></label>
+      <textarea id="rejectReason" rows="5" placeholder="Explain why this proof was rejected (minimum 20 characters)..."></textarea>
+      <small style="color:#94a3b8;font-size:12px">
+        📝 Minimum <span id="rejectMinChars">20</span> characters required. 
+        Current: <span id="rejectCurrentChars">0</span>
+      </small>
+    </div>
 
+    <div class="btn-group" style="justify-content:center;margin-top:15px">
+      <button class="btn btn-danger" onclick="confirmRejectProof()">❌ Reject</button>
+      <button class="btn btn-primary" onclick="closeModal('rejectModal')">Cancel</button>
+    </div>
+  </div>
 </div>
-</div>   
 </body>
 </html>
