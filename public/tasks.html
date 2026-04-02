@@ -641,6 +641,16 @@ async function openTaskDetailPage(taskId) {
         let content = `
 <h3 style="margin-bottom:15px">${task.title}</h3>
 <p style="color:#cbd5e1;margin-bottom:20px">${task.description}</p>
+
+
+${task.proof_requirements ? `
+<div style="background:#1f2937;border-left:4px solid #facc15;padding:12px 15px;border-radius:6px;margin-bottom:20px">
+    <strong style="color:#facc15;font-size:14px;">📋 Proof Requirements:</strong>
+    <p style="color:#94a3b8;font-size:13px;margin:8px 0 0 0;line-height:1.6;">${task.proof_requirements}</p>
+</div>
+` : ''}
+
+
 <div style="background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px">
     <div style="display:flex;justify-content:space-between;margin-bottom:10px">
         <span>💰 Reward:</span>
