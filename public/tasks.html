@@ -642,14 +642,10 @@ async function openTaskDetailPage(taskId) {
 <h3 style="margin-bottom:15px">${task.title}</h3>
 <p style="color:#cbd5e1;margin-bottom:20px">${task.description}</p>
 
-
-${task.proof_requirements ? `
-<div style="background:#1f2937;border-left:4px solid #facc15;padding:12px 15px;border-radius:6px;margin-bottom:20px">
-    <strong style="color:#facc15;font-size:14px;">📋 Proof Requirements:</strong>
-    <p style="color:#94a3b8;font-size:13px;margin:8px 0 0 0;line-height:1.6;">${task.proof_requirements}</p>
+<div style="display:flex;justify-content:space-between;margin-bottom:10px;padding-top:10px;border-top:1px solid #334155">
+    <span>📋 Proof Requirements:</span>
+    <strong style="color:#facc15;text-align:right;max-width:60%;word-break:break-word">${task.proof_requirements}</strong>
 </div>
-` : ''}
-
 
 <div style="background:#1e293b;padding:15px;border-radius:8px;margin-bottom:20px">
     <div style="display:flex;justify-content:space-between;margin-bottom:10px">
@@ -670,6 +666,7 @@ ${task.proof_requirements ? `
         <a href="${task.target_url}" target="_blank" style="color:#60a5fa;text-decoration:underline;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${task.target_url}</a>
     </div>
     ` : ''}
+
     <div style="display:flex;justify-content:space-between;margin-top:10px">
         <span>🎯 Slots:</span>
         <strong style="color:#22c55e">${availableSlots}</strong>
