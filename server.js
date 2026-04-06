@@ -2316,10 +2316,6 @@ app.get("/api/contact/history", async (req, res) => {
 });
 
 
-// ======================= صفحة صورة التطبيق =======================
-app.get('/Taskora.png', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'Taskora.png'));
-});
 // ======================= 📝 TASKS SYSTEM API - FULL COMPATIBLE =======================
 
 // ======================= ✅ تنفيذات المستخدم TASK =======================
