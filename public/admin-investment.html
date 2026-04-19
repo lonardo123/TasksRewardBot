@@ -57,6 +57,19 @@ th {
 
 <body>
 
+<!-- 🔐 Access Denied Page (Shown by default, hidden if access granted) -->
+<div id="accessDenied" class="access-denied">
+  <div class="access-denied-content">
+    <h2>🔐 Access Denied</h2>
+    <p>This page is restricted to admin only.</p>
+    <p>Required parameter:</p>
+    <p style="font-size:13px;color:#64748b;margin-top:15px">
+      ❌ Invalid or missing admin_id parameter
+    </p>
+    
+  </div>
+</div>
+  
 <h2>⚙️ Investment Admin</h2>
 
 <!-- 🔹 تغيير سعر السهم -->
@@ -108,6 +121,52 @@ th {
 
 
 <script>
+
+ // ================= CONFIG =================
+const API = "https://perceptive-victory-production.up.railway.app";
+const REQUIRED_ADMIN_ID = "7171208519";
+
+// ================= 🔐 ACCESS CONTROL =================
+function checkAdminAccess() {
+  const url = window.location.href;
+  let adminIdFromUrl = null;
+  
+  try {
+    const urlObj = new URL(url);
+    adminIdFromUrl = urlObj.searchParams.get('admin_id');
+  } catch (e) {
+    const match = url.match(/[?&]admin_id=([^&]+)/);
+    if (match && match[1]) {
+      adminIdFromUrl = decodeURIComponent(match[1].trim());
+    }
+  }
+  
+  if (!adminIdFromUrl || adminIdFromUrl.toString().trim() !== REQUIRED_ADMIN_ID) {
+    console.error('🔐 Access denied. Required: admin_id=' + REQUIRED_ADMIN_ID);
+    const denied = document.getElementById('accessDenied');
+    const content = document.getElementById('adminContent');
+    if(denied) denied.style.display = 'flex';
+    if(content) content.classList.add('hidden');
+    return false;
+  }
+  
+  console.log('✅ Admin access granted');
+  const denied = document.getElementById('accessDenied');
+  const content = document.getElementById('adminContent');
+  if(denied) denied.style.display = 'none';
+  if(content) content.classList.remove('hidden');
+  localStorage.setItem('admin_verified', 'true');
+  localStorage.setItem('admin_id', REQUIRED_ADMIN_ID);
+  return true;
+}
+
+// ================= تشغيل التحقق عند تحميل الصفحة =================
+document.addEventListener('DOMContentLoaded', () => {
+  if(checkAdminAccess()) {
+    loadUsersStocks(); // تحميل البيانات فقط إذا تم التحقق
+  }
+});
+  
 // =====================
 // تحديث سعر السهم
 // =====================
