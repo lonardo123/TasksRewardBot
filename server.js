@@ -2324,7 +2324,7 @@ app.get('/api/admin/deposits', verifyAdmin, async (req, res) => {
       `SELECT id, user_id, username, txid, amount, status, created_at FROM deposit_requests WHERE status = $1 ORDER BY created_at DESC LIMIT 50`,
       [status]
     );
-    res.json({ success: true,  result.rows });
+    res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error('❌ GET /api/admin/deposits:', err);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -2366,7 +2366,7 @@ app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
   try {
     const status = req.query.status || 'pending';
     const result = await pool.query(`SELECT id, user_id, amount, payeer_wallet, status, requested_at FROM withdrawals WHERE status = $1 ORDER BY requested_at DESC LIMIT 50`, [status]);
-    res.json({ success: true,  result.rows });
+    res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error('❌ GET /api/admin/withdrawals:', err);
     res.status(500).json({ success: false, message: 'Server error' });
