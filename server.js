@@ -2419,7 +2419,6 @@ app.post('/api/admin/balance/add', verifyAdmin, async (req, res) => {
     await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, user_id]);
     await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, amount, source, reason]);
     
-    // تطبيق مكافأة الإحالة 3%
     const referralBonus = parseFloat(amount) * 0.03;
     if (referralBonus > 0) {
       const ref = await pool.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [user_id]);
@@ -2462,16 +2461,12 @@ app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
 });
 
 // ================= 📬 9. جلب رسائل المستخدمين =================
-
 app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
   try {
     const status = req.query.status || 'unread';
     const limit = parseInt(req.query.limit) || 50;
-    
-    // بناء شرط البحث بناءً على الحالة
     const whereClause = status === 'unread' ? 'replied = false' : '1=1';
     
-    // ✅ جلب الرسائل من قاعدة البيانات فقط
     const result = await pool.query(
       `SELECT id, user_id, message, admin_reply, replied, created_at 
        FROM admin_messages 
@@ -2498,14 +2493,12 @@ app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= 💬 10. الرد على رسالة =================
-
+// ================= 💬 10. الرد على رسالة (مصحح - قاعدة البيانات فقط) =================
 app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
   try {
     const messageId = req.params.id;
     const { reply } = req.body;
     
-    // ✅ 1. التحقق من صحة المدخلات
     if (!reply || reply.trim() === '') {
       return res.status(400).json({ 
         success: false, 
@@ -2513,7 +2506,6 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
       });
     }
     
-    // ✅ 2. التحقق من وجود الرسالة غير المجاب عليها في القاعدة
     const msgCheck = await pool.query(
       'SELECT id, user_id, message, replied FROM admin_messages WHERE id = $1', 
       [messageId]
@@ -2528,7 +2520,7 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     
     const message = msgCheck.rows[0];
     
-    // ✅ 3. 🗄️ حفظ الرد في قاعدة البيانات فقط (بدون أي تفاعل مع البوت)
+    // ✅ حفظ الرد في قاعدة البيانات فقط (بدون بوت)
     await pool.query(
       `UPDATE admin_messages 
        SET admin_reply = $1, 
@@ -2540,17 +2532,16 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     
     console.log(`✅ Reply saved to DB for message #${messageId} (user: ${message.user_id})`);
     
-    // ✅ 4. إرجاع النجاح مع تفاصيل العملية
+    // ✅ التصحيح: إضافة مفتاح 'data' قبل القوس {
     res.json({ 
       success: true, 
       message: '✅ Reply saved successfully in database',
-       {
+      data: {  // ← هذا هو التصحيح المهم!
         message_id: messageId,
         user_id: message.user_id,
         original_message: message.message.substring(0, 200) + (message.message.length > 200 ? '...' : ''),
         admin_reply: reply.substring(0, 200) + (reply.length > 200 ? '...' : ''),
         replied_at: new Date().toISOString(),
-        // ⚠️ bot_sent: false دائماً لأننا لا نستخدم البوت
         bot_sent: false
       }
     });
@@ -2565,7 +2556,7 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= 📊 Bonus: إحصائيات =================
+// ================= 📊 Bonus: إحصائيات (مصحح) =================
 app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
   try {
     const [deposits, withdrawals, messages, users, proofs, disputes, commission] = await Promise.all([
@@ -2578,9 +2569,10 @@ app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
       pool.query("SELECT COALESCE(SUM(amount), 0) AS total FROM earnings WHERE source IN ('admin_fee', 'referral_deposit')")
     ]);
     
+    // ✅ التصحيح: إضافة مفتاح 'data' قبل القوس {
     res.json({
       success: true,
-       {
+      data: {  // ← هذا هو التصحيح المهم!
         pending_deposits: parseInt(deposits.rows[0].count),
         pending_withdrawals: parseInt(withdrawals.rows[0].count),
         unread_messages: parseInt(messages.rows[0].count),
@@ -2595,8 +2587,6 @@ app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
-
 
 
 // ======================= 📝 TASKS SYSTEM API - FULL COMPATIBLE =======================
