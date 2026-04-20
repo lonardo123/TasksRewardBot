@@ -120,24 +120,28 @@ tr:hover{background:#1e293b/50}
 </head>
 <body>
 
-<!-- 🔐 Access Denied Page -->
+<!-- 🔐 Access Denied Page (Shown by default, hidden if access granted) -->
 <div id="accessDenied" class="access-denied">
   <div class="access-denied-content">
     <h2>🔐 Access Denied</h2>
     <p>This page is restricted to admin only.</p>
-    <p class="admin-id"></p>
+    <p>Required parameter:</p>
+    <p style="font-size:13px;color:#64748b;margin-top:15px">
+      ❌ Invalid or missing admin_id parameter
+    </p>
+    
   </div>
 </div>
 
-<!-- ✅ Main Admin Content -->
+<!-- ✅ Main Admin Content (Hidden by default, shown if access granted) -->
 <div id="adminContent" class="hidden">
   <div class="container">
     
     <!-- Admin Header -->
     <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-      <h2>⚙️ Admin Control Panel</h2>
+      <h2>⚙️ Admin Tasks Management</h2>
       <div class="btn-group">
-        <button class="btn btn-primary" onclick="refreshAll()">🔄 Refresh</button>
+        <button class="btn btn-primary" onclick="refreshAll()">🔄 Refresh All</button>
         <button class="btn btn-danger" onclick="logout()">🚪 Logout</button>
       </div>
     </div>
@@ -430,6 +434,7 @@ function checkAdminAccess() {
   localStorage.setItem('admin_id', REQUIRED_ADMIN_ID);
   return true;
 }
+
 
 // ================= INIT =================
 window.addEventListener('load', async () => {
