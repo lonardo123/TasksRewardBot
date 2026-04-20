@@ -181,6 +181,22 @@ tr:hover{background:#1e293b/50}
     <!-- Stats Dashboard -->
     <div class="stats-grid">
       <div class="stat-card">
+        <h4>📋 Pending Proofs</h4>
+        <div class="value warning" id="pendingProofsCount">0</div>
+      </div>
+      <div class="stat-card">
+        <h4>⚠️ Open Disputes</h4>
+        <div class="value danger" id="openDisputesCount">0</div>
+      </div>
+      <div class="stat-card">
+        <h4>✅ Approved Today</h4>
+        <div class="value" id="approvedTodayCount">0</div>
+      </div>
+      <div class="stat-card">
+        <h4>💰 Admin Commission</h4>
+        <div class="value" id="adminCommissionTotal">$0.00</div>
+      </div>
+      <div class="stat-card">
         <h4>📥 Pending Deposits</h4>
         <div class="value warning" id="pendingDepositsCount">0</div>
       </div>
@@ -204,7 +220,7 @@ tr:hover{background:#1e293b/50}
       <div class="tab" data-tab="withdrawals" onclick="switchTab('withdrawals')">📤 Withdrawals</div>
       <div class="tab" data-tab="balance" onclick="switchTab('balance')">💰 Balance</div>
       <div class="tab" data-tab="messages" onclick="switchTab('messages')">📬 Messages</div>
-      <div class="tab" data-tab="proofs" onclick="switchTab('proofs')">📋 Proofs</div>
+      <div class="tab active" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
       <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
       <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
     </div>
@@ -281,19 +297,19 @@ tr:hover{background:#1e293b/50}
       <div id="messagesList"></div>
     </div>
 
-    <!-- 📋 Pending Proofs Section -->
-    <div id="proofsSection" class="card hidden">
+     <!-- Pending Proofs Section -->
+    <div id="proofsSection" class="card">
       <h3>📋 Pending Proofs Review</h3>
       <div id="pendingProofsList"></div>
     </div>
 
-    <!-- ⚠️ Disputes Section -->
+    <!-- Disputes Section -->
     <div id="disputesSection" class="card hidden">
       <h3>⚠️ Open Disputes</h3>
       <div id="disputesList"></div>
     </div>
 
-    <!-- 📊 Statistics Section -->
+    <!-- Statistics Section -->
     <div id="statsSection" class="card hidden">
       <h3>📊 Commission Statistics</h3>
       <div id="statsContent"></div>
@@ -318,7 +334,7 @@ tr:hover{background:#1e293b/50}
   </div>
 </div>
 
-<!-- ⚖️ Resolve Dispute Modal -->
+ <!-- Resolve Dispute Modal -->
 <div id="resolveModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -326,7 +342,10 @@ tr:hover{background:#1e293b/50}
       <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
     </div>
     <div class="alert alert-info">Review the proof and decide the outcome.</div>
+    
+    <!-- ✅ هذا العنصر مطلوب لعرض الإثبات -->
     <div id="resolveProofContent" style="margin:15px 0"></div>
+    
     <div class="input-group">
       <label>Decision:</label>
       <select id="resolveDecision">
@@ -338,6 +357,7 @@ tr:hover{background:#1e293b/50}
       <label>Resolution Note:</label>
       <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
     </div>
+    <!-- ✅ تأكد أن onclick يستدعي submitResolution() -->
     <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
   </div>
 </div>
@@ -503,27 +523,20 @@ function openTelegramSection(command, hint) {
 // ================= DASHBOARD STATS =================
 async function loadDashboardStats() {
   try {
-    const res = await fetch(`${API}/api/admin/stats?admin_id=${REQUIRED_ADMIN_ID}`);
-    if (!res.ok) throw new Error('Stats endpoint not ready');
+    const res = await fetch(`${API}/api/admin/stats?user_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
+    
     if (data.success) {
-      const d = document.getElementById('pendingDepositsCount'); if(d) d.textContent = data.data.pending_deposits || 0;
-      const w = document.getElementById('pendingWithdrawalsCount'); if(w) w.textContent = data.data.pending_withdrawals || 0;
-      const m = document.getElementById('unreadMessagesCount'); if(m) m.textContent = data.data.unread_messages || 0;
-      const u = document.getElementById('totalUsersCount'); if(u) u.textContent = data.data.total_users || 0;
-      const pp = document.getElementById('pendingProofsCount'); if(pp) pp.textContent = data.data.pending_proofs || 0;
-      const od = document.getElementById('openDisputesCount'); if(od) od.textContent = data.data.open_disputes || 0;
-      const at = document.getElementById('approvedTodayCount'); if(at) at.textContent = data.data.approved_today || 0;
-      const ac = document.getElementById('adminCommissionTotal'); if(ac) ac.textContent = formatPrice(data.data.admin_commission);
+      document.getElementById('pendingProofsCount').textContent = data.data.pending_proofs;
+      document.getElementById('openDisputesCount').textContent = data.data.open_disputes;
+      document.getElementById('approvedTodayCount').textContent = data.data.approved_today;
+      document.getElementById('adminCommissionTotal').textContent = formatPrice(data.data.admin_commission);
     }
   } catch (err) {
-    console.log('⚠️ Stats endpoint not ready');
-    ['pendingDepositsCount','pendingWithdrawalsCount','unreadMessagesCount','totalUsersCount','pendingProofsCount','openDisputesCount','approvedTodayCount'].forEach(id=>{
-      const el=document.getElementById(id); if(el) el.textContent='—';
-    });
-    const ac=document.getElementById('adminCommissionTotal'); if(ac) ac.textContent='$0.00';
+    console.error('❌ loadDashboardStats:', err);
   }
 }
+
 
 // ================= 📥 DEPOSITS =================
 async function loadDeposits() {
@@ -774,28 +787,45 @@ async function sendReply() {
   }
 }
 
-// ================= 📋 PENDING PROOFS =================
+// ================= PENDING PROOFS =================
 async function loadPendingProofs() {
   const list = document.getElementById('pendingProofsList');
   list.innerHTML = '<div class="loading">Loading pending proofs...</div>';
+  
   try {
-    const res = await fetch(`${API}/api/admin/pending-proofs?admin_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/pending-proofs?user_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
+    
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs</p>';
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs to review</p>';
+      document.getElementById('pendingProofsCount').textContent = '0';
       return;
     }
+    
+    document.getElementById('pendingProofsCount').textContent = data.data.length;
+    
     list.innerHTML = data.data.map(proof => `
       <div class="proof-item">
         <div class="proof-header">
-          <div><strong>📋 ${proof.task_title}</strong> <span style="color:#94a3b8;font-size:12px">#${proof.task_id}</span></div>
+          <div>
+            <strong>📋 ${proof.task_title}</strong>
+            <span style="color:#94a3b8;font-size:12px;margin-left:10px">#${proof.task_id}</span>
+          </div>
           <span class="status-badge status-pending">⏳ Pending</span>
         </div>
-        <p style="color:#94a3b8;font-size:13px;margin:5px 0">👤 Executor: @${proof.executor_username||proof.executor_id} | 📅 ${formatDate(proof.submitted_at)}</p>
-        <p style="color:#94a3b8;font-size:13px;margin:5px 0">💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong></p>
-        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>`:''}
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+          👤 Executor: @${proof.executor_username || proof.executor_id} | 
+          📅 ${formatDate(proof.submitted_at)}
+        </p>
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+          💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong>
+        </p>
+        <p style="color:#cbd5e1;font-size:13px;margin:5px 0">
+          📝 Task: ${proof.task_description?.substring(0, 100)}${proof.task_description?.length > 100 ? '...' : ''}
+        </p>
+        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>` : ''}
         <div class="proof-actions">
-          <button class="btn btn-success btn-sm" onclick="approveProof(${proof.task_id}, ${proof.id})">✅ Approve</button>
+          <button class="btn btn-success btn-sm" onclick="approveProof(${proof.task_id}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
           <button class="btn btn-danger btn-sm" onclick="rejectProof(${proof.task_id}, ${proof.id})">❌ Reject</button>
         </div>
       </div>
@@ -807,126 +837,245 @@ async function loadPendingProofs() {
 }
 
 async function approveProof(taskId, proofId) {
-  if (!confirm('✅ Confirm approving this proof?')) return;
+  if (!confirm('✅ Confirm approving this proof and sending payment?')) return;
+  
   try {
     const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: REQUIRED_ADMIN_ID })
     });
     const data = await res.json();
-    showAlert(data.success ? '✅ Approved' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) { loadPendingProofs(); loadDashboardStats(); }
-  } catch (err) { showAlert('⚠️ Connection error', 'error'); }
+    showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      loadPendingProofs();
+      loadDashboardStats(); // ✅ تحديث الإحصائيات
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
 }
 
 async function rejectProof(taskId, proofId) {
-  const reason = prompt('Reason (optional):') || 'Does not meet requirements';
+  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
+  
   try {
     const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: REQUIRED_ADMIN_ID, reason })
     });
     const data = await res.json();
-    showAlert(data.success ? '❌ Rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) { loadPendingProofs(); loadDashboardStats(); }
-  } catch (err) { showAlert('⚠️ Connection error', 'error'); }
+    showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      loadPendingProofs();
+      loadDashboardStats();
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
 }
 
-// ================= ⚠️ DISPUTES =================
+
+// ================= DISPUTES =================
 let currentDispute = null;
 
 async function loadDisputes() {
   const list = document.getElementById('disputesList');
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
+  
   try {
-    const res = await fetch(`${API}/api/admin/disputes?admin_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/disputes?user_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
+    
     const count = data.success && data.data ? data.data.length : 0;
     document.getElementById('openDisputesCount').textContent = count;
+    
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No open disputes</p>';
       return;
     }
+    
     list.innerHTML = data.data.map(d => `
       <div class="proof-item" style="border-left:4px solid #8b5cf6">
         <div class="proof-header" style="border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:15px">
           <strong>⚠️ Dispute #${d.dispute_id}</strong>
           <span class="status-badge status-disputed">Open</span>
         </div>
+        
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
           <div style="background:#0f172a;padding:12px;border-radius:8px">
             <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">📋 Task Details</h4>
             <p style="font-size:13px"><strong>Title:</strong> ${d.task_title} <span style="color:#94a3b8">#${d.task_id}</span></p>
-            <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username||d.creator_telegram}</p>
+            <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username || d.creator_telegram}</p>
             <p style="font-size:13px"><strong>Reward:</strong> <span style="color:#22c55e">${formatPrice(d.executor_reward)}</span></p>
-            ${d.target_url?`<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open ↗</a></p>`:''}
+            ${d.target_url ? `<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open Link ↗</a></p>` : ''}
           </div>
+          
           <div style="background:#0f172a;padding:12px;border-radius:8px">
             <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">👤 Executor Details</h4>
-            <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username||d.executor_telegram}</p>
+            <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username || d.executor_telegram}</p>
             <p style="font-size:13px"><strong>Submitted:</strong> ${formatDate(d.proof_submitted_at)}</p>
             <p style="font-size:13px"><strong>Amount:</strong> <span style="color:#22c55e">${formatPrice(d.payment_amount)}</span></p>
           </div>
         </div>
-        <div style="margin-bottom:15px"><h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4><div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">${d.task_description||'No description'}</div></div>
-        <div style="margin-bottom:15px"><h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4><div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">${d.executor_proof||'<span style="color:#ef4444">No proof</span>'}</div></div>
-        <div style="margin-bottom:15px"><h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4><div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">${d.reason}</div></div>
+        
+        <div style="margin-bottom:15px">
+          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4>
+          <div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">${d.task_description || 'No description'}</div>
+        </div>
+        
+        <div style="margin-bottom:15px">
+          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4>
+          <div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">${d.executor_proof || '<span style="color:#ef4444">No proof</span>'}</div>
+        </div>
+        
+        <div style="margin-bottom:15px">
+          <h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4>
+          <div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">${d.reason}</div>
+        </div>
+        
         <div class="proof-actions" style="border-top:1px solid #334155;padding-top:15px">
-          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.dispute_id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g,"\\'")||''}')">⚖️ Review & Resolve</button>
+          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.dispute_id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g, "\\'") || ''}')">⚖️ Review & Resolve</button>
         </div>
       </div>
     `).join('');
+    
   } catch (err) {
     console.error('❌ loadDisputes:', err);
     list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
   }
 }
 
-function openResolveModal(disputeId, executionId, proof='') {
+function openResolveModal(disputeId, executionId, proof = '') {
   currentDispute = { id: disputeId, executionId, proof };
+  
   document.getElementById('resolveDisputeId').textContent = disputeId;
   document.getElementById('resolveDecision').value = 'executor';
   document.getElementById('resolveNote').value = '';
+  
   const proofContent = document.getElementById('resolveProofContent');
   if (proofContent) {
     if (proof && proof.trim()) {
-      proofContent.innerHTML = `<div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px"><strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong><p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p></div>`;
-    } else { proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>'; }
+      proofContent.innerHTML = `
+        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
+          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
+          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
+        </div>
+      `;
+    } else {
+      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
+    }
   }
+  
   openModal('resolveModal');
 }
 
 async function submitResolution() {
   const payout = document.getElementById('resolveDecision').value;
   const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
-  if (!currentDispute) { showAlert('⚠️ No dispute selected', 'error'); return; }
+  
+  if (!currentDispute) {
+    showAlert('⚠️ No dispute selected', 'error');
+    return;
+  }
+  
   try {
     const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, payout_to: payout, resolution })
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        admin_id: REQUIRED_ADMIN_ID,
+        payout_to: payout,
+        resolution
+      })
     });
     const data = await res.json();
-    if (data.success) { showAlert('✅ Dispute resolved', 'success'); closeModal('resolveModal'); loadDisputes(); loadDashboardStats(); }
-    else { showAlert('❌ ' + data.message, 'error'); }
-  } catch (err) { showAlert('⚠️ Connection error', 'error'); console.error('❌ submitResolution:', err); }
+    
+    if (data.success) {
+      showAlert('✅ Dispute resolved', 'success');
+      closeModal('resolveModal');
+      loadDisputes();
+      loadDashboardStats();
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+    console.error('❌ submitResolution:', err);
+  }
+}
+// ✅ دالة مساعدة لعرض تفاصيل المهمة الكاملة
+function viewTaskDetail(taskId) {
+  window.open(`/tasks.html?user_id=${REQUIRED_ADMIN_ID}#task-${taskId}`, '_blank');
 }
 
-// ================= 📊 COMMISSION STATS =================
+// ================= RESOLVE MODAL =================
+
+function openResolveModal(disputeId, executionId, proof = '') {
+  currentDispute = { id: disputeId, executionId, proof };
+  
+  document.getElementById('resolveDisputeId').textContent = disputeId;
+  document.getElementById('resolveDecision').value = 'executor';
+  document.getElementById('resolveNote').value = '';
+  
+  // ✅ عرض الإثبات داخل المودال
+  const proofContent = document.getElementById('resolveProofContent');
+  if (proofContent) {
+    if (proof && proof.trim()) {
+      proofContent.innerHTML = `
+        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
+          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
+          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
+        </div>
+      `;
+    } else {
+      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
+    }
+  }
+  
+  openModal('resolveModal');
+}
+// ================= COMMISSION STATS =================
 async function loadCommissionStats() {
   const content = document.getElementById('statsContent');
   content.innerHTML = '<div class="loading">Loading statistics...</div>';
+  
   try {
-    const res = await fetch(`${API}/api/admin/commission-stats?admin_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/commission-stats?user_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
-    if (!data.success) { content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>'; return; }
+    
+    if (!data.success) {
+      content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
+      return;
+    }
+    
     const stats = data.data;
+    
     content.innerHTML = `
       <div style="display:grid;gap:15px">
-        <div class="card"><h4>💰 Today's Commission</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.today)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p></div>
-        <div class="card"><h4>📊 This Week</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.week)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p></div>
-        <div class="card"><h4>📈 This Month</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.month)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p></div>
-        <div class="card"><h4>🏆 All Time</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.all_time)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p></div>
-      </div>`;
+        <div class="card">
+          <h4>💰 Today's Commission</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.today)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p>
+        </div>
+        <div class="card">
+          <h4>📊 This Week</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.week)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
+        </div>
+        <div class="card">
+          <h4>📈 This Month</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.month)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
+        </div>
+        <div class="card">
+          <h4>🏆 All Time</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.all_time)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p>
+        </div>
+      </div>
+    `;
   } catch (err) {
     console.error(err);
     content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
