@@ -2316,6 +2316,226 @@ app.get("/api/contact/history", async (req, res) => {
 });
 
 
+// ================= 📥 1. جلب طلبات الإيداع =================
+app.get('/api/admin/deposits', verifyAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const result = await pool.query(
+      `SELECT id, user_id, username, txid, amount, status, created_at FROM deposit_requests WHERE status = $1 ORDER BY created_at DESC LIMIT 50`,
+      [status]
+    );
+    res.json({ success: true,  result.rows });
+  } catch (err) {
+    console.error('❌ GET /api/admin/deposits:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= ✅ 2. الموافقة على إيداع =================
+app.post('/api/admin/deposits/:id/approve', verifyAdmin, async (req, res) => {
+  try {
+    const depositId = req.params.id;
+    const { user_id } = req.body;
+    const check = await pool.query('SELECT * FROM deposit_requests WHERE id = $1 AND status = $2', [depositId, 'pending']);
+    if (check.rows.length === 0) return res.status(404).json({ success: false, message: '❌ Deposit not found' });
+    
+    await pool.query(`UPDATE deposit_requests SET status = 'approved', processed_at = NOW(), processed_by = $1 WHERE id = $2`, [req.body.admin_id, depositId]);
+    res.json({ success: true, message: '✅ Deposit approved' });
+  } catch (err) {
+    console.error('❌ POST /api/admin/deposits/:id/approve:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= ❌ 3. رفض إيداع =================
+app.post('/api/admin/deposits/:id/reject', verifyAdmin, async (req, res) => {
+  try {
+    const depositId = req.params.id;
+    const { reason = 'Does not meet requirements' } = req.body;
+    const result = await pool.query(`UPDATE deposit_requests SET status = 'rejected', processed_at = NOW(), processed_by = $1, admin_note = $2 WHERE id = $3 AND status = 'pending' RETURNING *`, [req.body.admin_id, reason, depositId]);
+    if (result.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Deposit not found' });
+    res.json({ success: true, message: '❌ Deposit rejected' });
+  } catch (err) {
+    console.error('❌ POST /api/admin/deposits/:id/reject:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= 📤 4. جلب طلبات السحب =================
+app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const result = await pool.query(`SELECT id, user_id, amount, payeer_wallet, status, requested_at FROM withdrawals WHERE status = $1 ORDER BY requested_at DESC LIMIT 50`, [status]);
+    res.json({ success: true,  result.rows });
+  } catch (err) {
+    console.error('❌ GET /api/admin/withdrawals:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= ✅ 5. الموافقة على سحب =================
+app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => {
+  try {
+    const withdrawId = req.params.id;
+    const result = await pool.query(`UPDATE withdrawals SET status = 'paid', processed_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *`, [withdrawId]);
+    if (result.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
+    res.json({ success: true, message: '✅ Withdrawal approved' });
+  } catch (err) {
+    console.error('❌ POST /api/admin/withdrawals/:id/approve:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= ❌ 6. رفض سحب (مع إرجاع الرصيد) =================
+app.post('/api/admin/withdrawals/:id/reject', verifyAdmin, async (req, res) => {
+  try {
+    const withdrawId = req.params.id;
+    const { reason = 'Verification failed' } = req.body;
+    const withdrawal = await pool.query('SELECT * FROM withdrawals WHERE id = $1 AND status = $2', [withdrawId, 'pending']);
+    if (withdrawal.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
+    const { user_id, amount } = withdrawal.rows[0];
+    
+    await pool.query('UPDATE withdrawals SET status = $1, processed_at = NOW(), admin_note = $2 WHERE id = $3', ['rejected', reason, withdrawId]);
+    await pool.query('UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', [amount, user_id]);
+    await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, amount, 'withdrawal_refund', `Refund for rejected withdrawal #${withdrawId}`]);
+    
+    res.json({ success: true, message: '❌ Withdrawal rejected. Amount refunded.' });
+  } catch (err) {
+    console.error('❌ POST /api/admin/withdrawals/:id/reject:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= ➕ 7. إضافة رصيد =================
+app.post('/api/admin/balance/add', verifyAdmin, async (req, res) => {
+  try {
+    const { user_id, amount, reason = 'Manual credit', source = 'admin_panel' } = req.body;
+    if (!user_id || isNaN(amount) || amount <= 0) return res.status(400).json({ success: false, message: '❌ Invalid input' });
+    
+    const userCheck = await pool.query('SELECT telegram_id, balance FROM users WHERE telegram_id = $1', [user_id]);
+    if (userCheck.rows.length === 0) return res.status(404).json({ success: false, message: '❌ User not found' });
+    
+    const newBalance = parseFloat(userCheck.rows[0].balance || 0) + parseFloat(amount);
+    await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, user_id]);
+    await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, amount, source, reason]);
+    
+    // تطبيق مكافأة الإحالة 3%
+    const referralBonus = parseFloat(amount) * 0.03;
+    if (referralBonus > 0) {
+      const ref = await pool.query('SELECT referrer_id FROM referrals WHERE referee_id = $1', [user_id]);
+      if (ref.rows.length > 0) {
+        const referrerId = ref.rows[0].referrer_id;
+        if (referrerId && referrerId !== user_id) {
+          await pool.query('UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', [referralBonus, referrerId]);
+          await pool.query('INSERT INTO referral_earnings (referrer_id, referee_id, amount) VALUES ($1, $2, $3)', [referrerId, user_id, referralBonus]);
+          await pool.query('INSERT INTO earnings (user_id, amount, source) VALUES ($1, $2, $3)', [referrerId, referralBonus, 'referral_deposit']);
+        }
+      }
+    }
+    
+    res.json({ success: true, message: `✅ Added $${amount}`, new_balance: newBalance.toFixed(4), referral_bonus: referralBonus.toFixed(4) });
+  } catch (err) {
+    console.error('❌ POST /api/admin/balance/add:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= ➖ 8. خصم رصيد =================
+app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
+  try {
+    const { user_id, amount, reason } = req.body;
+    if (!user_id || isNaN(amount) || amount <= 0 || !reason) return res.status(400).json({ success: false, message: '❌ All fields required' });
+    
+    const userCheck = await pool.query('SELECT telegram_id, balance FROM users WHERE telegram_id = $1', [user_id]);
+    if (userCheck.rows.length === 0) return res.status(404).json({ success: false, message: '❌ User not found' });
+    
+    const currentBalance = parseFloat(userCheck.rows[0].balance || 0);
+    const newBalance = Math.max(0, currentBalance - parseFloat(amount));
+    await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, user_id]);
+    await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, -Math.abs(amount), 'admin_deduction', reason]);
+    
+    res.json({ success: true, message: `✅ Deducted $${amount}`, previous_balance: currentBalance.toFixed(4), new_balance: newBalance.toFixed(4) });
+  } catch (err) {
+    console.error('❌ POST /api/admin/balance/deduct:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= 📬 9. جلب رسائل المستخدمين =================
+app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || 'unread';
+    const limit = parseInt(req.query.limit) || 50;
+    const whereClause = status === 'unread' ? 'replied = false' : '1=1';
+    const result = await pool.query(`SELECT id, user_id, message, admin_reply, replied, created_at FROM admin_messages WHERE ${whereClause} ORDER BY created_at DESC LIMIT $1`, [limit]);
+    res.json({ success: true,  result.rows });
+  } catch (err) {
+    console.error('❌ GET /api/admin/messages:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= 💬 10. الرد على رسالة =================
+app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    const { reply } = req.body;
+    if (!reply || reply.trim() === '') return res.status(400).json({ success: false, message: '❌ Reply text required' });
+    
+    const msgCheck = await pool.query('SELECT * FROM admin_messages WHERE id = $1 AND replied = false', [messageId]);
+    if (msgCheck.rows.length === 0) return res.status(404).json({ success: false, message: '❌ Message not found' });
+    
+    const userId = msgCheck.rows[0].user_id;
+    await pool.query('UPDATE admin_messages SET admin_reply = $1, replied = true WHERE id = $2', [reply, messageId]);
+    
+    // إرسال الرد للمستخدم عبر البوت
+    try {
+      await bot.telegram.sendMessage(userId, `📩 <b>رد الإدارة:</b>\n${reply}`, { parse_mode: 'HTML' });
+    } catch (notifyErr) {
+      console.warn(`⚠️ Failed to send reply to user ${userId}:`, notifyErr.message);
+    }
+    
+    res.json({ success: true, message: '✅ Reply sent to user' });
+  } catch (err) {
+    console.error('❌ POST /api/admin/messages/:id/reply:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// ================= 📊 Bonus: إحصائيات =================
+app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
+  try {
+    const [deposits, withdrawals, messages, users, proofs, disputes, commission] = await Promise.all([
+      pool.query("SELECT COUNT(*) FROM deposit_requests WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*) FROM withdrawals WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*) FROM admin_messages WHERE replied = false"),
+      pool.query("SELECT COUNT(*) FROM users"),
+      pool.query("SELECT COUNT(*) FROM task_proofs WHERE status = 'pending'"),
+      pool.query("SELECT COUNT(*) FROM task_disputes WHERE status = 'open'"),
+      pool.query("SELECT COALESCE(SUM(amount), 0) AS total FROM earnings WHERE source IN ('admin_fee', 'referral_deposit')")
+    ]);
+    
+    res.json({
+      success: true,
+       {
+        pending_deposits: parseInt(deposits.rows[0].count),
+        pending_withdrawals: parseInt(withdrawals.rows[0].count),
+        unread_messages: parseInt(messages.rows[0].count),
+        total_users: parseInt(users.rows[0].count),
+        pending_proofs: parseInt(proofs.rows[0].count),
+        open_disputes: parseInt(disputes.rows[0].count),
+        admin_commission: parseFloat(commission.rows[0].total).toFixed(4)
+      }
+    });
+  } catch (err) {
+    console.error('❌ GET /api/admin/stats:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+
+
+
 // ======================= 📝 TASKS SYSTEM API - FULL COMPATIBLE =======================
 
 // ======================= ✅ تنفيذات المستخدم TASK =======================
