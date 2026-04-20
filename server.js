@@ -2462,43 +2462,106 @@ app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
 });
 
 // ================= 📬 9. جلب رسائل المستخدمين =================
+
 app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
   try {
     const status = req.query.status || 'unread';
     const limit = parseInt(req.query.limit) || 50;
+    
+    // بناء شرط البحث بناءً على الحالة
     const whereClause = status === 'unread' ? 'replied = false' : '1=1';
-    const result = await pool.query(`SELECT id, user_id, message, admin_reply, replied, created_at FROM admin_messages WHERE ${whereClause} ORDER BY created_at DESC LIMIT $1`, [limit]);
-    res.json({ success: true,  result.rows });
+    
+    // ✅ جلب الرسائل من قاعدة البيانات فقط
+    const result = await pool.query(
+      `SELECT id, user_id, message, admin_reply, replied, created_at 
+       FROM admin_messages 
+       WHERE ${whereClause} 
+       ORDER BY created_at DESC 
+       LIMIT $1`, 
+      [limit]
+    );
+    
+    // ✅ التصحيح: إضافة مفتاح 'data' قبل result.rows
+    res.json({ 
+      success: true, 
+      data: result.rows,
+      count: result.rows.length
+    });
+    
   } catch (err) {
     console.error('❌ GET /api/admin/messages:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error',
+      error: err.message 
+    });
   }
 });
 
 // ================= 💬 10. الرد على رسالة =================
+
 app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
   try {
     const messageId = req.params.id;
     const { reply } = req.body;
-    if (!reply || reply.trim() === '') return res.status(400).json({ success: false, message: '❌ Reply text required' });
     
-    const msgCheck = await pool.query('SELECT * FROM admin_messages WHERE id = $1 AND replied = false', [messageId]);
-    if (msgCheck.rows.length === 0) return res.status(404).json({ success: false, message: '❌ Message not found' });
-    
-    const userId = msgCheck.rows[0].user_id;
-    await pool.query('UPDATE admin_messages SET admin_reply = $1, replied = true WHERE id = $2', [reply, messageId]);
-    
-    // إرسال الرد للمستخدم عبر البوت
-    try {
-      await bot.telegram.sendMessage(userId, `📩 <b>رد الإدارة:</b>\n${reply}`, { parse_mode: 'HTML' });
-    } catch (notifyErr) {
-      console.warn(`⚠️ Failed to send reply to user ${userId}:`, notifyErr.message);
+    // ✅ 1. التحقق من صحة المدخلات
+    if (!reply || reply.trim() === '') {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Reply text is required' 
+      });
     }
     
-    res.json({ success: true, message: '✅ Reply sent to user' });
+    // ✅ 2. التحقق من وجود الرسالة غير المجاب عليها في القاعدة
+    const msgCheck = await pool.query(
+      'SELECT id, user_id, message, replied FROM admin_messages WHERE id = $1', 
+      [messageId]
+    );
+    
+    if (msgCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '❌ Message not found' 
+      });
+    }
+    
+    const message = msgCheck.rows[0];
+    
+    // ✅ 3. 🗄️ حفظ الرد في قاعدة البيانات فقط (بدون أي تفاعل مع البوت)
+    await pool.query(
+      `UPDATE admin_messages 
+       SET admin_reply = $1, 
+           replied = true, 
+           updated_at = NOW() 
+       WHERE id = $2`, 
+      [reply, messageId]
+    );
+    
+    console.log(`✅ Reply saved to DB for message #${messageId} (user: ${message.user_id})`);
+    
+    // ✅ 4. إرجاع النجاح مع تفاصيل العملية
+    res.json({ 
+      success: true, 
+      message: '✅ Reply saved successfully in database',
+       {
+        message_id: messageId,
+        user_id: message.user_id,
+        original_message: message.message.substring(0, 200) + (message.message.length > 200 ? '...' : ''),
+        admin_reply: reply.substring(0, 200) + (reply.length > 200 ? '...' : ''),
+        replied_at: new Date().toISOString(),
+        // ⚠️ bot_sent: false دائماً لأننا لا نستخدم البوت
+        bot_sent: false
+      }
+    });
+    
   } catch (err) {
     console.error('❌ POST /api/admin/messages/:id/reply:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error',
+      error: err.message 
+    });
   }
 });
 
