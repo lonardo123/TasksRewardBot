@@ -126,10 +126,11 @@ tr:hover{background:#1e293b/50}
     <h2>🔐 Access Denied</h2>
     <p>This page is restricted to admin only.</p>
     <p>Required parameter:</p>
+    <p class="admin-id">admin_id=7171208519</p>
     <p style="font-size:13px;color:#64748b;margin-top:15px">
       ❌ Invalid or missing admin_id parameter
     </p>
-    
+    <button class="btn btn-primary" onclick="window.location.href='/'">🏠 Return Home</button>
   </div>
 </div>
 
@@ -146,82 +147,8 @@ tr:hover{background:#1e293b/50}
       </div>
     </div>
 
-    <!-- Alert Messages (Internal - No External Alerts) -->
+    <!-- Alert Messages -->
     <div id="alertBox" class="alert hidden"></div>
-
-    <!-- Stats Dashboard -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <h4>📋 Pending Proofs</h4>
-        <div class="value warning" id="pendingProofsCount">0</div>
-      </div>
-      <div class="stat-card">
-        <h4>⚠️ Open Disputes</h4>
-        <div class="value danger" id="openDisputesCount">0</div>
-      </div>
-      <div class="stat-card">
-        <h4>✅ Approved Today</h4>
-        <div class="value" id="approvedTodayCount">0</div>
-      </div>
-      <div class="stat-card">
-        <h4>💰 Admin Commission</h4>
-        <div class="value" id="adminCommissionTotal">$0.00</div>
-      </div>
-    </div>
-
-    <!-- Tabs -->
-    <div class="tabs">
-      <div class="tab active" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
-      <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
-      <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
-    </div>
-
-    <!-- Pending Proofs Section -->
-    <div id="proofsSection" class="card">
-      <h3>📋 Pending Proofs Review</h3>
-      <div id="pendingProofsList"></div>
-    </div>
-
-    <!-- Disputes Section -->
-    <div id="disputesSection" class="card hidden">
-      <h3>⚠️ Open Disputes</h3>
-      <div id="disputesList"></div>
-    </div>
-
-    <!-- Statistics Section -->
-    <div id="statsSection" class="card hidden">
-      <h3>📊 Commission Statistics</h3>
-      <div id="statsContent"></div>
-    </div>
-  </div>
-
- <!-- Resolve Dispute Modal -->
-<div id="resolveModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>⚖️ Resolve Dispute #<span id="resolveDisputeId"></span></h3>
-      <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
-    </div>
-    <div class="alert alert-info">Review the proof and decide the outcome.</div>
-    
-    <!-- ✅ هذا العنصر مطلوب لعرض الإثبات -->
-    <div id="resolveProofContent" style="margin:15px 0"></div>
-    
-    <div class="input-group">
-      <label>Decision:</label>
-      <select id="resolveDecision">
-        <option value="executor">✅ Pay executor (full amount)</option>
-        <option value="none">❌ No payment (refund to creator)</option>
-      </select>
-    </div>
-    <div class="input-group">
-      <label>Resolution Note:</label>
-      <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
-    </div>
-    <!-- ✅ تأكد أن onclick يستدعي submitResolution() -->
-    <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
-  </div>
-</div>
 
     <!-- Quick Actions Bar -->
     <div class="quick-actions">
@@ -278,6 +205,8 @@ tr:hover{background:#1e293b/50}
       <div class="tab" data-tab="balance" onclick="switchTab('balance')">💰 Balance</div>
       <div class="tab" data-tab="messages" onclick="switchTab('messages')">📬 Messages</div>
       <div class="tab" data-tab="proofs" onclick="switchTab('proofs')">📋 Proofs</div>
+      <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
+      <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
     </div>
 
     <!-- 📥 Deposits Section -->
@@ -352,10 +281,22 @@ tr:hover{background:#1e293b/50}
       <div id="messagesList"></div>
     </div>
 
-    <!-- 📋 Pending Proofs Section (Original) -->
+    <!-- 📋 Pending Proofs Section -->
     <div id="proofsSection" class="card hidden">
       <h3>📋 Pending Proofs Review</h3>
       <div id="pendingProofsList"></div>
+    </div>
+
+    <!-- ⚠️ Disputes Section -->
+    <div id="disputesSection" class="card hidden">
+      <h3>⚠️ Open Disputes</h3>
+      <div id="disputesList"></div>
+    </div>
+
+    <!-- 📊 Statistics Section -->
+    <div id="statsSection" class="card hidden">
+      <h3>📊 Commission Statistics</h3>
+      <div id="statsContent"></div>
     </div>
 
   </div>
@@ -377,13 +318,14 @@ tr:hover{background:#1e293b/50}
   </div>
 </div>
 
-<!-- ⚖️ Resolve Dispute Modal (Original) -->
+<!-- ⚖️ Resolve Dispute Modal -->
 <div id="resolveModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
       <h3>⚖️ Resolve Dispute #<span id="resolveDisputeId"></span></h3>
       <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
     </div>
+    <div class="alert alert-info">Review the proof and decide the outcome.</div>
     <div id="resolveProofContent" style="margin:15px 0"></div>
     <div class="input-group">
       <label>Decision:</label>
@@ -404,6 +346,7 @@ tr:hover{background:#1e293b/50}
 // ================= CONFIG =================
 const API = "https://perceptive-victory-production.up.railway.app";
 const REQUIRED_ADMIN_ID = "7171208519";
+const BOT_USERNAME = "TasksRewardBot";
 
 // ================= 🔐 ACCESS CONTROL =================
 function checkAdminAccess() {
@@ -435,18 +378,15 @@ function checkAdminAccess() {
   return true;
 }
 
-
 // ================= INIT =================
 window.addEventListener('load', async () => {
   const hasAccess = checkAdminAccess();
   if (!hasAccess) return;
   await loadDashboardStats();
-  await loadDeposits(); // Load deposits by default
+  await loadDeposits();
 });
 
 // ================= UTILS =================
-
-// 📢 عرض رسالة تنبيه
 function showAlert(msg, type) {
   const el = document.getElementById('alertBox');
   if (!el) return;
@@ -456,179 +396,132 @@ function showAlert(msg, type) {
   setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
-// ❌ إغلاق المودال
 function closeModal(id) {
   const modal = document.getElementById(id);
   if (modal) modal.classList.remove('active');
 }
 
-// ✅ فتح المودال
 function openModal(id) {
   const modal = document.getElementById(id);
   if (modal) modal.classList.add('active');
 }
 
-// 🔄 تبديل التبويبات - يدعم جميع الأقسام
 function switchTab(tab) {
-  // تحديث أزرار التبويبات
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   const activeTab = document.querySelector(`.tab[data-tab="${tab}"]`);
   if (activeTab) activeTab.classList.add('active');
   
-  // إخفاء جميع الأقسام أولاً
   const sections = ['deposits', 'withdrawals', 'balance', 'messages', 'proofs', 'disputes', 'stats'];
   sections.forEach(s => {
     const sec = document.getElementById(s + 'Section');
     if (sec) sec.classList.add('hidden');
   });
   
-  // إظهار القسم المطلوب وتحميل بياناته
   const section = document.getElementById(tab + 'Section');
   if (section) {
     section.classList.remove('hidden');
-    
-    // تحميل البيانات حسب التبويب
     switch(tab) {
-      case 'deposits':
-        loadDeposits();
-        break;
-      case 'withdrawals':
-        loadWithdrawals();
-        break;
-      case 'messages':
-        loadMessages();
-        break;
-      case 'proofs':
-        loadPendingProofs();
-        break;
-      case 'disputes':
-        loadDisputes();
-        break;
-      case 'stats':
-        loadCommissionStats();
-        break;
-      // قسم balance لا يحتاج تحميل (نماذج يدوية)
+      case 'deposits': loadDeposits(); break;
+      case 'withdrawals': loadWithdrawals(); break;
+      case 'messages': loadMessages(); break;
+      case 'proofs': loadPendingProofs(); break;
+      case 'disputes': loadDisputes(); break;
+      case 'stats': loadCommissionStats(); break;
+      // balance section has manual forms, no auto-load
     }
   }
 }
 
-// 🎯 فتح قسم عبر الأزرار السريعة (يدعم جميع الأقسام)
 function showSection(section) {
   const tabMap = {
-    'deposits': 'deposits',
-    'withdrawals': 'withdrawals',
-    'addBalance': 'balance',
-    'deductBalance': 'balance',
-    'messages': 'messages',
-    'proofs': 'proofs',
-    'disputes': 'disputes',
-    'stats': 'stats'
+    'deposits': 'deposits', 'withdrawals': 'withdrawals',
+    'addBalance': 'balance', 'deductBalance': 'balance',
+    'messages': 'messages', 'proofs': 'proofs',
+    'disputes': 'disputes', 'stats': 'stats'
   };
-  const tab = tabMap[section] || section;
-  switchTab(tab);
+  switchTab(tabMap[section] || section);
 }
 
-// 💰 تنسيق السعر
 function formatPrice(amount) {
   if (amount === null || amount === undefined || isNaN(amount)) return '$0.0000';
   return '$' + parseFloat(amount).toFixed(4);
 }
 
-// 📅 تنسيق التاريخ
 function formatDate(date) {
   if (!date) return 'N/A';
   try {
     return new Date(date).toLocaleString('en-US', { 
-      year:'numeric', 
-      month:'short', 
-      day:'numeric', 
-      hour:'2-digit', 
-      minute:'2-digit' 
+      year:'numeric', month:'short', day:'numeric', 
+      hour:'2-digit', minute:'2-digit' 
     });
-  } catch (e) {
-    return 'Invalid Date';
-  }
+  } catch (e) { return 'Invalid Date'; }
 }
 
-// ✂️ اختصار النص الطويل
 function truncate(text, len = 50) {
   if (!text) return '';
   return text.length > len ? text.substring(0, len) + '...' : text;
 }
 
-// 🚪 تسجيل الخروج
 function logout() {
   localStorage.removeItem('admin_verified');
   localStorage.removeItem('admin_id');
-  // إعادة التوجيه للصفحة الرئيسية مع إزالة بارامترات الأدمن
-  const cleanUrl = window.location.pathname;
-  window.location.href = cleanUrl;
+  window.location.href = window.location.pathname;
 }
 
-// 📋 نسخ نص إلى الحافظة (ميزة إضافية)
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
     showAlert('📋 Copied to clipboard', 'success');
     return true;
   } catch (err) {
-    console.error('❌ Copy failed:', err);
     showAlert('⚠️ Failed to copy', 'error');
     return false;
   }
 }
 
-// 🔄 تحديث إحصائيات لوحة التحكم (دالة مساعدة)
-async function refreshDashboardStats() {
-  try {
-    const res = await fetch(`${API}/api/admin/stats?admin_id=${REQUIRED_ADMIN_ID}`);
-    const data = await res.json();
-    if (data.success) {
-      // تحديث العدادات إذا كانت موجودة في الصفحة
-      const counts = data.data;
-      if (document.getElementById('pendingDepositsCount')) {
-        document.getElementById('pendingDepositsCount').textContent = counts.pending_deposits || 0;
-      }
-      if (document.getElementById('pendingWithdrawalsCount')) {
-        document.getElementById('pendingWithdrawalsCount').textContent = counts.pending_withdrawals || 0;
-      }
-      if (document.getElementById('unreadMessagesCount')) {
-        document.getElementById('unreadMessagesCount').textContent = counts.unread_messages || 0;
-      }
-    }
-  } catch (err) {
-    console.warn('⚠️ Could not refresh stats:', err);
-  }
-}
 // ================= 📈 INVESTMENT PANEL =================
 function openInvestmentPanel() {
-  // فتح لوحة الاستثمار في تبويب جديد مع معرف الأدمن
   const url = `${API}/admin-investment.html?admin_id=${REQUIRED_ADMIN_ID}`;
   window.open(url, '_blank', 'width=1200,height=800');
+}
+
+// ================= 🚀 TELEGRAM DEEP LINKS (Fallback) =================
+function openTelegramSection(command, hint) {
+  const url = `https://t.me/${BOT_USERNAME}?start=admin`;
+  showAlert(`📱 Opening bot...\n⚙️ Tap: "${hint}"`, 'info');
+  const win = window.open(url, '_blank');
+  if (!win || win.closed) {
+    copyToClipboard(`/${command}`).then(() => {
+      showAlert(`📋 Copied /${command} - paste in Telegram bot`, 'success');
+    });
+  }
+  setTimeout(() => {
+    showAlert(`💡 If bot didn't open, paste this in Telegram:\n\`/${command}\``, 'info');
+  }, 3000);
 }
 
 // ================= DASHBOARD STATS =================
 async function loadDashboardStats() {
   try {
-    // ملاحظة: هذه النقاط تحتاج إلى إنشاء endpoints في البوت
-    // مثال: GET /api/admin/stats
     const res = await fetch(`${API}/api/admin/stats?admin_id=${REQUIRED_ADMIN_ID}`);
     if (!res.ok) throw new Error('Stats endpoint not ready');
     const data = await res.json();
-    
     if (data.success) {
-      document.getElementById('pendingDepositsCount').textContent = data.data.pending_deposits || 0;
-      document.getElementById('pendingWithdrawalsCount').textContent = data.data.pending_withdrawals || 0;
-      document.getElementById('unreadMessagesCount').textContent = data.data.unread_messages || 0;
-      document.getElementById('totalUsersCount').textContent = data.data.total_users || 0;
+      const d = document.getElementById('pendingDepositsCount'); if(d) d.textContent = data.data.pending_deposits || 0;
+      const w = document.getElementById('pendingWithdrawalsCount'); if(w) w.textContent = data.data.pending_withdrawals || 0;
+      const m = document.getElementById('unreadMessagesCount'); if(m) m.textContent = data.data.unread_messages || 0;
+      const u = document.getElementById('totalUsersCount'); if(u) u.textContent = data.data.total_users || 0;
+      const pp = document.getElementById('pendingProofsCount'); if(pp) pp.textContent = data.data.pending_proofs || 0;
+      const od = document.getElementById('openDisputesCount'); if(od) od.textContent = data.data.open_disputes || 0;
+      const at = document.getElementById('approvedTodayCount'); if(at) at.textContent = data.data.approved_today || 0;
+      const ac = document.getElementById('adminCommissionTotal'); if(ac) ac.textContent = formatPrice(data.data.admin_commission);
     }
   } catch (err) {
-    console.log('⚠️ Stats endpoint not ready, using fallback counts');
-    // Fallback: show loading or zero
-    document.getElementById('pendingDepositsCount').textContent = '—';
-    document.getElementById('pendingWithdrawalsCount').textContent = '—';
-    document.getElementById('unreadMessagesCount').textContent = '—';
-    document.getElementById('totalUsersCount').textContent = '—';
+    console.log('⚠️ Stats endpoint not ready');
+    ['pendingDepositsCount','pendingWithdrawalsCount','unreadMessagesCount','totalUsersCount','pendingProofsCount','openDisputesCount','approvedTodayCount'].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.textContent='—';
+    });
+    const ac=document.getElementById('adminCommissionTotal'); if(ac) ac.textContent='$0.00';
   }
 }
 
@@ -636,21 +529,16 @@ async function loadDashboardStats() {
 async function loadDeposits() {
   const list = document.getElementById('depositsList');
   list.innerHTML = '<div class="loading">Loading deposit requests...</div>';
-  
   try {
-    // ملاحظة: يحتاج endpoint في البوت: GET /api/admin/deposits
     const res = await fetch(`${API}/api/admin/deposits?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
     if (!res.ok) throw new Error('Deposits endpoint not ready');
     const data = await res.json();
-    
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending deposit requests</p>';
       document.getElementById('pendingDepositsCount').textContent = '0';
       return;
     }
-    
     document.getElementById('pendingDepositsCount').textContent = data.data.length;
-    
     list.innerHTML = data.data.map(dep => `
       <div class="request-item">
         <div class="request-header">
@@ -670,64 +558,40 @@ async function loadDeposits() {
   } catch (err) {
     console.error('❌ loadDeposits:', err);
     list.innerHTML = `
-      <div class="alert alert-error">
-        ⚠️ Unable to load deposits.<br>
-        <small>Make sure the backend endpoint <code>/api/admin/deposits</code> is implemented.</small>
-      </div>
-      <p style="text-align:center;color:#94a3b8;padding:20px">
-        💡 Fallback: Use Telegram bot commands to manage deposits
-      </p>
-    `;
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot directly:<br>
+        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📥 طلبات الإيداع')">📱 Open Bot → 📥 Deposits</button>
+      </div>`;
   }
 }
 
 async function approveDeposit(requestId, userId) {
-  if (!confirm('✅ Confirm approving this deposit?\n\nThe admin will be prompted to enter the amount.')) return;
-  
+  if (!confirm('✅ Confirm approving this deposit?')) return;
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/deposits/{id}/approve
     const res = await fetch(`${API}/api/admin/deposits/${requestId}/approve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Deposit approved! Admin will enter amount via bot.', 'success');
-      loadDeposits();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to approve'), 'error');
-    }
+    if (data.success) { showAlert('✅ Deposit approved', 'success'); loadDeposits(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ approveDeposit:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot for deposit approval.', 'error');
+    showAlert('⚠️ Use bot: /admin → 📥 طلبات الإيداع', 'error');
   }
 }
 
 async function rejectDeposit(requestId, userId) {
-  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
-  
+  const reason = prompt('Reason (optional):') || 'Does not meet requirements';
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/deposits/{id}/reject
     const res = await fetch(`${API}/api/admin/deposits/${requestId}/reject`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showAlert('❌ Deposit rejected', 'success');
-      loadDeposits();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to reject'), 'error');
-    }
+    if (data.success) { showAlert('❌ Deposit rejected', 'success'); loadDeposits(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ rejectDeposit:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot for deposit rejection.', 'error');
+    showAlert('⚠️ Use bot: /admin → 📥 طلبات الإيداع', 'error');
   }
 }
 
@@ -735,21 +599,16 @@ async function rejectDeposit(requestId, userId) {
 async function loadWithdrawals() {
   const list = document.getElementById('withdrawalsList');
   list.innerHTML = '<div class="loading">Loading withdrawal requests...</div>';
-  
   try {
-    // ملاحظة: يحتاج endpoint في البوت: GET /api/admin/withdrawals
     const res = await fetch(`${API}/api/admin/withdrawals?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
     if (!res.ok) throw new Error('Withdrawals endpoint not ready');
     const data = await res.json();
-    
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending withdrawal requests</p>';
       document.getElementById('pendingWithdrawalsCount').textContent = '0';
       return;
     }
-    
     document.getElementById('pendingWithdrawalsCount').textContent = data.data.length;
-    
     list.innerHTML = data.data.map(wd => `
       <div class="request-item">
         <div class="request-header">
@@ -769,64 +628,40 @@ async function loadWithdrawals() {
   } catch (err) {
     console.error('❌ loadWithdrawals:', err);
     list.innerHTML = `
-      <div class="alert alert-error">
-        ⚠️ Unable to load withdrawals.<br>
-        <small>Make sure the backend endpoint <code>/api/admin/withdrawals</code> is implemented.</small>
-      </div>
-      <p style="text-align:center;color:#94a3b8;padding:20px">
-        💡 Fallback: Use Telegram bot commands /pay and /reject to manage withdrawals
-      </p>
-    `;
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot commands:<br>
+        <code>/pay &lt;id&gt;</code> to approve | <code>/reject &lt;id&gt;</code> to reject
+      </div>`;
   }
 }
 
 async function approveWithdrawal(withdrawId, userId, amount) {
-  if (!confirm(`✅ Confirm approving withdrawal #${withdrawId}?\n\nUser: ${userId}\nAmount: ${formatPrice(amount)}\n\nThis will mark the withdrawal as paid.`)) return;
-  
+  if (!confirm(`✅ Approve withdrawal #${withdrawId}?\nUser: ${userId}\nAmount: ${formatPrice(amount)}`)) return;
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/withdrawals/{id}/approve
     const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Withdrawal approved and marked as paid!', 'success');
-      loadWithdrawals();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to approve'), 'error');
-    }
+    if (data.success) { showAlert('✅ Withdrawal approved', 'success'); loadWithdrawals(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ approveWithdrawal:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot command /pay <id> for approval.', 'error');
+    showAlert('⚠️ Use bot: /pay ' + withdrawId, 'error');
   }
 }
 
 async function rejectWithdrawal(withdrawId, userId) {
-  const reason = prompt('Reason for rejection (optional):') || 'Verification failed';
-  
+  const reason = prompt('Reason (optional):') || 'Verification failed';
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/withdrawals/{id}/reject
     const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showAlert('❌ Withdrawal rejected. Amount refunded to user.', 'success');
-      loadWithdrawals();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to reject'), 'error');
-    }
+    if (data.success) { showAlert('❌ Withdrawal rejected', 'success'); loadWithdrawals(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ rejectWithdrawal:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot command /reject <id> for rejection.', 'error');
+    showAlert('⚠️ Use bot: /reject ' + withdrawId, 'error');
   }
 }
 
@@ -834,42 +669,24 @@ async function rejectWithdrawal(withdrawId, userId) {
 async function addBalanceToUser() {
   const userId = document.getElementById('addBalanceUserId').value.trim();
   const amount = parseFloat(document.getElementById('addBalanceAmount').value);
-  const reason = document.getElementById('addBalanceReason').value.trim() || 'Manual credit by admin';
-  
-  if (!userId || isNaN(amount) || amount <= 0) {
-    showAlert('❌ Please enter valid User ID and Amount', 'error');
-    return;
-  }
-  
+  const reason = document.getElementById('addBalanceReason').value.trim() || 'Manual credit';
+  if (!userId || isNaN(amount) || amount <= 0) { showAlert('❌ Valid User ID and Amount required', 'error'); return; }
   if (!confirm(`➕ Add ${formatPrice(amount)} to user ${userId}?\nReason: ${reason}`)) return;
-  
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/balance/add
     const res = await fetch(`${API}/api/admin/balance/add`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId, 
-        amount: amount,
-        reason: reason,
-        source: 'admin_panel'
-      })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason, source:'admin_panel' })
     });
     const data = await res.json();
-    
     if (data.success) {
       showAlert(`✅ Added ${formatPrice(amount)} to user ${userId}`, 'success');
-      document.getElementById('addBalanceUserId').value = '';
-      document.getElementById('addBalanceAmount').value = '';
-      document.getElementById('addBalanceReason').value = '';
+      document.getElementById('addBalanceUserId').value='';
+      document.getElementById('addBalanceAmount').value='';
+      document.getElementById('addBalanceReason').value='';
       loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to add balance'), 'error');
-    }
+    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ addBalanceToUser:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot for balance management.', 'error');
+    showAlert('⚠️ Use bot: /admin → ➕ إضافة رصيد', 'error');
   }
 }
 
@@ -877,40 +694,23 @@ async function deductBalanceFromUser() {
   const userId = document.getElementById('deductBalanceUserId').value.trim();
   const amount = parseFloat(document.getElementById('deductBalanceAmount').value);
   const reason = document.getElementById('deductBalanceReason').value.trim();
-  
-  if (!userId || isNaN(amount) || amount <= 0 || !reason) {
-    showAlert('❌ Please fill all fields (Reason is required for deduction)', 'error');
-    return;
-  }
-  
-  if (!confirm(`⚠️ Deduct ${formatPrice(amount)} from user ${userId}?\nReason: ${reason}\n\nThis action cannot be undone!`)) return;
-  
+  if (!userId || isNaN(amount) || amount <= 0 || !reason) { showAlert('❌ Fill all fields (Reason required)', 'error'); return; }
+  if (!confirm(`⚠️ Deduct ${formatPrice(amount)} from user ${userId}?\nReason: ${reason}`)) return;
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/balance/deduct
     const res = await fetch(`${API}/api/admin/balance/deduct`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId, 
-        amount: amount,
-        reason: reason
-      })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason })
     });
     const data = await res.json();
-    
     if (data.success) {
       showAlert(`✅ Deducted ${formatPrice(amount)} from user ${userId}`, 'success');
-      document.getElementById('deductBalanceUserId').value = '';
-      document.getElementById('deductBalanceAmount').value = '';
-      document.getElementById('deductBalanceReason').value = '';
+      document.getElementById('deductBalanceUserId').value='';
+      document.getElementById('deductBalanceAmount').value='';
+      document.getElementById('deductBalanceReason').value='';
       loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to deduct balance'), 'error');
-    }
+    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ deductBalanceFromUser:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot for balance management.', 'error');
+    showAlert('⚠️ Use bot: /admin → ➖ خصم رصيد', 'error');
   }
 }
 
@@ -920,21 +720,16 @@ let currentReplyMessageId = null;
 async function loadMessages() {
   const list = document.getElementById('messagesList');
   list.innerHTML = '<div class="loading">Loading user messages...</div>';
-  
   try {
-    // ملاحظة: يحتاج endpoint في البوت: GET /api/admin/messages
     const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=unread`);
     if (!res.ok) throw new Error('Messages endpoint not ready');
     const data = await res.json();
-    
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No unread messages</p>';
       document.getElementById('unreadMessagesCount').textContent = '0';
       return;
     }
-    
     document.getElementById('unreadMessagesCount').textContent = data.data.length;
-    
     list.innerHTML = data.data.map(msg => `
       <div class="message-item">
         <div class="message-header">
@@ -942,20 +737,16 @@ async function loadMessages() {
           <span class="message-time">📅 ${formatDate(msg.created_at)}</span>
         </div>
         <div class="message-text">${msg.message}</div>
-        <button class="btn btn-primary btn-sm" onclick="openReplyModal(${msg.id}, ${msg.user_id}, '${msg.message.replace(/'/g, "\\'")}')">💬 Reply</button>
+        <button class="btn btn-primary btn-sm" onclick="openReplyModal(${msg.id}, ${msg.user_id}, '${msg.message.replace(/'/g,"\\'")}')">💬 Reply</button>
       </div>
     `).join('');
   } catch (err) {
     console.error('❌ loadMessages:', err);
     list.innerHTML = `
-      <div class="alert alert-error">
-        ⚠️ Unable to load messages.<br>
-        <small>Make sure the backend endpoint <code>/api/admin/messages</code> is implemented.</small>
-      </div>
-      <p style="text-align:center;color:#94a3b8;padding:20px">
-        💡 Fallback: Use Telegram bot command /admin → 📬 رسائل المستخدمين
-      </p>
-    `;
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot:<br>
+        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📬 رسائل المستخدمين')">📱 Open Bot → 📬 Messages</button>
+      </div>`;
   }
 }
 
@@ -969,69 +760,40 @@ function openReplyModal(msgId, userId, message) {
 
 async function sendReply() {
   const replyText = document.getElementById('replyText').value.trim();
-  
-  if (!replyText || !currentReplyMessageId) {
-    showAlert('❌ Please write a reply', 'error');
-    return;
-  }
-  
+  if (!replyText || !currentReplyMessageId) { showAlert('❌ Write a reply', 'error'); return; }
   try {
-    // ملاحظة: يحتاج endpoint في البوت: POST /api/admin/messages/{id}/reply
     const res = await fetch(`${API}/api/admin/messages/${currentReplyMessageId}/reply`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        reply: replyText 
-      })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply: replyText })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Reply sent to user', 'success');
-      closeModal('replyModal');
-      loadMessages();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
-    }
+    if (data.success) { showAlert('✅ Reply sent', 'success'); closeModal('replyModal'); loadMessages(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ sendReply:', err);
-    showAlert('⚠️ Connection error. Please use Telegram bot command /reply <msg_id> <text>', 'error');
+    showAlert('⚠️ Use bot: /reply <msg_id> <text>', 'error');
   }
 }
 
-// ================= 📋 PENDING PROOFS (Original) =================
+// ================= 📋 PENDING PROOFS =================
 async function loadPendingProofs() {
   const list = document.getElementById('pendingProofsList');
   list.innerHTML = '<div class="loading">Loading pending proofs...</div>';
-  
   try {
     const res = await fetch(`${API}/api/admin/pending-proofs?admin_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
-    
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs to review</p>';
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs</p>';
       return;
     }
-    
     list.innerHTML = data.data.map(proof => `
       <div class="proof-item">
         <div class="proof-header">
-          <div>
-            <strong>📋 ${proof.task_title}</strong>
-            <span style="color:#94a3b8;font-size:12px;margin-left:10px">#${proof.task_id}</span>
-          </div>
+          <div><strong>📋 ${proof.task_title}</strong> <span style="color:#94a3b8;font-size:12px">#${proof.task_id}</span></div>
           <span class="status-badge status-pending">⏳ Pending</span>
         </div>
-        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
-          👤 Executor: @${proof.executor_username || proof.executor_id} | 
-          📅 ${formatDate(proof.submitted_at)}
-        </p>
-        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
-          💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong>
-        </p>
-        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor\'s Proof:</strong><br>${proof.proof}</div>` : ''}
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">👤 Executor: @${proof.executor_username||proof.executor_id} | 📅 ${formatDate(proof.submitted_at)}</p>
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong></p>
+        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>`:''}
         <div class="proof-actions">
           <button class="btn btn-success btn-sm" onclick="approveProof(${proof.task_id}, ${proof.id})">✅ Approve</button>
           <button class="btn btn-danger btn-sm" onclick="rejectProof(${proof.task_id}, ${proof.id})">❌ Reject</button>
@@ -1045,415 +807,132 @@ async function loadPendingProofs() {
 }
 
 async function approveProof(taskId, proofId) {
-  if (!confirm('✅ Confirm approving this proof and sending payment?')) return;
-  
+  if (!confirm('✅ Confirm approving this proof?')) return;
   try {
     const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
     });
     const data = await res.json();
-    showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) {
-      loadPendingProofs();
-      loadDashboardStats();
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
+    showAlert(data.success ? '✅ Approved' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) { loadPendingProofs(); loadDashboardStats(); }
+  } catch (err) { showAlert('⚠️ Connection error', 'error'); }
 }
 
 async function rejectProof(taskId, proofId) {
-  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
-  
+  const reason = prompt('Reason (optional):') || 'Does not meet requirements';
   try {
     const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
     });
     const data = await res.json();
-    showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) {
-      loadPendingProofs();
-      loadDashboardStats();
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
+    showAlert(data.success ? '❌ Rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) { loadPendingProofs(); loadDashboardStats(); }
+  } catch (err) { showAlert('⚠️ Connection error', 'error'); }
 }
 
-// ================= ⚖️ RESOLVE DISPUTE (Original) =================
-let currentDispute = null;
-
-function openResolveModal(disputeId, executionId, proof = '') {
-  currentDispute = { id: disputeId, executionId, proof };
-  document.getElementById('resolveDisputeId').textContent = disputeId;
-  document.getElementById('resolveDecision').value = 'executor';
-  document.getElementById('resolveNote').value = '';
-  
-  const proofContent = document.getElementById('resolveProofContent');
-  if (proofContent) {
-    if (proof && proof.trim()) {
-      proofContent.innerHTML = `
-        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
-          <strong style="color:#94a3b8;font-size:13px">📤 Executor\'s Proof:</strong>
-          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
-        </div>
-      `;
-    } else {
-      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
-    }
-  }
-  openModal('resolveModal');
-}
-
-async function submitResolution() {
-  const payout = document.getElementById('resolveDecision').value;
-  const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
-  
-  if (!currentDispute) {
-    showAlert('⚠️ No dispute selected', 'error');
-    return;
-  }
-  
-  try {
-    const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        admin_id: REQUIRED_ADMIN_ID,
-        payout_to: payout,
-        resolution
-      })
-    });
-    const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Dispute resolved', 'success');
-      closeModal('resolveModal');
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + data.message, 'error');
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-    console.error('❌ submitResolution:', err);
-  }
-}
-
-// ================= DASHBOARD STATS =================
-async function loadDashboardStats() {
-  try {
-    const res = await fetch(`${API}/api/admin/stats?user_id=${REQUIRED_ADMIN_ID}`);
-    const data = await res.json();
-    
-    if (data.success) {
-      document.getElementById('pendingProofsCount').textContent = data.data.pending_proofs;
-      document.getElementById('openDisputesCount').textContent = data.data.open_disputes;
-      document.getElementById('approvedTodayCount').textContent = data.data.approved_today;
-      document.getElementById('adminCommissionTotal').textContent = formatPrice(data.data.admin_commission);
-    }
-  } catch (err) {
-    console.error('❌ loadDashboardStats:', err);
-  }
-}
-
-// ================= PENDING PROOFS =================
-async function loadPendingProofs() {
-  const list = document.getElementById('pendingProofsList');
-  list.innerHTML = '<div class="loading">Loading pending proofs...</div>';
-  
-  try {
-    const res = await fetch(`${API}/api/admin/pending-proofs?user_id=${REQUIRED_ADMIN_ID}`);
-    const data = await res.json();
-    
-    if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs to review</p>';
-      document.getElementById('pendingProofsCount').textContent = '0';
-      return;
-    }
-    
-    document.getElementById('pendingProofsCount').textContent = data.data.length;
-    
-    list.innerHTML = data.data.map(proof => `
-      <div class="proof-item">
-        <div class="proof-header">
-          <div>
-            <strong>📋 ${proof.task_title}</strong>
-            <span style="color:#94a3b8;font-size:12px;margin-left:10px">#${proof.task_id}</span>
-          </div>
-          <span class="status-badge status-pending">⏳ Pending</span>
-        </div>
-        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
-          👤 Executor: @${proof.executor_username || proof.executor_id} | 
-          📅 ${formatDate(proof.submitted_at)}
-        </p>
-        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
-          💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong>
-        </p>
-        <p style="color:#cbd5e1;font-size:13px;margin:5px 0">
-          📝 Task: ${proof.task_description?.substring(0, 100)}${proof.task_description?.length > 100 ? '...' : ''}
-        </p>
-        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>` : ''}
-        <div class="proof-actions">
-          <button class="btn btn-success btn-sm" onclick="approveProof(${proof.task_id}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
-          <button class="btn btn-danger btn-sm" onclick="rejectProof(${proof.task_id}, ${proof.id})">❌ Reject</button>
-        </div>
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error(err);
-    list.innerHTML = '<p class="alert alert-error">Failed to load proofs</p>';
-  }
-}
-
-async function approveProof(taskId, proofId) {
-  if (!confirm('✅ Confirm approving this proof and sending payment?')) return;
-  
-  try {
-    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_id: REQUIRED_ADMIN_ID })
-    });
-    const data = await res.json();
-    showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) {
-      loadPendingProofs();
-      loadDashboardStats(); // ✅ تحديث الإحصائيات
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
-}
-
-async function rejectProof(taskId, proofId) {
-  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
-  
-  try {
-    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ user_id: REQUIRED_ADMIN_ID, reason })
-    });
-    const data = await res.json();
-    showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
-    if (data.success) {
-      loadPendingProofs();
-      loadDashboardStats();
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-  }
-}
-
-// ================= DISPUTES =================
+// ================= ⚠️ DISPUTES =================
 let currentDispute = null;
 
 async function loadDisputes() {
   const list = document.getElementById('disputesList');
   list.innerHTML = '<div class="loading">Loading disputes...</div>';
-  
   try {
-    const res = await fetch(`${API}/api/admin/disputes?user_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/disputes?admin_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
-    
     const count = data.success && data.data ? data.data.length : 0;
     document.getElementById('openDisputesCount').textContent = count;
-    
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No open disputes</p>';
       return;
     }
-    
     list.innerHTML = data.data.map(d => `
       <div class="proof-item" style="border-left:4px solid #8b5cf6">
         <div class="proof-header" style="border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:15px">
           <strong>⚠️ Dispute #${d.dispute_id}</strong>
           <span class="status-badge status-disputed">Open</span>
         </div>
-        
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
           <div style="background:#0f172a;padding:12px;border-radius:8px">
             <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">📋 Task Details</h4>
             <p style="font-size:13px"><strong>Title:</strong> ${d.task_title} <span style="color:#94a3b8">#${d.task_id}</span></p>
-            <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username || d.creator_telegram}</p>
+            <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username||d.creator_telegram}</p>
             <p style="font-size:13px"><strong>Reward:</strong> <span style="color:#22c55e">${formatPrice(d.executor_reward)}</span></p>
-            ${d.target_url ? `<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open Link ↗</a></p>` : ''}
+            ${d.target_url?`<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open ↗</a></p>`:''}
           </div>
-          
           <div style="background:#0f172a;padding:12px;border-radius:8px">
             <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">👤 Executor Details</h4>
-            <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username || d.executor_telegram}</p>
+            <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username||d.executor_telegram}</p>
             <p style="font-size:13px"><strong>Submitted:</strong> ${formatDate(d.proof_submitted_at)}</p>
             <p style="font-size:13px"><strong>Amount:</strong> <span style="color:#22c55e">${formatPrice(d.payment_amount)}</span></p>
           </div>
         </div>
-        
-        <div style="margin-bottom:15px">
-          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4>
-          <div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">${d.task_description || 'No description'}</div>
-        </div>
-        
-        <div style="margin-bottom:15px">
-          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4>
-          <div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">${d.executor_proof || '<span style="color:#ef4444">No proof</span>'}</div>
-        </div>
-        
-        <div style="margin-bottom:15px">
-          <h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4>
-          <div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">${d.reason}</div>
-        </div>
-        
+        <div style="margin-bottom:15px"><h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4><div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">${d.task_description||'No description'}</div></div>
+        <div style="margin-bottom:15px"><h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4><div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">${d.executor_proof||'<span style="color:#ef4444">No proof</span>'}</div></div>
+        <div style="margin-bottom:15px"><h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4><div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">${d.reason}</div></div>
         <div class="proof-actions" style="border-top:1px solid #334155;padding-top:15px">
-          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.dispute_id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g, "\\'") || ''}')">⚖️ Review & Resolve</button>
+          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.dispute_id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g,"\\'")||''}')">⚖️ Review & Resolve</button>
         </div>
       </div>
     `).join('');
-    
   } catch (err) {
     console.error('❌ loadDisputes:', err);
     list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
   }
 }
 
-function openResolveModal(disputeId, executionId, proof = '') {
+function openResolveModal(disputeId, executionId, proof='') {
   currentDispute = { id: disputeId, executionId, proof };
-  
   document.getElementById('resolveDisputeId').textContent = disputeId;
   document.getElementById('resolveDecision').value = 'executor';
   document.getElementById('resolveNote').value = '';
-  
   const proofContent = document.getElementById('resolveProofContent');
   if (proofContent) {
     if (proof && proof.trim()) {
-      proofContent.innerHTML = `
-        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
-          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
-          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
-        </div>
-      `;
-    } else {
-      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
-    }
+      proofContent.innerHTML = `<div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px"><strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong><p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p></div>`;
+    } else { proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>'; }
   }
-  
   openModal('resolveModal');
 }
 
 async function submitResolution() {
   const payout = document.getElementById('resolveDecision').value;
   const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
-  
-  if (!currentDispute) {
-    showAlert('⚠️ No dispute selected', 'error');
-    return;
-  }
-  
+  if (!currentDispute) { showAlert('⚠️ No dispute selected', 'error'); return; }
   try {
     const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        admin_id: REQUIRED_ADMIN_ID,
-        payout_to: payout,
-        resolution
-      })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, payout_to: payout, resolution })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      showAlert('✅ Dispute resolved', 'success');
-      closeModal('resolveModal');
-      loadDisputes();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + data.message, 'error');
-    }
-  } catch (err) {
-    showAlert('⚠️ Connection error', 'error');
-    console.error('❌ submitResolution:', err);
-  }
-}
-// ✅ دالة مساعدة لعرض تفاصيل المهمة الكاملة
-function viewTaskDetail(taskId) {
-  window.open(`/tasks.html?user_id=${REQUIRED_ADMIN_ID}#task-${taskId}`, '_blank');
+    if (data.success) { showAlert('✅ Dispute resolved', 'success'); closeModal('resolveModal'); loadDisputes(); loadDashboardStats(); }
+    else { showAlert('❌ ' + data.message, 'error'); }
+  } catch (err) { showAlert('⚠️ Connection error', 'error'); console.error('❌ submitResolution:', err); }
 }
 
-// ================= RESOLVE MODAL =================
-
-function openResolveModal(disputeId, executionId, proof = '') {
-  currentDispute = { id: disputeId, executionId, proof };
-  
-  document.getElementById('resolveDisputeId').textContent = disputeId;
-  document.getElementById('resolveDecision').value = 'executor';
-  document.getElementById('resolveNote').value = '';
-  
-  // ✅ عرض الإثبات داخل المودال
-  const proofContent = document.getElementById('resolveProofContent');
-  if (proofContent) {
-    if (proof && proof.trim()) {
-      proofContent.innerHTML = `
-        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
-          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
-          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
-        </div>
-      `;
-    } else {
-      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
-    }
-  }
-  
-  openModal('resolveModal');
-}
-// ================= COMMISSION STATS =================
+// ================= 📊 COMMISSION STATS =================
 async function loadCommissionStats() {
   const content = document.getElementById('statsContent');
   content.innerHTML = '<div class="loading">Loading statistics...</div>';
-  
   try {
-    const res = await fetch(`${API}/api/admin/commission-stats?user_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/commission-stats?admin_id=${REQUIRED_ADMIN_ID}`);
     const data = await res.json();
-    
-    if (!data.success) {
-      content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
-      return;
-    }
-    
+    if (!data.success) { content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>'; return; }
     const stats = data.data;
-    
     content.innerHTML = `
       <div style="display:grid;gap:15px">
-        <div class="card">
-          <h4>💰 Today's Commission</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.today)}</p>
-          <p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p>
-        </div>
-        <div class="card">
-          <h4>📊 This Week</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.week)}</p>
-          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
-        </div>
-        <div class="card">
-          <h4>📈 This Month</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.month)}</p>
-          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
-        </div>
-        <div class="card">
-          <h4>🏆 All Time</h4>
-          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.all_time)}</p>
-          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p>
-        </div>
-      </div>
-    `;
+        <div class="card"><h4>💰 Today's Commission</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.today)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p></div>
+        <div class="card"><h4>📊 This Week</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.week)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p></div>
+        <div class="card"><h4>📈 This Month</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.month)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p></div>
+        <div class="card"><h4>🏆 All Time</h4><p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.all_time)}</p><p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p></div>
+      </div>`;
   } catch (err) {
     console.error(err);
     content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
   }
 }
-  
+
 // ================= REFRESH ALL =================
 async function refreshAll() {
   await loadDashboardStats();
@@ -1461,20 +940,22 @@ async function refreshAll() {
   await loadWithdrawals();
   await loadMessages();
   await loadPendingProofs();
-   await loadDisputes();
+  await loadDisputes();
   await loadCommissionStats();
   showAlert('🔄 All data refreshed', 'success');
 }
 
-// ================= KEYBOARD SHORTCUTS (Optional) =================
+// ================= KEYBOARD SHORTCUTS =================
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey) {
-    if (e.key === '1') { e.preventDefault(); switchTab('deposits'); }
-    if (e.key === '2') { e.preventDefault(); switchTab('withdrawals'); }
-    if (e.key === '3') { e.preventDefault(); switchTab('balance'); }
-    if (e.key === '4') { e.preventDefault(); switchTab('messages'); }
-    if (e.key === '5') { e.preventDefault(); switchTab('proofs'); }
-    if (e.key === 'r') { e.preventDefault(); refreshAll(); }
+    if (e.key==='1') { e.preventDefault(); switchTab('deposits'); }
+    if (e.key==='2') { e.preventDefault(); switchTab('withdrawals'); }
+    if (e.key==='3') { e.preventDefault(); switchTab('balance'); }
+    if (e.key==='4') { e.preventDefault(); switchTab('messages'); }
+    if (e.key==='5') { e.preventDefault(); switchTab('proofs'); }
+    if (e.key==='6') { e.preventDefault(); switchTab('disputes'); }
+    if (e.key==='7') { e.preventDefault(); switchTab('stats'); }
+    if (e.key==='r') { e.preventDefault(); refreshAll(); }
   }
 });
 </script>
