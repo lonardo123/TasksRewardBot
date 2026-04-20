@@ -2315,7 +2315,16 @@ app.get("/api/contact/history", async (req, res) => {
   }
 });
 
-
+// ==================== 🔐 4. Middleware: التحقق من الأدمن (مهم جداً) ====================
+function verifyAdmin(req, res, next) {
+  const adminId = req.query.admin_id || req.body.admin_id;
+  const REQUIRED_ADMIN_ID = process.env.ADMIN_ID || '7171208519';
+  
+  if (!adminId || String(adminId) !== String(REQUIRED_ADMIN_ID)) {
+    return res.status(403).json({ success: false, message: '❌ Access denied: Invalid admin_id' });
+  }
+  next();
+}
 // ================= 📥 1. جلب طلبات الإيداع =================
 app.get('/api/admin/deposits', verifyAdmin, async (req, res) => {
   try {
