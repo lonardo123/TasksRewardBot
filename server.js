@@ -2331,7 +2331,7 @@ app.get('/api/admin/deposits', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= ✅ 2. الموافقة على إيداع =================
+// ✅ 2. الموافقة على إيداع
 app.post('/api/admin/deposits/:id/approve', verifyAdmin, async (req, res) => {
   try {
     const depositId = req.params.id;
@@ -2347,7 +2347,7 @@ app.post('/api/admin/deposits/:id/approve', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= ❌ 3. رفض إيداع =================
+// ❌ 3. رفض إيداع
 app.post('/api/admin/deposits/:id/reject', verifyAdmin, async (req, res) => {
   try {
     const depositId = req.params.id;
@@ -2361,7 +2361,7 @@ app.post('/api/admin/deposits/:id/reject', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= 📤 4. جلب طلبات السحب =================
+// 📤 4. جلب طلبات السحب
 app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
   try {
     const status = req.query.status || 'pending';
@@ -2373,7 +2373,7 @@ app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= ✅ 5. الموافقة على سحب =================
+// ✅ 5. الموافقة على سحب
 app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => {
   try {
     const withdrawId = req.params.id;
@@ -2386,7 +2386,7 @@ app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => 
   }
 });
 
-// ================= ❌ 6. رفض سحب (مع إرجاع الرصيد) =================
+// ❌ 6. رفض سحب (مع إرجاع الرصيد)
 app.post('/api/admin/withdrawals/:id/reject', verifyAdmin, async (req, res) => {
   try {
     const withdrawId = req.params.id;
@@ -2406,7 +2406,7 @@ app.post('/api/admin/withdrawals/:id/reject', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= ➕ 7. إضافة رصيد =================
+// ➕ 7. إضافة رصيد
 app.post('/api/admin/balance/add', verifyAdmin, async (req, res) => {
   try {
     const { user_id, amount, reason = 'Manual credit', source = 'admin_panel' } = req.body;
@@ -2439,7 +2439,7 @@ app.post('/api/admin/balance/add', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= ➖ 8. خصم رصيد =================
+// ➖ 8. خصم رصيد
 app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
   try {
     const { user_id, amount, reason } = req.body;
@@ -2460,7 +2460,7 @@ app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= 📬 9. جلب رسائل المستخدمين =================
+// 📬 9. جلب رسائل المستخدمين
 app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
   try {
     const status = req.query.status || 'unread';
@@ -2476,7 +2476,6 @@ app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
       [limit]
     );
     
-    // ✅ التصحيح: إضافة مفتاح 'data' قبل result.rows
     res.json({ 
       success: true, 
       data: result.rows,
@@ -2493,7 +2492,7 @@ app.get('/api/admin/messages', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= 💬 10. الرد على رسالة (مصحح - قاعدة البيانات فقط) =================
+// 💬 10. الرد على رسالة (قاعدة البيانات فقط - بدون بوت)
 app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
   try {
     const messageId = req.params.id;
@@ -2520,7 +2519,7 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     
     const message = msgCheck.rows[0];
     
-    // ✅ حفظ الرد في قاعدة البيانات فقط (بدون بوت)
+    // ✅ حفظ الرد في قاعدة البيانات فقط
     await pool.query(
       `UPDATE admin_messages 
        SET admin_reply = $1, 
@@ -2532,11 +2531,10 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     
     console.log(`✅ Reply saved to DB for message #${messageId} (user: ${message.user_id})`);
     
-    // ✅ التصحيح: إضافة مفتاح 'data' قبل القوس {
     res.json({ 
       success: true, 
       message: '✅ Reply saved successfully in database',
-      data: {  // ← هذا هو التصحيح المهم!
+      data: {
         message_id: messageId,
         user_id: message.user_id,
         original_message: message.message.substring(0, 200) + (message.message.length > 200 ? '...' : ''),
@@ -2556,7 +2554,7 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
   }
 });
 
-// ================= 📊 Bonus: إحصائيات (مصحح) =================
+// 📊 Bonus: إحصائيات
 app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
   try {
     const [deposits, withdrawals, messages, users, proofs, disputes, commission] = await Promise.all([
@@ -2569,10 +2567,9 @@ app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
       pool.query("SELECT COALESCE(SUM(amount), 0) AS total FROM earnings WHERE source IN ('admin_fee', 'referral_deposit')")
     ]);
     
-    // ✅ التصحيح: إضافة مفتاح 'data' قبل القوس {
     res.json({
       success: true,
-      data: {  // ← هذا هو التصحيح المهم!
+      data: {
         pending_deposits: parseInt(deposits.rows[0].count),
         pending_withdrawals: parseInt(withdrawals.rows[0].count),
         unread_messages: parseInt(messages.rows[0].count),
