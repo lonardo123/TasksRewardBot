@@ -440,6 +440,8 @@ window.addEventListener('load', async () => {
 });
 
 // ================= UTILS =================
+
+// 📢 عرض رسالة تنبيه
 function showAlert(msg, type) {
   const el = document.getElementById('alertBox');
   if (!el) return;
@@ -449,76 +451,150 @@ function showAlert(msg, type) {
   setTimeout(() => el.classList.add('hidden'), 5000);
 }
 
+// ❌ إغلاق المودال
 function closeModal(id) {
   const modal = document.getElementById(id);
   if (modal) modal.classList.remove('active');
 }
 
+// ✅ فتح المودال
 function openModal(id) {
   const modal = document.getElementById(id);
   if (modal) modal.classList.add('active');
 }
 
+// 🔄 تبديل التبويبات - يدعم جميع الأقسام
 function switchTab(tab) {
-  // Update tab buttons
+  // تحديث أزرار التبويبات
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab[data-tab="${tab}"]`)?.classList.add('active');
+  const activeTab = document.querySelector(`.tab[data-tab="${tab}"]`);
+  if (activeTab) activeTab.classList.add('active');
   
-  // Hide all sections
-  ['deposits', 'withdrawals', 'balance', 'messages', 'proofs'].forEach(s => {
+  // إخفاء جميع الأقسام أولاً
+  const sections = ['deposits', 'withdrawals', 'balance', 'messages', 'proofs', 'disputes', 'stats'];
+  sections.forEach(s => {
     const sec = document.getElementById(s + 'Section');
     if (sec) sec.classList.add('hidden');
   });
   
-  // Show selected section
+  // إظهار القسم المطلوب وتحميل بياناته
   const section = document.getElementById(tab + 'Section');
   if (section) {
     section.classList.remove('hidden');
-    // Load data based on tab
-    if (tab === 'deposits') loadDeposits();
-    else if (tab === 'withdrawals') loadWithdrawals();
-    else if (tab === 'messages') loadMessages();
-    else if (tab === 'proofs') loadPendingProofs();
+    
+    // تحميل البيانات حسب التبويب
+    switch(tab) {
+      case 'deposits':
+        loadDeposits();
+        break;
+      case 'withdrawals':
+        loadWithdrawals();
+        break;
+      case 'messages':
+        loadMessages();
+        break;
+      case 'proofs':
+        loadPendingProofs();
+        break;
+      case 'disputes':
+        loadDisputes();
+        break;
+      case 'stats':
+        loadCommissionStats();
+        break;
+      // قسم balance لا يحتاج تحميل (نماذج يدوية)
+    }
   }
 }
 
+// 🎯 فتح قسم عبر الأزرار السريعة (يدعم جميع الأقسام)
 function showSection(section) {
-  // Map quick action to tab
   const tabMap = {
     'deposits': 'deposits',
     'withdrawals': 'withdrawals',
     'addBalance': 'balance',
     'deductBalance': 'balance',
     'messages': 'messages',
-    'proofs': 'proofs'
+    'proofs': 'proofs',
+    'disputes': 'disputes',
+    'stats': 'stats'
   };
   const tab = tabMap[section] || section;
   switchTab(tab);
 }
 
+// 💰 تنسيق السعر
 function formatPrice(amount) {
-  return '$' + parseFloat(amount || 0).toFixed(4);
+  if (amount === null || amount === undefined || isNaN(amount)) return '$0.0000';
+  return '$' + parseFloat(amount).toFixed(4);
 }
 
+// 📅 تنسيق التاريخ
 function formatDate(date) {
   if (!date) return 'N/A';
-  return new Date(date).toLocaleString('en-US', { 
-    year:'numeric', month:'short', day:'numeric', 
-    hour:'2-digit', minute:'2-digit' 
-  });
+  try {
+    return new Date(date).toLocaleString('en-US', { 
+      year:'numeric', 
+      month:'short', 
+      day:'numeric', 
+      hour:'2-digit', 
+      minute:'2-digit' 
+    });
+  } catch (e) {
+    return 'Invalid Date';
+  }
 }
 
+// ✂️ اختصار النص الطويل
 function truncate(text, len = 50) {
   if (!text) return '';
   return text.length > len ? text.substring(0, len) + '...' : text;
 }
 
+// 🚪 تسجيل الخروج
 function logout() {
   localStorage.removeItem('admin_verified');
   localStorage.removeItem('admin_id');
-  window.location.href = '/';
+  // إعادة التوجيه للصفحة الرئيسية مع إزالة بارامترات الأدمن
+  const cleanUrl = window.location.pathname;
+  window.location.href = cleanUrl;
 }
 
+// 📋 نسخ نص إلى الحافظة (ميزة إضافية)
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showAlert('📋 Copied to clipboard', 'success');
+    return true;
+  } catch (err) {
+    console.error('❌ Copy failed:', err);
+    showAlert('⚠️ Failed to copy', 'error');
+    return false;
+  }
+}
+
+// 🔄 تحديث إحصائيات لوحة التحكم (دالة مساعدة)
+async function refreshDashboardStats() {
+  try {
+    const res = await fetch(`${API}/api/admin/stats?admin_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    if (data.success) {
+      // تحديث العدادات إذا كانت موجودة في الصفحة
+      const counts = data.data;
+      if (document.getElementById('pendingDepositsCount')) {
+        document.getElementById('pendingDepositsCount').textContent = counts.pending_deposits || 0;
+      }
+      if (document.getElementById('pendingWithdrawalsCount')) {
+        document.getElementById('pendingWithdrawalsCount').textContent = counts.pending_withdrawals || 0;
+      }
+      if (document.getElementById('unreadMessagesCount')) {
+        document.getElementById('unreadMessagesCount').textContent = counts.unread_messages || 0;
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️ Could not refresh stats:', err);
+  }
+}
 // ================= 📈 INVESTMENT PANEL =================
 function openInvestmentPanel() {
   // فتح لوحة الاستثمار في تبويب جديد مع معرف الأدمن
@@ -1060,69 +1136,6 @@ async function submitResolution() {
     showAlert('⚠️ Connection error', 'error');
     console.error('❌ submitResolution:', err);
   }
-}
-
-
-// ================= INIT =================
-window.addEventListener('load', async () => {
-  const hasAccess = checkAdminAccess();
-  if (!hasAccess) return;
-  await loadDashboardStats(); // ✅ تحميل الإحصائيات عند الفتح
-});
-
-// ================= UTILS =================
-function showAlert(msg, type) {
-  const el = document.getElementById('alertBox');
-  if (!el) return;
-  el.className = `alert alert-${type}`;
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 5000);
-}
-
-function closeModal(id) {
-  document.getElementById(id).classList.remove('active');
-}
-
-function openModal(id) {
-  document.getElementById(id).classList.add('active');
-}
-
-function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
-  
-  document.getElementById('proofsSection').classList.add('hidden');
-  document.getElementById('disputesSection').classList.add('hidden');
-  document.getElementById('statsSection').classList.add('hidden');
-  
-  if (tab === 'proofs') {
-    document.getElementById('proofsSection').classList.remove('hidden');
-    loadPendingProofs();
-  } else if (tab === 'disputes') {
-    document.getElementById('disputesSection').classList.remove('hidden');
-    loadDisputes();
-  } else if (tab === 'stats') {
-    document.getElementById('statsSection').classList.remove('hidden');
-    loadCommissionStats();
-  }
-}
-
-function formatPrice(amount) {
-  return '$' + parseFloat(amount).toFixed(4);
-}
-
-function formatDate(date) {
-  return new Date(date).toLocaleString('en-US', { 
-    year:'numeric', month:'short', day:'numeric', 
-    hour:'2-digit', minute:'2-digit' 
-  });
-}
-
-function logout() {
-  localStorage.removeItem('admin_verified');
-  localStorage.removeItem('admin_id');
-  window.location.href = '/';
 }
 
 // ================= DASHBOARD STATS =================
