@@ -2099,6 +2099,13 @@ app.get("/api/deposit/history", async (req, res) => {
   }
 });
 
+function cleanTRC20Address(address) {
+  if (!address) return '';
+  return address
+    .trim()                 // حذف المسافات من البداية والنهاية
+    .replace(/\s/g, '')     // حذف أي مسافات داخلية
+    .replace(/[^\x20-\x7E]/g, ''); // حذف أي رموز مخفية
+}
 /* =========================
    WITHDRAW - Submit Request (مصحح)
 ========================= */
