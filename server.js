@@ -2679,6 +2679,30 @@ app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
   }
 });
 
+// ✅ GET: جلب إحصائية عدد المستخدمين الكلي
+app.get('/api/admin/stats/total-users', verifyAdmin, async (req, res) => {
+  try {
+    const { admin_id } = req.query;
+    
+    // 🔐 التحقق من صلاحية الأدمن
+    if (admin_id != REQUIRED_ADMIN_ID) {
+      return res.status(403).json({ success: false, message: '❌ Access denied' });
+    }
+    
+    // 📊 جلب عدد المستخدمين من جدول users
+    const result = await pool.query('SELECT COUNT(*) as total FROM users');
+    const totalUsers = parseInt(result.rows[0].total) || 0;
+    
+    res.json({ 
+      success: true, 
+      data: { total_users: totalUsers } 
+    });
+    
+  } catch (err) {
+    console.error('❌ GET /api/admin/stats/total-users:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 // ======================= 📝 TASKS SYSTEM API - FULL COMPATIBLE =======================
 
