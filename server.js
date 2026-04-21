@@ -2114,7 +2114,7 @@ app.post("/api/withdraw/submit", async (req, res) => {
     const cleanWallet = cleanTRC20Address(wallet);
     
     // ✅ التحقق من صحة عنوان TRC20
-    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet.trim())) {
+    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(cleanWallet)) {
       return res.json({ success: false, message: "Invalid TRC20 address" });
     }
     
@@ -2157,7 +2157,7 @@ app.post("/api/withdraw/submit", async (req, res) => {
       await client.query(
         `INSERT INTO withdrawals (user_id, amount, payeer_wallet, status, requested_at, admin_note)
          VALUES ($1, $2, $3, 'pending', NOW(), $4)`,
-        [user_id, netAmount, wallet.toUpperCase(), `Requested: ${requested.toFixed(4)}$, Fee: ${withdrawalFee.toFixed(4)}$ (5%)`]
+        [user_id, netAmount, cleanWallet, `Requested: ${requested.toFixed(4)}$, Fee: ${withdrawalFee.toFixed(4)}$ (5%)`]
       );
       
       // خصم المبلغ المطلوب من رصيد المستخدم فوراً
