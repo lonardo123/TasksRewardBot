@@ -2683,39 +2683,31 @@ app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
   }
 });
 
-// 👥 جلب عدد المستخدمين الكلي - نسخة مبسطة للتجربة
+// 👥 جلب عدد المستخدمين الكلي - كود مُصحح
 app.get('/api/admin/stats/total-users', async (req, res) => {
   try {
-    // 🔍 تسجيل الطلب للتحقق
     console.log('📥 GET /total-users query:', req.query);
     
     const admin_id = req.query.admin_id;
-    const REQUIRED_ADMIN_ID = '7171208519'; // ✅ قيمة مؤقتة للتجربة
+    const REQUIRED_ADMIN_ID = '7171208519';
     
-    // 🔐 تحقق بسيط من الأدمن (بدون middleware للتجربة)
     if (admin_id != REQUIRED_ADMIN_ID) {
       return res.status(403).json({ success: false, message: '❌ Access denied' });
     }
     
-    // 📊 استعلام بسيط ومباشر
     const result = await pool.query('SELECT COUNT(*) as total FROM users');
     const totalUsers = parseInt(result.rows[0]?.total) || 0;
     
     console.log('✅ Total users:', totalUsers);
     
+    // ✅ التصحيح: إضافة مفتاح "data:" قبل الكائن
     res.json({ 
       success: true, 
-       { total_users: totalUsers } 
+      data: { total_users: totalUsers }  // ✅ صحيح الآن
     });
     
   } catch (err) {
-    // 🚨 تسجيل الخطأ التفصيلي في Console
-    console.error('❌ ERROR /total-users:', {
-      message: err.message,
-      stack: err.stack,
-      code: err.code
-    });
-    
+    console.error('❌ ERROR /total-users:', err.message);
     res.status(500).json({ 
       success: false, 
       message: 'Server error: ' + err.message 
