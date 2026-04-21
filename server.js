@@ -2109,6 +2109,9 @@ app.post("/api/withdraw/submit", async (req, res) => {
     if (!user_id || !wallet) {
       return res.json({ success: false, message: "Invalid data" });
     }
+
+     // ✅ ✅ ✅ تنظيف العنوان أولاً (هذا هو الإصلاح الجوهري)
+    const cleanWallet = cleanTRC20Address(wallet);
     
     // ✅ التحقق من صحة عنوان TRC20
     if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet.trim())) {
