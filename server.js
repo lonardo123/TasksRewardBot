@@ -2540,7 +2540,7 @@ app.post('/api/admin/balance/add', verifyAdmin, async (req, res) => {
 app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
   try {
     const { user_id, amount, reason } = req.body;
-    if (!user_id || isNaN(amount) || amount <= 0 || !reason) return res.status(400).json({ success: false, message: '❌ All fields required' });
+    if (!user_id || isNaN(amount) || amount <= 0 || !reason) return res.status(400).json({ success: false, message: '❌ Fill all fields (Reason required' });
     
     const userCheck = await pool.query('SELECT telegram_id, balance FROM users WHERE telegram_id = $1', [user_id]);
     if (userCheck.rows.length === 0) return res.status(404).json({ success: false, message: '❌ User not found' });
@@ -2595,6 +2595,7 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     const messageId = req.params.id;
     const { reply } = req.body;
     
+    // ✅ التحقق من وجود نص الرد
     if (!reply || reply.trim() === '') {
       return res.status(400).json({ 
         success: false, 
@@ -2602,6 +2603,7 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
       });
     }
     
+    // ✅ التحقق من وجود الرسالة
     const msgCheck = await pool.query(
       'SELECT id, user_id, message, replied FROM admin_messages WHERE id = $1', 
       [messageId]
@@ -2616,12 +2618,11 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     
     const message = msgCheck.rows[0];
     
-    // ✅ حفظ الرد في قاعدة البيانات فقط
+    // ✅ حفظ الرد في قاعدة البيانات - تصحيح: حذف updated_at لأنه غير موجود في الجدول
     await pool.query(
       `UPDATE admin_messages 
        SET admin_reply = $1, 
-           replied = true, 
-           updated_at = NOW() 
+           replied = true 
        WHERE id = $2`, 
       [reply, messageId]
     );
@@ -2636,8 +2637,8 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
         user_id: message.user_id,
         original_message: message.message.substring(0, 200) + (message.message.length > 200 ? '...' : ''),
         admin_reply: reply.substring(0, 200) + (reply.length > 200 ? '...' : ''),
-        replied_at: new Date().toISOString(),
-        bot_sent: false
+        replied: true,
+        replied_at: new Date().toISOString()
       }
     });
     
