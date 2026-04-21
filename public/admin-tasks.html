@@ -594,16 +594,26 @@ async function loadDashboardStats() {
 async function loadDeposits() {
   const list = document.getElementById('depositsList');
   list.innerHTML = '<div class="loading">Loading deposit requests...</div>';
+  
   try {
+    // ✅ جلب الإيداعات المعلقة من السيرفر مباشرة
     const res = await fetch(`${API}/api/admin/deposits?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
-    if (!res.ok) throw new Error('Deposits endpoint not ready');
+    
+    if (!res.ok) throw new Error('Failed to fetch deposits');
+    
     const data = await res.json();
+    
+    // ✅ التعامل مع حالة عدم وجود إيداعات معلقة
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending deposit requests</p>';
       document.getElementById('pendingDepositsCount').textContent = '0';
       return;
     }
+    
+    // ✅ تحديث عداد الإيداعات المعلقة
     document.getElementById('pendingDepositsCount').textContent = data.data.length;
+    
+    // ✅ عرض قائمة الإيداعات
     list.innerHTML = data.data.map(dep => `
       <div class="request-item">
         <div class="request-header">
@@ -611,34 +621,38 @@ async function loadDeposits() {
             <p><strong>👤 User:</strong> @${dep.username || dep.user_id} <span style="color:#64748b">(ID: ${dep.user_id})</span></p>
             <p><strong>🔗 TxID:</strong> <span class="txid-box">${dep.txid}</span></p>
             <p><strong>📅 Submitted:</strong> ${formatDate(dep.created_at)}</p>
-            <p><strong>💰 Amount:</strong> <span style="color:#facc15">Pending approval</span></p>
+            <p><strong>💰 Amount:</strong> <span style="color:#22c55e">$${parseFloat(dep.amount).toFixed(2)}</span></p>
           </div>
           <div class="request-actions">
-            <!-- ✅ الجديد مع data-attributes -->
-<button class="btn-approve" 
-        onclick="openApproveModal(this)" 
-        data-deposit-id="${deposit.id}" 
-        data-user-id="${deposit.user_id}" 
-        data-txid="${deposit.txid || ''}" 
-        data-amount="${deposit.amount}"
-        style="padding:8px 16px; background:#27ae60; color:#fff; border:none; border-radius:6px; cursor:pointer;">
-  ✅ Approve
-</button>
+            <!-- ✅ زر الموافقة مع البيانات الصحيحة -->
+            <button class="btn-approve" 
+                    onclick="openApproveModal(this)" 
+                    data-deposit-id="${dep.id}" 
+                    data-user-id="${dep.user_id}" 
+                    data-txid="${dep.txid || ''}" 
+                    data-amount="${dep.amount}"
+                    style="padding:8px 16px; background:#27ae60; color:#fff; border:none; border-radius:6px; cursor:pointer;">
+              ✅ Approve
+            </button>
+            <!-- زر الرفض -->
             <button class="btn btn-danger btn-sm" onclick="rejectDeposit(${dep.id}, ${dep.user_id})">❌ Reject</button>
           </div>
         </div>
       </div>
     `).join('');
+    
   } catch (err) {
     console.error('❌ loadDeposits:', err);
+    // ✅ رسالة خطأ بديلة بدون إشارة للبوت
     list.innerHTML = `
-      <div class="alert alert-warning">
-        ⚠️ API not ready. Use bot directly:<br>
-        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📥 طلبات الإيداع')">📱 Open Bot → 📥 Deposits</button>
+      <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
+        ⚠️ Failed to load deposits. Please refresh or check server connection.<br>
+        <button class="btn btn-primary btn-sm" onclick="loadDeposits()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+          🔄 Retry
+        </button>
       </div>`;
   }
 }
-
 // ========================
 // 📦 متغير مؤقت لبيانات الموافقة
 // ========================
