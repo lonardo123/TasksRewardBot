@@ -827,179 +827,352 @@ async function rejectDeposit(depositId, userId) {
 // ================= 📤 WITHDRAWALS =================
 async function loadWithdrawals() {
   const list = document.getElementById('withdrawalsList');
+  if (!list) return;
+  
   list.innerHTML = '<div class="loading">Loading withdrawal requests...</div>';
+  
   try {
     const res = await fetch(`${API}/api/admin/withdrawals?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
-    if (!res.ok) throw new Error('Withdrawals endpoint not ready');
+    
+    if (!res.ok) throw new Error('Failed to fetch withdrawals');
+    
     const data = await res.json();
+    
+    // ✅ عرض رسالة عند عدم وجود طلبات
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending withdrawal requests</p>';
       document.getElementById('pendingWithdrawalsCount').textContent = '0';
       return;
     }
+    
+    // ✅ تحديث عداد الطلبات المعلقة
     document.getElementById('pendingWithdrawalsCount').textContent = data.data.length;
+    
+    // ✅ عرض قائمة طلبات السحب
     list.innerHTML = data.data.map(wd => `
       <div class="request-item">
         <div class="request-header">
           <div class="request-info">
-            <p><strong>👤 User:</strong> <span style="color:#60a5fa">${wd.user_id}</span></p>
-            <p><strong>💰 Amount:</strong> <span style="color:#22c55e;font-weight:600">${formatPrice(wd.amount)}</span></p>
-            <p><strong>💳 Wallet (TRC20):</strong> <span class="txid-box">${wd.payeer_wallet}</span></p>
-            <p><strong>📅 Requested:</strong> ${formatDate(wd.created_at)}</p>
+            <p><strong>👤 User:</strong> @${wd.username || wd.user_id} <span style="color:#64748b">(ID: ${wd.user_id})</span></p>
+            <p><strong>💳 Payeer Wallet:</strong> <span class="txid-box">${wd.payeer_wallet || 'N/A'}</span></p>
+            <p><strong>📅 Requested:</strong> ${formatDate(wd.requested_at)}</p>
+            <p><strong>💰 Amount:</strong> <span style="color:#ef4444">$${parseFloat(wd.amount).toFixed(2)}</span></p>
+            ${wd.admin_note ? `<p><strong>📝 Admin Note:</strong> ${wd.admin_note}</p>` : ''}
           </div>
           <div class="request-actions">
-            <button class="btn btn-success btn-sm" onclick="approveWithdrawal(${wd.id}, ${wd.user_id}, ${wd.amount})">✅ Approve</button>
-            <button class="btn btn-danger btn-sm" onclick="rejectWithdrawal(${wd.id}, ${wd.user_id})">❌ Reject</button>
+            <button class="btn-approve" onclick="approveWithdrawal(${wd.id}, ${wd.user_id}, ${wd.amount})" 
+                    style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer;">
+              ✅ Approve
+            </button>
+            <button class="btn-reject" onclick="openRejectWithdrawalModal(${wd.id}, ${wd.user_id})" 
+                    style="padding:8px 16px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;">
+              ❌ Reject
+            </button>
           </div>
         </div>
       </div>
     `).join('');
+    
+    showAlert('✅ Withdrawals loaded successfully', 'success');
+    
   } catch (err) {
     console.error('❌ loadWithdrawals:', err);
     list.innerHTML = `
-      <div class="alert alert-warning">
-        ⚠️ API not ready. Use bot commands:<br>
-        <code>/pay &lt;id&gt;</code> to approve | <code>/reject &lt;id&gt;</code> to reject
+      <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
+        ⚠️ Failed to load withdrawals. Please check server connection.<br>
+        <button class="btn btn-primary btn-sm" onclick="loadWithdrawals()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+          🔄 Retry
+        </button>
       </div>`;
+    showAlert('⚠️ Failed to load withdrawals', 'error');
   }
 }
 
-async function approveWithdrawal(withdrawId, userId, amount) {
-  if (!confirm(`✅ Approve withdrawal #${withdrawId}?\nUser: ${userId}\nAmount: ${formatPrice(amount)}`)) return;
+// ✅ الموافقة على سحب
+async function approveWithdrawal(withdrawalId, userId, amount) {
+  if (!confirm(`✅ Confirm approving withdrawal of $${parseFloat(amount).toFixed(2)} for user ${userId}?`)) return;
+  
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawalId}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        user_id: userId,
+        amount: amount 
+      })
     });
+    
     const data = await res.json();
-    if (data.success) { showAlert('✅ Withdrawal approved', 'success'); loadWithdrawals(); loadDashboardStats(); }
-    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+    
+    if (data.success) {
+      showAlert(`✅ Withdrawal approved! $${parseFloat(amount).toFixed(2)} processed.`, 'success');
+      loadWithdrawals();
+      loadDashboardStats();
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to approve withdrawal'), 'error');
+    }
   } catch (err) {
-    showAlert('⚠️ Use bot: /pay ' + withdrawId, 'error');
+    console.error('❌ approveWithdrawal:', err);
+    showAlert('⚠️ Connection error while approving withdrawal', 'error');
   }
 }
 
-async function rejectWithdrawal(withdrawId, userId) {
-  const reason = prompt('Reason (optional):') || 'Verification failed';
+// ❌ فتح مودال رفض السحب
+function openRejectWithdrawalModal(withdrawalId, userId) {
+  const modal = document.getElementById('rejectWithdrawalModal');
+  if (modal) {
+    modal.dataset.withdrawalId = withdrawalId;
+    modal.dataset.userId = userId;
+    modal.style.display = 'flex';
+    document.getElementById('rejectWithdrawalReason').value = '';
+  }
+}
+
+// ❌ تأكيد رفض السحب
+async function confirmRejectWithdrawal() {
+  const modal = document.getElementById('rejectWithdrawalModal');
+  const withdrawalId = modal?.dataset.withdrawalId;
+  const userId = modal?.dataset.userId;
+  const reason = document.getElementById('rejectWithdrawalReason')?.value || 'No reason provided';
+  
+  if (!withdrawalId || !userId) {
+    showAlert('❌ Invalid withdrawal data', 'error');
+    return;
+  }
+  
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawalId}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        user_id: userId,
+        reason: reason 
+      })
     });
+    
     const data = await res.json();
-    if (data.success) { showAlert('❌ Withdrawal rejected', 'success'); loadWithdrawals(); loadDashboardStats(); }
-    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+    
+    if (data.success) {
+      showAlert(`✅ Withdrawal rejected. Reason: ${reason}`, 'success');
+      modal.style.display = 'none';
+      loadWithdrawals();
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to reject withdrawal'), 'error');
+    }
   } catch (err) {
-    showAlert('⚠️ Use bot: /reject ' + withdrawId, 'error');
+    console.error('❌ confirmRejectWithdrawal:', err);
+    showAlert('⚠️ Connection error while rejecting withdrawal', 'error');
   }
 }
 
 // ================= 💰 BALANCE MANAGEMENT =================
+// ➕ إضافة رصيد لمستخدم
 async function addBalanceToUser() {
-  const userId = document.getElementById('addBalanceUserId').value.trim();
-  const amount = parseFloat(document.getElementById('addBalanceAmount').value);
-  const reason = document.getElementById('addBalanceReason').value.trim() || 'Manual credit';
-  if (!userId || isNaN(amount) || amount <= 0) { showAlert('❌ Valid User ID and Amount required', 'error'); return; }
-  if (!confirm(`➕ Add ${formatPrice(amount)} to user ${userId}?\nReason: ${reason}`)) return;
+  const userId = document.getElementById('addBalanceUserId')?.value;
+  const amount = document.getElementById('addBalanceAmount')?.value;
+  const reason = document.getElementById('addBalanceReason')?.value || 'Admin balance addition';
+  
+  // ✅ التحقق من الحقول المطلوبة
+  if (!userId || !amount || parseFloat(amount) <= 0) {
+    showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
+    return;
+  }
+  
+  if (!confirm(`✅ Confirm adding $${parseFloat(amount).toFixed(2)} to user ${userId}?`)) return;
+  
   try {
-    const res = await fetch(`${API}/api/admin/balance/add`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason, source:'admin_panel' })
+    const res = await fetch(`${API}/api/admin/users/balance/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        user_id: userId,
+        amount: parseFloat(amount),
+        reason: reason 
+      })
     });
+    
     const data = await res.json();
+    
     if (data.success) {
-      showAlert(`✅ Added ${formatPrice(amount)} to user ${userId}`, 'success');
-      document.getElementById('addBalanceUserId').value='';
-      document.getElementById('addBalanceAmount').value='';
-      document.getElementById('addBalanceReason').value='';
+      showAlert(`✅ $${parseFloat(amount).toFixed(2)} added to user ${userId}. Reason: ${reason}`, 'success');
+      // تفريغ الحقول
+      document.getElementById('addBalanceUserId').value = '';
+      document.getElementById('addBalanceAmount').value = '';
+      document.getElementById('addBalanceReason').value = '';
       loadDashboardStats();
-    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to add balance'), 'error');
+    }
   } catch (err) {
-    showAlert('⚠️ Use bot: /admin → ➕ إضافة رصيد', 'error');
+    console.error('❌ addBalanceToUser:', err);
+    showAlert('⚠️ Connection error while adding balance', 'error');
   }
 }
 
+// ➖ خصم رصيد من مستخدم (مع سبب إلزامي)
 async function deductBalanceFromUser() {
-  const userId = document.getElementById('deductBalanceUserId').value.trim();
-  const amount = parseFloat(document.getElementById('deductBalanceAmount').value);
-  const reason = document.getElementById('deductBalanceReason').value.trim();
-  if (!userId || isNaN(amount) || amount <= 0 || !reason) { showAlert('❌ Fill all fields (Reason required)', 'error'); return; }
-  if (!confirm(`⚠️ Deduct ${formatPrice(amount)} from user ${userId}?\nReason: ${reason}`)) return;
+  const userId = document.getElementById('deductBalanceUserId')?.value;
+  const amount = document.getElementById('deductBalanceAmount')?.value;
+  const reason = document.getElementById('deductBalanceReason')?.value?.trim();
+  
+  // ✅ التحقق من جميع الحقول - السبب إلزامي هنا
+  if (!userId || !amount || parseFloat(amount) <= 0) {
+    showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
+    return;
+  }
+  
+  // ⚠️ السبب إلزامي للخصم
+  if (!reason || reason.length < 3) {
+    showAlert('❌ Fill all fields (Reason required)', 'error');  // ✅ الرسالة المطلوبة
+    return;
+  }
+  
+  if (!confirm(`⚠️ Confirm deducting $${parseFloat(amount).toFixed(2)} from user ${userId}?\n\nReason: ${reason}`)) return;
+  
   try {
-    const res = await fetch(`${API}/api/admin/balance/deduct`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason })
+    const res = await fetch(`${API}/api/admin/users/balance/deduct`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        user_id: userId,
+        amount: parseFloat(amount),
+        reason: reason 
+      })
     });
+    
     const data = await res.json();
+    
     if (data.success) {
-      showAlert(`✅ Deducted ${formatPrice(amount)} from user ${userId}`, 'success');
-      document.getElementById('deductBalanceUserId').value='';
-      document.getElementById('deductBalanceAmount').value='';
-      document.getElementById('deductBalanceReason').value='';
+      showAlert(`✅ $${parseFloat(amount).toFixed(2)} deducted from user ${userId}. Reason: ${reason}`, 'success');
+      // تفريغ الحقول
+      document.getElementById('deductBalanceUserId').value = '';
+      document.getElementById('deductBalanceAmount').value = '';
+      document.getElementById('deductBalanceReason').value = '';
       loadDashboardStats();
-    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to deduct balance'), 'error');
+    }
   } catch (err) {
-    showAlert('⚠️ Use bot: /admin → ➖ خصم رصيد', 'error');
+    console.error('❌ deductBalanceFromUser:', err);
+    showAlert('⚠️ Connection error while deducting balance', 'error');
   }
 }
 
 // ================= 📬 MESSAGES =================
-let currentReplyMessageId = null;
-
 async function loadMessages() {
   const list = document.getElementById('messagesList');
+  if (!list) return;
+  
   list.innerHTML = '<div class="loading">Loading user messages...</div>';
+  
   try {
-    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=unread`);
-    if (!res.ok) throw new Error('Messages endpoint not ready');
+    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=all`);
+    
+    if (!res.ok) throw new Error('Failed to fetch messages');
+    
     const data = await res.json();
+    
+    // ✅ عرض رسالة عند عدم وجود رسائل
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No unread messages</p>';
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No user messages found</p>';
       document.getElementById('unreadMessagesCount').textContent = '0';
       return;
     }
-    document.getElementById('unreadMessagesCount').textContent = data.data.length;
+    
+    // ✅ تحديث عداد الرسائل غير المقروءة
+    const unreadCount = data.data.filter(m => !m.replied).length;
+    document.getElementById('unreadMessagesCount').textContent = unreadCount;
+    
+    // ✅ عرض قائمة الرسائل
     list.innerHTML = data.data.map(msg => `
-      <div class="message-item">
-        <div class="message-header">
-          <span class="message-user">👤 User: ${msg.user_id}</span>
-          <span class="message-time">📅 ${formatDate(msg.created_at)}</span>
+      <div class="request-item" style="${!msg.replied ? 'border-left:4px solid #3b82f6;background:#f8fafc' : ''}">
+        <div class="request-header">
+          <div class="request-info">
+            <p>
+              <strong>👤 User:</strong> @${msg.username || msg.user_id} 
+              <span style="color:#64748b">(ID: ${msg.user_id})</span>
+              ${!msg.replied ? '<span style="margin-left:10px;padding:2px 8px;background:#3b82f6;color:#fff;border-radius:12px;font-size:11px;">🔴 Unread</span>' : ''}
+            </p>
+            <p><strong>📅 Sent:</strong> ${formatDate(msg.created_at)}</p>
+            <p><strong>💬 Message:</strong></p>
+            <p style="background:#f1f5f9;padding:10px;border-radius:6px;margin:5px 0;">${msg.message || 'No content'}</p>
+            ${msg.admin_reply ? `<p><strong>✅ Your Reply:</strong> <span style="color:#22c55e">${msg.admin_reply}</span></p>` : ''}
+          </div>
+          <div class="request-actions">
+            <button class="btn-reply" onclick="openReplyModal(${msg.user_id}, '${(msg.username || msg.user_id).replace(/'/g, "\\'")}', '${(msg.message || '').replace(/'/g, "\\'")}')" 
+                    style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;">
+              ${msg.replied ? '🔄 Reply Again' : '📩 Reply'}
+            </button>
+          </div>
         </div>
-        <div class="message-text">${msg.message}</div>
-        <button class="btn btn-primary btn-sm" onclick="openReplyModal(${msg.id}, ${msg.user_id}, '${msg.message.replace(/'/g,"\\'")}')">💬 Reply</button>
       </div>
     `).join('');
+    
   } catch (err) {
     console.error('❌ loadMessages:', err);
     list.innerHTML = `
-      <div class="alert alert-warning">
-        ⚠️ API not ready. Use bot:<br>
-        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📬 رسائل المستخدمين')">📱 Open Bot → 📬 Messages</button>
+      <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
+        ⚠️ Failed to load messages. Please check server connection.<br>
+        <button class="btn btn-primary btn-sm" onclick="loadMessages()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+          🔄 Retry
+        </button>
       </div>`;
   }
 }
 
-function openReplyModal(msgId, userId, message) {
-  currentReplyMessageId = msgId;
-  document.getElementById('replyUserId').textContent = userId;
-  document.getElementById('replyMessageContent').textContent = message;
-  document.getElementById('replyText').value = '';
-  openModal('replyModal');
+// 📩 فتح مودال الرد على رسالة
+function openReplyModal(userId, username, originalMessage) {
+  const modal = document.getElementById('replyModal');
+  if (modal) {
+    modal.dataset.userId = userId;
+    modal.dataset.username = username;
+    document.getElementById('replyToUserLabel').textContent = `Reply to @${username} (ID: ${userId})`;
+    document.getElementById('originalMessagePreview').textContent = originalMessage || 'No content';
+    document.getElementById('replyInput').value = '';
+    modal.style.display = 'flex';
+  }
 }
 
+// 📤 إرسال الرد
 async function sendReply() {
-  const replyText = document.getElementById('replyText').value.trim();
-  if (!replyText || !currentReplyMessageId) { showAlert('❌ Write a reply', 'error'); return; }
+  const modal = document.getElementById('replyModal');
+  const userId = modal?.dataset.userId;
+  const username = modal?.dataset.username;
+  const reply = document.getElementById('replyInput')?.value?.trim();
+  
+  if (!userId || !reply) {
+    showAlert('❌ Please enter a reply message', 'error');
+    return;
+  }
+  
   try {
-    const res = await fetch(`${API}/api/admin/messages/${currentReplyMessageId}/reply`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply: replyText })
+    const res = await fetch(`${API}/api/admin/messages/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        user_id: userId,
+        reply: reply 
+      })
     });
+    
     const data = await res.json();
-    if (data.success) { showAlert('✅ Reply sent', 'success'); closeModal('replyModal'); loadMessages(); loadDashboardStats(); }
-    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+    
+    if (data.success) {
+      showAlert(`✅ Reply sent to @${username}`, 'success');
+      modal.style.display = 'none';
+      loadMessages();
+      loadDashboardStats();
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
+    }
   } catch (err) {
-    showAlert('⚠️ Use bot: /reply <msg_id> <text>', 'error');
+    console.error('❌ sendReply:', err);
+    showAlert('⚠️ Connection error while sending reply', 'error');
   }
 }
 
