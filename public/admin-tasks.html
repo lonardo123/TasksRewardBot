@@ -116,6 +116,20 @@ tr:hover{background:#1e293b/50}
 .quick-btn.investment{background:linear-gradient(135deg,#06b6d4,#0891b2);color:white}
 .quick-btn .icon{font-size:24px}
 .quick-btn .label{font-size:13px}
+ /* ✅ تنسيق مودال الرفض */
+#rejectModal .modal-content {
+  border-left: 4px solid #ef4444;
+}
+#rejectModal textarea {
+  background: #0f172a;
+  border: 1px solid #475569;
+  color: #fff;
+  resize: vertical;
+}
+#rejectModal textarea:focus {
+  border-color: #ef4444;
+  outline: none;
+} 
 </style>
 </head>
 <body>
@@ -234,6 +248,27 @@ tr:hover{background:#1e293b/50}
       <div id="depositsList"></div>
     </div>
 
+    <!-- ✅ Modal للرفض داخل الصفحة -->
+<div id="rejectModal" class="modal">
+  <div class="modal-content" style="max-width:500px">
+    <div class="modal-header">
+      <h3>❌ Reject Deposit #<span id="rejectDepositId"></span></h3>
+      <button class="modal-close" onclick="closeModal('rejectModal')">&times;</button>
+    </div>
+    <p style="color:#94a3b8;margin-bottom:15px">
+      User ID: <strong id="rejectUserId"></strong><br>
+      Reason is optional. Leave empty for default reason.
+    </p>
+    <div class="input-group">
+      <label>Reason for rejection (optional):</label>
+      <textarea id="rejectReason" rows="3" placeholder="e.g., Invalid TxID, Not received, etc."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('rejectModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmReject()">❌ Confirm Reject</button>
+    </div>
+  </div>
+</div>
     <!-- 📤 Withdrawals Section -->
     <div id="withdrawalsSection" class="card hidden">
       <div class="section-title">
@@ -593,21 +628,58 @@ async function approveDeposit(requestId, userId) {
   }
 }
 
-async function rejectDeposit(requestId, userId) {
-  const reason = prompt('Reason (optional):') || 'Does not meet requirements';
-  try {
-    const res = await fetch(`${API}/api/admin/deposits/${requestId}/reject`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
-    });
-    const data = await res.json();
-    if (data.success) { showAlert('❌ Deposit rejected', 'success'); loadDeposits(); loadDashboardStats(); }
-    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
-  } catch (err) {
-    showAlert('⚠️ Use bot: /admin → 📥 طلبات الإيداع', 'error');
-  }
+// متغير عالمي لتخزين بيانات الرفض المؤقت
+let pendingReject = null;
+
+// ✅ دالة فتح نموذج الرفض (بدون prompt)
+function openRejectModal(depositId, userId) {
+  pendingReject = { depositId, userId };
+  document.getElementById('rejectDepositId').textContent = depositId;
+  document.getElementById('rejectUserId').textContent = userId;
+  document.getElementById('rejectReason').value = ''; // مسح أي نص سابق
+  openModal('rejectModal');
 }
 
+// ✅ دالة تأكيد الرفض (تُستدعى عند الضغط على الزر داخل المودال)
+async function confirmReject() {
+  if (!pendingReject) return;
+  
+  const { depositId, userId } = pendingReject;
+  const reason = document.getElementById('rejectReason').value.trim() || 'Does not meet requirements';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/deposits/${depositId}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        reason: reason 
+      })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('❌ Deposit rejected', 'success');
+      closeModal('rejectModal');
+      loadDeposits();      // تحديث القائمة
+      loadDashboardStats(); // تحديث الإحصائيات
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to reject'), 'error');
+    }
+  } catch (err) {
+    console.error('❌ confirmReject:', err);
+    showAlert('⚠️ Connection error. Please try again.', 'error');
+  }
+  
+  // مسح البيانات المؤقتة
+  pendingReject = null;
+}
+
+// ✅ دالة رفض الإيداع (تُستدعى من زر الرفض في القائمة)
+async function rejectDeposit(depositId, userId) {
+  // فتح المودال بدلاً من prompt
+  openRejectModal(depositId, userId);
+}
 // ================= 📤 WITHDRAWALS =================
 async function loadWithdrawals() {
   const list = document.getElementById('withdrawalsList');
