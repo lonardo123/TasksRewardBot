@@ -2342,17 +2342,102 @@ app.get('/api/admin/deposits', verifyAdmin, async (req, res) => {
 
 // ✅ 2. الموافقة على إيداع
 app.post('/api/admin/deposits/:id/approve', verifyAdmin, async (req, res) => {
+  const client = await pool.connect();
+  
   try {
     const depositId = req.params.id;
-    const { user_id } = req.body;
-    const check = await pool.query('SELECT * FROM deposit_requests WHERE id = $1 AND status = $2', [depositId, 'pending']);
-    if (check.rows.length === 0) return res.status(404).json({ success: false, message: '❌ Deposit not found' });
+    const { user_id, admin_id, final_amount } = req.body;
     
-    await pool.query(`UPDATE deposit_requests SET status = 'approved', processed_at = NOW(), processed_by = $1 WHERE id = $2`, [req.body.admin_id, depositId]);
-    res.json({ success: true, message: '✅ Deposit approved' });
+    // 🔍 التحقق من وجود الإيداع وحالته
+    const check = await client.query(
+      'SELECT * FROM deposit_requests WHERE id = $1 AND status = $2', 
+      [depositId, 'pending']
+    );
+    
+    if (check.rows.length === 0) {
+      return res.status(404).json({ success: false, message: '❌ Deposit not found or already processed' });
+    }
+    
+    const deposit = check.rows[0];
+    const amountToAdd = final_amount !== undefined ? parseFloat(final_amount) : deposit.amount;
+    
+    if (isNaN(amountToAdd) || amountToAdd <= 0) {
+      return res.status(400).json({ success: false, message: '❌ Invalid amount' });
+    }
+    
+    // 🔄 بدء معاملة قاعدة بيانات (Transaction)
+    await client.query('BEGIN');
+    
+    // 1️⃣ تحديث حالة الإيداع
+    await client.query(
+      `UPDATE deposit_requests 
+       SET status = 'approved', 
+           processed_at = NOW(), 
+           processed_by = $1,
+           amount = $2
+       WHERE id = $3`, 
+      [admin_id, amountToAdd, depositId]
+    );
+    
+    // 2️⃣ إضافة المبلغ لرصيد المستخدم
+    await client.query(
+      `UPDATE users 
+       SET balance = COALESCE(balance, 0) + $1 
+       WHERE telegram_id = $2`, 
+      [amountToAdd, user_id]
+    );
+    
+    // 🎁 3️⃣ إضافة عمولة 3% للمحيل إذا وُجد
+    const referrerCheck = await client.query(
+      `SELECT referrer_id FROM referrals WHERE referee_id = $1 LIMIT 1`,
+      [user_id]
+    );
+    
+    if (referrerCheck.rows.length > 0) {
+      const referrer_id = referrerCheck.rows[0].referrer_id;
+      const commission = amountToAdd * 0.03; // 3% عمولة
+      const roundedCommission = Math.round(commission * 100) / 100; // تقريب لـ منزلتين عشريتين
+      
+      // ➕ إضافة العمولة لرصيد المحيل
+      await client.query(
+        `UPDATE users 
+         SET balance = COALESCE(balance, 0) + $1 
+         WHERE telegram_id = $2`, 
+        [roundedCommission, referrer_id]
+      );
+      
+      // 📝 تسجيل العمولة في جدول referral_earnings
+      await client.query(
+        `INSERT INTO referral_earnings (referrer_id, referee_id, amount, created_at)
+         VALUES ($1, $2, $3, NOW())`,
+        [referrer_id, user_id, roundedCommission]
+      );
+      
+      console.log(`🎁 Referral commission: $${roundedCommission} added to referrer ${referrer_id}`);
+    }
+    
+    // ✅ تأكيد المعاملة
+    await client.query('COMMIT');
+    
+    // 📦 تحضير رسالة الرد
+    let responseMessage = `✅ Deposit approved and $${amountToAdd.toFixed(2)} added to user balance`;
+    if (referrerCheck.rows.length > 0) {
+      const commission = Math.round((amountToAdd * 0.03) * 100) / 100;
+      responseMessage += ` | 🎁 $${commission.toFixed(2)} commission added to referrer`;
+    }
+    
+    res.json({ 
+      success: true, 
+      message: responseMessage,
+      commission_added: referrerCheck.rows.length > 0 ? Math.round((amountToAdd * 0.03) * 100) / 100 : 0
+    });
+    
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('❌ POST /api/admin/deposits/:id/approve:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  } finally {
+    client.release();
   }
 });
 
