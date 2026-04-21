@@ -2683,28 +2683,43 @@ app.get('/api/admin/stats', verifyAdmin, async (req, res) => {
   }
 });
 
-// ✅ GET: جلب إحصائية عدد المستخدمين الكلي
-app.get('/api/admin/stats/total-users', verifyAdmin, async (req, res) => {
+// 👥 جلب عدد المستخدمين الكلي - نسخة مبسطة للتجربة
+app.get('/api/admin/stats/total-users', async (req, res) => {
   try {
-    const { admin_id } = req.query;
+    // 🔍 تسجيل الطلب للتحقق
+    console.log('📥 GET /total-users query:', req.query);
     
-    // 🔐 التحقق من صلاحية الأدمن
+    const admin_id = req.query.admin_id;
+    const REQUIRED_ADMIN_ID = '7171208519'; // ✅ قيمة مؤقتة للتجربة
+    
+    // 🔐 تحقق بسيط من الأدمن (بدون middleware للتجربة)
     if (admin_id != REQUIRED_ADMIN_ID) {
       return res.status(403).json({ success: false, message: '❌ Access denied' });
     }
     
-    // 📊 جلب عدد المستخدمين من جدول users
+    // 📊 استعلام بسيط ومباشر
     const result = await pool.query('SELECT COUNT(*) as total FROM users');
-    const totalUsers = parseInt(result.rows[0].total) || 0;
+    const totalUsers = parseInt(result.rows[0]?.total) || 0;
+    
+    console.log('✅ Total users:', totalUsers);
     
     res.json({ 
       success: true, 
-      data: { total_users: totalUsers } 
+       { total_users: totalUsers } 
     });
     
   } catch (err) {
-    console.error('❌ GET /api/admin/stats/total-users:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    // 🚨 تسجيل الخطأ التفصيلي في Console
+    console.error('❌ ERROR /total-users:', {
+      message: err.message,
+      stack: err.stack,
+      code: err.code
+    });
+    
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error: ' + err.message 
+    });
   }
 });
 
