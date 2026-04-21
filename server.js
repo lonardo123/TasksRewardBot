@@ -2073,7 +2073,7 @@ app.get("/api/deposit/history", async (req, res) => {
     
     // ✅ جلب سجل الإيداعات مع المبلغ والحالة
     const result = await pool.query(
-      `SELECT id, txid, amount, status, created_at, processed_at 
+      `SELECT id, txid, amount, status, created_at, processed_at, admin_note
        FROM deposit_requests 
        WHERE user_id = $1 
        ORDER BY created_at DESC 
@@ -2089,7 +2089,8 @@ app.get("/api/deposit/history", async (req, res) => {
         amount: parseFloat(row.amount || 0),  // ✅ إرجاع المبلغ
         status: row.status,
         created_at: row.created_at,
-        processed_at: row.processed_at
+        processed_at: row.processed_at,
+        admin_note: row.admin_note
       }))
     });
     
