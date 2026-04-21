@@ -455,6 +455,7 @@ window.addEventListener('load', async () => {
   const hasAccess = checkAdminAccess();
   if (!hasAccess) return;
   await loadDashboardStats();
+  await loadTotalUsers(); 
   await loadDeposits();
 });
 
@@ -572,6 +573,48 @@ function openTelegramSection(command, hint) {
   }, 3000);
 }
 
+ // ================= 👥 Total Users =================
+async function loadTotalUsers() {
+  const element = document.getElementById('totalUsersCount');
+  if (!element) return;
+  
+  try {
+    const res = await fetch(`${API}/api/admin/stats/total-users?admin_id=${REQUIRED_ADMIN_ID}`);
+    
+    if (!res.ok) throw new Error('Failed to fetch total users');
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      // ✅ تحديث العدد مع تأثير عدّاد بسيط
+      animateNumber(element, data.data.total_users);
+    } else {
+      element.textContent = '0';
+      console.warn('⚠️ Could not load total users:', data.message);
+    }
+    
+  } catch (err) {
+    console.error('❌ loadTotalUsers:', err);
+    element.textContent = '0';
+  }
+}
+
+// 🎬 دالة مساعدة: تأثير عدّاد الأرقام
+function animateNumber(element, target, duration = 500) {
+  const start = parseInt(element.textContent) || 0;
+  const increment = target > start ? Math.ceil((target - start) / (duration / 16)) : -Math.ceil((start - target) / (duration / 16));
+  let current = start;
+  
+  const timer = setInterval(() => {
+    current += increment;
+    if ((increment > 0 && current >= target) || (increment < 0 && current <= target)) {
+      element.textContent = target.toLocaleString();
+      clearInterval(timer);
+    } else {
+      element.textContent = current.toLocaleString();
+    }
+  }, 16);
+} 
 // ================= DASHBOARD STATS =================
 async function loadDashboardStats() {
   try {
@@ -1260,6 +1303,7 @@ async function loadCommissionStats() {
 // ================= REFRESH ALL =================
 async function refreshAll() {
   await loadDashboardStats();
+  await loadTotalUsers();
   await loadDeposits();
   await loadWithdrawals();
   await loadMessages();
