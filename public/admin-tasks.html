@@ -975,19 +975,14 @@ async function loadWithdrawals() {
   }
 }
 
- // ✅ الموافقة على سحب - الرسالة تظهر داخل الصفحة
+// ✅ الموافقة على سحب - مع مربع منبثق داخلي
 async function approveWithdrawal(withdrawId) {
-  const messageEl = document.getElementById(`msg-${withdrawId}`);
   const itemEl = document.getElementById(`withdrawal-${withdrawId}`);
-  const approveBtn = itemEl?.querySelector('.btn-success');
+  const approveBtn = itemEl?.querySelector('.btn-success, .btn-approve');
   
   if (!confirm('✅ Confirm approving this withdrawal?')) return;
   
-  // ✅ تعطيل الزر وإظهار حالة المعالجة
-  if (approveBtn) {
-    approveBtn.disabled = true;
-    approveBtn.textContent = '⏳ Processing...';
-  }
+  if (approveBtn) { approveBtn.disabled = true; approveBtn.textContent = '⏳ Processing...'; }
   
   try {
     const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
@@ -998,119 +993,66 @@ async function approveWithdrawal(withdrawId) {
     
     const data = await res.json();
     
-    // ✅ عرض الرسالة داخل العنصر المخصص
-    if (messageEl) {
-      messageEl.textContent = data.message || (data.success ? '✅ Withdrawal approved' : '❌ Failed');
-      messageEl.className = 'action-message show ' + (data.success ? 'success' : 'error');
-    }
-    
     if (data.success) {
-      // ✅ تحديث حالة العنصر بعد 1.5 ثانية
-      setTimeout(() => {
-        if (itemEl) {
-          itemEl.style.opacity = '0.7';
-          const badge = itemEl.querySelector('.status-badge');
-          if (badge) {
-            badge.className = 'status-badge status-approved';
-            badge.textContent = '✅ Paid';
-          }
-          itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">✅ Completed</span>';
-        }
-      }, 1500);
-      
+      showWithdrawalResult('success', data.message || '✅ Withdrawal approved successfully');
+      if (itemEl) {
+        itemEl.style.opacity = '0.6';
+        itemEl.querySelector('.status-badge')?.classList.replace('status-pending', 'status-paid');
+        itemEl.querySelector('.status-badge').textContent = '✅ Paid';
+        itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">✅ Completed</span>';
+      }
       updatePendingWithdrawalsCount(-1);
       loadDashboardStats();
-      
     } else {
-      // إعادة تفعيل الزر عند الفشل
-      if (approveBtn) {
-        approveBtn.disabled = false;
-        approveBtn.textContent = '✅ Approve';
-      }
+      showWithdrawalResult('error', data.message || '❌ Failed to approve');
+      if (approveBtn) { approveBtn.disabled = false; approveBtn.textContent = '✅ Approve'; }
     }
-    
   } catch (err) {
     console.error('❌ approveWithdrawal:', err);
-    if (messageEl) {
-      messageEl.textContent = '⚠️ Connection error';
-      messageEl.className = 'action-message show error';
-    }
-    if (approveBtn) {
-      approveBtn.disabled = false;
-      approveBtn.textContent = '✅ Approve';
-    }
+    showWithdrawalResult('error', '⚠️ Connection error');
+    if (approveBtn) { approveBtn.disabled = false; approveBtn.textContent = '✅ Approve'; }
   }
 }
 
-// ❌ رفض سحب - الرسالة تظهر داخل الصفحة
+// ❌ رفض سحب - مع مربع منبثق داخلي
 async function rejectWithdrawal(withdrawId) {
-  const messageEl = document.getElementById(`msg-${withdrawId}`);
   const itemEl = document.getElementById(`withdrawal-${withdrawId}`);
-  const rejectBtn = itemEl?.querySelector('.btn-danger');
+  const rejectBtn = itemEl?.querySelector('.btn-danger, .btn-reject');
   
-  // ✅ طلب سبب الرفض (اختياري)
   const reason = prompt('Reason for rejection (optional):', 'Verification failed');
   if (reason === null) return;
   
-  if (rejectBtn) {
-    rejectBtn.disabled = true;
-    rejectBtn.textContent = '⏳ Processing...';
-  }
+  if (rejectBtn) { rejectBtn.disabled = true; rejectBtn.textContent = '⏳ Processing...'; }
   
   try {
     const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        reason: reason || 'Verification failed' 
-      })
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason: reason || 'Verification failed' })
     });
     
     const data = await res.json();
     
-    // ✅ عرض الرسالة داخل العنصر المخصص
-    if (messageEl) {
-      messageEl.textContent = data.message || (data.success ? '❌ Withdrawal rejected. Amount refunded.' : '❌ Failed');
-      messageEl.className = 'action-message show ' + (data.success ? 'success' : 'error');
-    }
-    
     if (data.success) {
-      // ✅ تحديث حالة العنصر
-      setTimeout(() => {
-        if (itemEl) {
-          itemEl.style.opacity = '0.7';
-          const badge = itemEl.querySelector('.status-badge');
-          if (badge) {
-            badge.className = 'status-badge status-rejected';
-            badge.textContent = '❌ Rejected';
-          }
-          itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">❌ Refunded</span>';
-        }
-      }, 1500);
-      
+      showWithdrawalResult('success', data.message || '❌ Withdrawal rejected & amount refunded');
+      if (itemEl) {
+        itemEl.style.opacity = '0.6';
+        itemEl.querySelector('.status-badge')?.classList.replace('status-pending', 'status-rejected');
+        itemEl.querySelector('.status-badge').textContent = '❌ Rejected';
+        itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">❌ Refunded</span>';
+      }
       updatePendingWithdrawalsCount(-1);
       loadDashboardStats();
-      
     } else {
-      if (rejectBtn) {
-        rejectBtn.disabled = false;
-        rejectBtn.textContent = '❌ Reject';
-      }
+      showWithdrawalResult('error', data.message || '❌ Failed to reject');
+      if (rejectBtn) { rejectBtn.disabled = false; rejectBtn.textContent = '❌ Reject'; }
     }
-    
   } catch (err) {
     console.error('❌ rejectWithdrawal:', err);
-    if (messageEl) {
-      messageEl.textContent = '⚠️ Connection error';
-      messageEl.className = 'action-message show error';
-    }
-    if (rejectBtn) {
-      rejectBtn.disabled = false;
-      rejectBtn.textContent = '❌ Reject';
-    }
+    showWithdrawalResult('error', '⚠️ Connection error');
+    if (rejectBtn) { rejectBtn.disabled = false; rejectBtn.textContent = '❌ Reject'; }
   }
-}  
+} 
 // 📊 تحديث عداد الطلبات المعلقة
 function updatePendingWithdrawalsCount(change) {
   const el = document.getElementById('pendingWithdrawalsCount');
@@ -1122,6 +1064,38 @@ function updatePendingWithdrawalsCount(change) {
   el.style.transform = 'scale(1.2)';
   setTimeout(() => el.style.transform = 'scale(1)', 200);
 }
+
+ // ================= 🪟 مربع نتيجة السحب المنبثق =================
+function showWithdrawalResult(type, message) {
+  const modal = document.getElementById('withdrawalResultModal');
+  const icon = document.getElementById('wResultIcon');
+  const title = document.getElementById('wResultTitle');
+  const msg = document.getElementById('wResultMsg');
+  
+  if (type === 'success') {
+    icon.textContent = '✅';
+    title.textContent = 'تمت العملية بنجاح';
+    title.style.color = '#22c55e';
+    modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
+  } else {
+    icon.textContent = '❌';
+    title.textContent = 'فشل أو تم الرفض';
+    title.style.color = '#ef4444';
+    modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
+  }
+  
+  msg.textContent = message;
+  modal.classList.add('active');
+}
+
+function closeWithdrawalResultModal() {
+  document.getElementById('withdrawalResultModal').classList.remove('active');
+}
+
+// إغلاق المودال عند النقر خارجه
+document.getElementById('withdrawalResultModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeWithdrawalResultModal();
+}); 
 // ================= 💰 BALANCE MANAGEMENT =================
 // ➕ إضافة رصيد - مع عرض الرسالة داخل النموذج
 async function addBalanceToUser() {
@@ -1702,5 +1676,14 @@ document.addEventListener('keydown', (e) => {
   }
 });
 </script>
+  <!-- ✅ مربع منبثق لنتيجة عمليات السحب -->
+<div id="withdrawalResultModal" class="modal">
+  <div class="modal-content" style="max-width:400px; text-align:center; border-top:4px solid #3b82f6;">
+    <div id="wResultIcon" style="font-size:52px; margin-bottom:15px;"></div>
+    <h3 id="wResultTitle" style="margin:0 0 10px; color:#fff;"></h3>
+    <p id="wResultMsg" style="color:#94a3b8; margin:0 0 20px; line-height:1.5;"></p>
+    <button class="btn btn-primary" onclick="closeWithdrawalResultModal()" style="width:100%; padding:12px;">👍 تم</button>
+  </div>
+</div>
 </body>
 </html>
