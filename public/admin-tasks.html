@@ -150,6 +150,56 @@ tr:hover{background:#1e293b/50}
   border-left: 4px solid #ef4444;
 }
 
+ /* ✅ رسائل داخل نماذج الرصيد */
+.balance-message {
+  display: none;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  animation: slideIn 0.2s ease;
+}
+.balance-message.success {
+  background: #dcfce7;
+  color: #166534;
+  border-left: 4px solid #22c55e;
+  display: block;
+}
+.balance-message.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
+  display: block;
+}
+
+/* ✅ رسائل داخل قائمة الرسائل */
+.message-action-result {
+  display: none;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.message-action-result.success {
+  background: #dcfce7;
+  color: #166534;
+  border-left: 4px solid #22c55e;
+  display: block;
+}
+.message-action-result.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
+  display: block;
+}
+
+/* ✅ تأثير الحركة */
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+} 
 /* ✅ شارات الحالة */
 .status-badge {
   display: inline-block;
@@ -344,47 +394,49 @@ tr:hover{background:#1e293b/50}
     <div id="balanceSection" class="card hidden">
       <h3>💰 User Balance Management</h3>
       
-      <!-- Add Balance Form -->
-      <div class="card" style="margin-bottom:15px">
-        <h4 style="color:#22c55e;margin-bottom:15px">➕ Add Balance to User</h4>
-        <div class="balance-form">
-          <div class="input-group">
-            <label>User Telegram ID</label>
-            <input type="text" id="addBalanceUserId" placeholder="e.g., 7171208519">
-          </div>
-          <div class="input-group">
-            <label>Amount ($)</label>
-            <input type="number" id="addBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 5.50">
-          </div>
-        </div>
-        <div class="input-group">
-          <label>Reason (optional)</label>
-          <input type="text" id="addBalanceReason" placeholder="e.g., Bonus, Manual credit">
-        </div>
-        <button class="btn btn-success" onclick="addBalanceToUser()">✅ Add Balance</button>
-      </div>
-
-      <!-- Deduct Balance Form -->
-      <div class="card">
-        <h4 style="color:#ef4444;margin-bottom:15px">➖ Deduct Balance from User</h4>
-        <div class="balance-form">
-          <div class="input-group">
-            <label>User Telegram ID</label>
-            <input type="text" id="deductBalanceUserId" placeholder="e.g., 7171208519">
-          </div>
-          <div class="input-group">
-            <label>Amount ($)</label>
-            <input type="number" id="deductBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 2.00">
-          </div>
-        </div>
-        <div class="input-group">
-          <label>Reason (required)</label>
-          <input type="text" id="deductBalanceReason" placeholder="e.g., Violation, Refund">
-        </div>
-        <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
-      </div>
+      <!-- ➕ Add Balance Form - مع منطقة رسالة -->
+<div class="card" style="margin-bottom:15px">
+  <h4 style="color:#22c55e;margin-bottom:15px">➕ Add Balance to User</h4>
+  <div class="balance-form">
+    <div class="input-group">
+      <label>User Telegram ID</label>
+      <input type="text" id="addBalanceUserId" placeholder="e.g., 7171208519">
     </div>
+    <div class="input-group">
+      <label>Amount ($)</label>
+      <input type="number" id="addBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 5.50">
+    </div>
+  </div>
+  <div class="input-group">
+    <label>Reason (optional)</label>
+    <input type="text" id="addBalanceReason" placeholder="e.g., Bonus, Manual credit">
+  </div>
+  <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
+  <div class="balance-message" id="addBalanceMsg"></div>
+  <button class="btn btn-success" onclick="addBalanceToUser()">✅ Add Balance</button>
+</div>
 
+<!-- ➖ Deduct Balance Form - مع منطقة رسالة -->
+<div class="card">
+  <h4 style="color:#ef4444;margin-bottom:15px">➖ Deduct Balance from User</h4>
+  <div class="balance-form">
+    <div class="input-group">
+      <label>User Telegram ID</label>
+      <input type="text" id="deductBalanceUserId" placeholder="e.g., 7171208519">
+    </div>
+    <div class="input-group">
+      <label>Amount ($)</label>
+      <input type="number" id="deductBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 2.00">
+    </div>
+  </div>
+  <div class="input-group">
+    <label>Reason (required)</label>
+    <input type="text" id="deductBalanceReason" placeholder="e.g., Violation, Refund">
+  </div>
+  <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
+  <div class="balance-message" id="deductBalanceMsg"></div>
+  <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
+</div>
     <!-- 📬 Messages Section -->
     <div id="messagesSection" class="card hidden">
       <div class="section-title">
@@ -1078,72 +1130,103 @@ function updatePendingWithdrawalsCount(change) {
   setTimeout(() => el.style.transform = 'scale(1)', 200);
 }
 // ================= 💰 BALANCE MANAGEMENT =================
-// ➕ إضافة رصيد لمستخدم
+// ➕ إضافة رصيد - مع عرض الرسالة داخل النموذج
 async function addBalanceToUser() {
   const userId = document.getElementById('addBalanceUserId')?.value;
   const amount = document.getElementById('addBalanceAmount')?.value;
   const reason = document.getElementById('addBalanceReason')?.value || 'Admin balance addition';
+  const msgEl = document.getElementById('addBalanceMsg');
   
-  // ✅ التحقق من الحقول المطلوبة
+  // ✅ مسح أي رسالة سابقة
+  if (msgEl) {
+    msgEl.className = 'balance-message';
+    msgEl.textContent = '';
+  }
+  
+  // ✅ التحقق من الحقول
   if (!userId || !amount || parseFloat(amount) <= 0) {
-    showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
+    if (msgEl) {
+      msgEl.className = 'balance-message error';
+      msgEl.textContent = '❌ Fill all fields (User ID and valid Amount required)';
+    }
     return;
   }
   
   if (!confirm(`✅ Confirm adding $${parseFloat(amount).toFixed(2)} to user ${userId}?`)) return;
   
   try {
-    const res = await fetch(`${API}/api/admin/users/balance/add`, {
+    const res = await fetch(`${API}/api/admin/balance/add`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         admin_id: REQUIRED_ADMIN_ID, 
         user_id: userId,
         amount: parseFloat(amount),
-        reason: reason 
+        reason: reason,
+        source: 'admin_panel'
       })
     });
     
     const data = await res.json();
     
+    // ✅ عرض الرسالة داخل العنصر المخصص
+    if (msgEl) {
+      msgEl.className = 'balance-message ' + (data.success ? 'success' : 'error');
+      msgEl.textContent = data.message || (data.success ? '✅ Balance added' : '❌ Failed');
+    }
+    
     if (data.success) {
-      showAlert(`✅ $${parseFloat(amount).toFixed(2)} added to user ${userId}. Reason: ${reason}`, 'success');
       // تفريغ الحقول
       document.getElementById('addBalanceUserId').value = '';
       document.getElementById('addBalanceAmount').value = '';
       document.getElementById('addBalanceReason').value = '';
       loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to add balance'), 'error');
     }
+    
   } catch (err) {
     console.error('❌ addBalanceToUser:', err);
-    showAlert('⚠️ Connection error while adding balance', 'error');
+    if (msgEl) {
+      msgEl.className = 'balance-message error';
+      msgEl.textContent = '⚠️ Connection error';
+    }
   }
 }
 
-// ➖ خصم رصيد من مستخدم (مع سبب إلزامي)
+// ➖ خصم رصيد - مع عرض الرسالة داخل النموذج والرسالة المطلوبة
 async function deductBalanceFromUser() {
   const userId = document.getElementById('deductBalanceUserId')?.value;
   const amount = document.getElementById('deductBalanceAmount')?.value;
   const reason = document.getElementById('deductBalanceReason')?.value?.trim();
+  const msgEl = document.getElementById('deductBalanceMsg');
   
-  // ✅ التحقق من جميع الحقول - السبب إلزامي هنا
+  // ✅ مسح أي رسالة سابقة
+  if (msgEl) {
+    msgEl.className = 'balance-message';
+    msgEl.textContent = '';
+  }
+  
+  // ✅ التحقق من الحقول الأساسية
   if (!userId || !amount || parseFloat(amount) <= 0) {
-    showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
+    if (msgEl) {
+      msgEl.className = 'balance-message error';
+      msgEl.textContent = '❌ Fill all fields (User ID and valid Amount required)';
+    }
     return;
   }
   
-  // ⚠️ السبب إلزامي للخصم
+  // ⚠️ السبب إلزامي للخصم - الرسالة المطلوبة ✅
   if (!reason || reason.length < 3) {
-    showAlert('❌ Fill all fields (Reason required)', 'error');  // ✅ الرسالة المطلوبة
+    if (msgEl) {
+      msgEl.className = 'balance-message error';
+      msgEl.textContent = '❌ Fill all fields (Reason required)';  // ✅ الرسالة المطلوبة
+    }
     return;
   }
   
   if (!confirm(`⚠️ Confirm deducting $${parseFloat(amount).toFixed(2)} from user ${userId}?\n\nReason: ${reason}`)) return;
   
   try {
-    const res = await fetch(`${API}/api/admin/users/balance/deduct`, {
+    const res = await fetch(`${API}/api/admin/balance/deduct`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -1156,19 +1239,26 @@ async function deductBalanceFromUser() {
     
     const data = await res.json();
     
+    // ✅ عرض الرسالة داخل العنصر المخصص
+    if (msgEl) {
+      msgEl.className = 'balance-message ' + (data.success ? 'success' : 'error');
+      msgEl.textContent = data.message || (data.success ? '✅ Balance deducted' : '❌ Failed');
+    }
+    
     if (data.success) {
-      showAlert(`✅ $${parseFloat(amount).toFixed(2)} deducted from user ${userId}. Reason: ${reason}`, 'success');
       // تفريغ الحقول
       document.getElementById('deductBalanceUserId').value = '';
       document.getElementById('deductBalanceAmount').value = '';
       document.getElementById('deductBalanceReason').value = '';
       loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to deduct balance'), 'error');
     }
+    
   } catch (err) {
     console.error('❌ deductBalanceFromUser:', err);
-    showAlert('⚠️ Connection error while deducting balance', 'error');
+    if (msgEl) {
+      msgEl.className = 'balance-message error';
+      msgEl.textContent = '⚠️ Connection error';
+    }
   }
 }
 
@@ -1197,30 +1287,24 @@ async function loadMessages() {
     const unreadCount = data.data.filter(m => !m.replied).length;
     document.getElementById('unreadMessagesCount').textContent = unreadCount;
     
-    // ✅ عرض قائمة الرسائل
-    list.innerHTML = data.data.map(msg => `
-      <div class="request-item" style="${!msg.replied ? 'border-left:4px solid #3b82f6;background:#f8fafc' : ''}">
-        <div class="request-header">
-          <div class="request-info">
-            <p>
-              <strong>👤 User:</strong> @${msg.username || msg.user_id} 
-              <span style="color:#64748b">(ID: ${msg.user_id})</span>
-              ${!msg.replied ? '<span style="margin-left:10px;padding:2px 8px;background:#3b82f6;color:#fff;border-radius:12px;font-size:11px;">🔴 Unread</span>' : ''}
-            </p>
-            <p><strong>📅 Sent:</strong> ${formatDate(msg.created_at)}</p>
-            <p><strong>💬 Message:</strong></p>
-            <p style="background:#f1f5f9;padding:10px;border-radius:6px;margin:5px 0;">${msg.message || 'No content'}</p>
-            ${msg.admin_reply ? `<p><strong>✅ Your Reply:</strong> <span style="color:#22c55e">${msg.admin_reply}</span></p>` : ''}
-          </div>
-          <div class="request-actions">
-            <button class="btn-reply" onclick="openReplyModal(${msg.user_id}, '${(msg.username || msg.user_id).replace(/'/g, "\\'")}', '${(msg.message || '').replace(/'/g, "\\'")}')" 
-                    style="padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;">
-              ${msg.replied ? '🔄 Reply Again' : '📩 Reply'}
-            </button>
-          </div>
-        </div>
-      </div>
-    `).join('');
+    // داخل دالة loadMessages() - عند بناء كل عنصر رسالة
+list.innerHTML = data.data.map(msg => `
+  <div class="message-item" id="msg-item-${msg.id}">
+    <div class="message-header">
+      <span class="message-user">@${msg.username || msg.user_id} (ID: ${msg.user_id})</span>
+      <span class="message-time">${formatDate(msg.created_at)}</span>
+    </div>
+    <div class="message-text">${msg.message || 'No content'}</div>
+    ${msg.admin_reply ? `<div style="margin-top:10px;padding:10px;background:#dcfce7;border-radius:6px;color:#166534;font-size:13px"><strong>✅ Your Reply:</strong> ${msg.admin_reply}</div>` : ''}
+    
+    <div class="reply-box">
+      <input type="text" id="reply-input-${msg.id}" placeholder="Type your reply..." style="width:100%;padding:10px;border:1px solid #475569;border-radius:6px;background:#0f172a;color:#fff;margin-bottom:8px">
+      <button class="btn btn-primary btn-sm" onclick="sendInlineReply(${msg.id}, ${msg.user_id})">📤 Send Reply</button>
+      <!-- ✅ منطقة عرض نتيجة الرد -->
+      <div class="message-action-result" id="reply-result-${msg.id}"></div>
+    </div>
+  </div>
+`).join('');
     
   } catch (err) {
     console.error('❌ loadMessages:', err);
@@ -1247,42 +1331,57 @@ function openReplyModal(userId, username, originalMessage) {
   }
 }
 
-// 📤 إرسال الرد
-async function sendReply() {
-  const modal = document.getElementById('replyModal');
-  const userId = modal?.dataset.userId;
-  const username = modal?.dataset.username;
-  const reply = document.getElementById('replyInput')?.value?.trim();
+// 📤 إرسال رد مع عرض النتيجة داخل عنصر الرسالة
+async function sendInlineReply(messageId, userId) {
+  const replyInput = document.getElementById(`reply-input-${messageId}`);
+  const resultEl = document.getElementById(`reply-result-${messageId}`);
+  const reply = replyInput?.value?.trim();
   
-  if (!userId || !reply) {
-    showAlert('❌ Please enter a reply message', 'error');
+  // ✅ مسح نتيجة سابقة
+  if (resultEl) {
+    resultEl.className = 'message-action-result';
+    resultEl.textContent = '';
+  }
+  
+  if (!reply) {
+    if (resultEl) {
+      resultEl.className = 'message-action-result error';
+      resultEl.textContent = '❌ Please enter a reply message';
+    }
     return;
   }
   
   try {
-    const res = await fetch(`${API}/api/admin/messages/reply`, {
+    const res = await fetch(`${API}/api/admin/messages/${messageId}/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId,
         reply: reply 
       })
     });
     
     const data = await res.json();
     
-    if (data.success) {
-      showAlert(`✅ Reply sent to @${username}`, 'success');
-      modal.style.display = 'none';
-      loadMessages();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
+    // ✅ عرض النتيجة داخل العنصر المخصص
+    if (resultEl) {
+      resultEl.className = 'message-action-result ' + (data.success ? 'success' : 'error');
+      resultEl.textContent = data.message || (data.success ? '✅ Reply sent' : '❌ Failed');
     }
+    
+    if (data.success) {
+      // تفريغ حقل الإدخال
+      if (replyInput) replyInput.value = '';
+      // تحديث قائمة الرسائل بعد ثانية
+      setTimeout(() => loadMessages(), 1000);
+    }
+    
   } catch (err) {
-    console.error('❌ sendReply:', err);
-    showAlert('⚠️ Connection error while sending reply', 'error');
+    console.error('❌ sendInlineReply:', err);
+    if (resultEl) {
+      resultEl.className = 'message-action-result error';
+      resultEl.textContent = '⚠️ Connection error';
+    }
   }
 }
 
