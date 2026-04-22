@@ -395,6 +395,29 @@ tr:hover{background:#1e293b/50}
       <div id="withdrawalsList"></div>
     </div>
 
+    <!-- ✅ مودال الموافقة/الرفض على السحب (بنفس نمط الايداع) -->
+<div id="withdrawalModal" class="modal">
+  <div class="modal-content" style="max-width:450px; border-top:4px solid #3b82f6;">
+    <div class="modal-header">
+      <h3 id="wModalTitle" style="margin:0;">Confirm Action</h3>
+      <button class="modal-close" onclick="closeWithdrawalModal()">&times;</button>
+    </div>
+    <div style="background:#0f172a;padding:12px;border-radius:8px;margin:15px 0;">
+      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">👤 <strong>User ID:</strong> <span id="wModalUserId" style="color:#fff;"></span></p>
+      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">💰 <strong>Amount:</strong> <span id="wModalAmount" style="color:#f59e0b;"></span></p>
+    </div>
+    
+    <div id="wModalReasonBox" class="input-group" style="display:none;">
+      <label>Reason for rejection (optional):</label>
+      <textarea id="wModalReason" rows="3" placeholder="e.g., Verification failed..."></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-secondary" onclick="closeWithdrawalModal()">Cancel</button>
+      <button id="wModalBtn" class="btn btn-primary" onclick="confirmWithdrawalAction()">Confirm</button>
+    </div>
+  </div>
+</div>
     <!-- 💰 Balance Management Section -->
     <div id="balanceSection" class="card hidden">
       <h3>💰 User Balance Management</h3>
@@ -959,9 +982,9 @@ async function loadWithdrawals() {
         <p><strong>📊 Status:</strong> <span class="status-badge status-pending">⏳ Pending</span></p>
       </div>
       <div class="request-actions">
-        <button class="btn btn-success btn-sm" onclick="approveWithdrawal(${wd.id})">✅ Approve</button>
-        <button class="btn btn-danger btn-sm" onclick="rejectWithdrawal(${wd.id})">❌ Reject</button>
-      </div>
+  <button class="btn btn-success btn-sm" onclick="openWithdrawalModal('approve', ${wd.id}, ${wd.user_id}, ${wd.amount})">✅ Approve</button>
+  <button class="btn btn-danger btn-sm" onclick="openWithdrawalModal('reject', ${wd.id}, ${wd.user_id}, ${wd.amount})">❌ Reject</button>
+</div>
     </div>
     <!-- ✅ الحاوية التي ستظهر فيها الرسالة أسفل الطلب مباشرة -->
     <div class="action-message" id="msg-${wd.id}"></div>
@@ -974,96 +997,94 @@ async function loadWithdrawals() {
   }
 }
 
-// ✅ الموافقة - تظهر الرسالة أسفل الطلب مباشرة
-async function approveWithdrawal(withdrawId) {
-  const msgEl = document.getElementById(`msg-${withdrawId}`);
-  const itemEl = document.getElementById(`withdrawal-${withdrawId}`);
-  const btn = itemEl?.querySelector('.btn-success');
+// ================= 🪟 مودال السحب (موافقة/رفض) =================
+let pendingWithdrawal = null;
+
+function openWithdrawalModal(type, wdId, userId, amount) {
+  pendingWithdrawal = { type, wdId, userId, amount };
   
-  if (!confirm('✅ Confirm approving this withdrawal?')) return;
+  document.getElementById('wModalUserId').textContent = userId;
+  document.getElementById('wModalAmount').textContent = '$' + parseFloat(amount).toFixed(2);
+  document.getElementById('wModalReason').value = '';
+  const btn = document.getElementById('wModalBtn');
   
-  // تفريغ الرسالة السابقة
-  if (msgEl) msgEl.className = 'action-message';
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Processing...'; }
+  if (type === 'approve') {
+    document.getElementById('wModalTitle').textContent = '✅ Approve Withdrawal';
+    document.getElementById('wModalReasonBox').style.display = 'none';
+    btn.textContent = '✅ Approve';
+    btn.className = 'btn btn-success';
+    btn.style.borderTopColor = '#22c55e';
+  } else {
+    document.getElementById('wModalTitle').textContent = '❌ Reject Withdrawal';
+    document.getElementById('wModalReasonBox').style.display = 'block';
+    btn.textContent = '❌ Reject';
+    btn.className = 'btn btn-danger';
+  }
+  
+  document.getElementById('withdrawalModal').classList.add('active');
+}
+
+function closeWithdrawalModal() {
+  document.getElementById('withdrawalModal').classList.remove('active');
+  pendingWithdrawal = null;
+}
+
+async function confirmWithdrawalAction() {
+  if (!pendingWithdrawal) return;
+  const { type, wdId, userId, amount } = pendingWithdrawal;
+  const btn = document.getElementById('wModalBtn');
+  const originalText = btn.textContent;
+  
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing...';
   
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
+    const url = `${API}/api/admin/withdrawals/${wdId}/${type === 'approve' ? 'approve' : 'reject'}`;
+    const body = { admin_id: REQUIRED_ADMIN_ID };
+    if (type === 'reject') body.reason = document.getElementById('wModalReason').value || 'Verification failed';
+    
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
+      body: JSON.stringify(body)
     });
     const data = await res.json();
     
-    // عرض الرسالة أسفل الزر
-    if (msgEl) {
-      msgEl.textContent = data.message || (data.success ? '✅ Withdrawal approved' : '❌ Approval failed');
-      msgEl.classList.add('show', data.success ? 'success' : 'error');
-    }
-    
     if (data.success) {
-      setTimeout(() => {
-        if (itemEl) {
-          itemEl.style.opacity = '0.5';
-          const badge = itemEl.querySelector('.status-badge');
-          if (badge) { badge.className = 'status-badge status-paid'; badge.textContent = '✅ Paid'; }
-          itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">✅ Completed</span>';
+      closeWithdrawalModal();
+      showAlert(data.message, 'success');
+      
+      // تحديث العنصر مباشرة في الصفحة
+      const itemEl = document.getElementById(`withdrawal-${wdId}`);
+      if (itemEl) {
+        itemEl.style.opacity = '0.6';
+        const badge = itemEl.querySelector('.status-badge');
+        if (badge) {
+          badge.className = `status-badge status-${type === 'approve' ? 'paid' : 'rejected'}`;
+          badge.textContent = type === 'approve' ? '✅ Paid' : '❌ Rejected';
         }
-      }, 1200);
+        itemEl.querySelector('.request-actions').innerHTML = `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
+      }
       updatePendingWithdrawalsCount(-1);
       loadDashboardStats();
-    } else if (btn) {
-      btn.disabled = false; btn.textContent = '✅ Approve';
+    } else {
+      showAlert(data.message || 'Failed', 'error');
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
   } catch (err) {
-    if (msgEl) { msgEl.textContent = '⚠️ Connection error'; msgEl.classList.add('show', 'error'); }
-    if (btn) { btn.disabled = false; btn.textContent = '✅ Approve'; }
+    console.error('❌ withdrawal action:', err);
+    showAlert('⚠️ Connection error', 'error');
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
-// ❌ الرفض - تظهر الرسالة أسفل الطلب مباشرة
-async function rejectWithdrawal(withdrawId) {
-  const msgEl = document.getElementById(`msg-${withdrawId}`);
-  const itemEl = document.getElementById(`withdrawal-${withdrawId}`);
-  const btn = itemEl?.querySelector('.btn-danger');
+// إغلاق المودال عند النقر خارجه
+document.getElementById('withdrawalModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeWithdrawalModal();
+});
   
-  const reason = prompt('Reason for rejection (optional):', 'Verification failed');
-  if (reason === null) return;
-  
-  if (msgEl) msgEl.className = 'action-message';
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Processing...'; }
-  
-  try {
-    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason: reason || 'Verification failed' })
-    });
-    const data = await res.json();
-    
-    if (msgEl) {
-      msgEl.textContent = data.message || (data.success ? '✅ Withdrawal rejected. Amount refunded.' : '❌ Rejection failed');
-      msgEl.classList.add('show', data.success ? 'success' : 'error');
-    }
-    
-    if (data.success) {
-      setTimeout(() => {
-        if (itemEl) {
-          itemEl.style.opacity = '0.5';
-          const badge = itemEl.querySelector('.status-badge');
-          if (badge) { badge.className = 'status-badge status-rejected'; badge.textContent = '❌ Rejected'; }
-          itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">❌ Refunded</span>';
-        }
-      }, 1200);
-      updatePendingWithdrawalsCount(-1);
-      loadDashboardStats();
-    } else if (btn) {
-      btn.disabled = false; btn.textContent = '❌ Reject';
-    }
-  } catch (err) {
-    if (msgEl) { msgEl.textContent = '⚠️ Connection error'; msgEl.classList.add('show', 'error'); }
-    if (btn) { btn.disabled = false; btn.textContent = '❌ Reject'; }
-  }
-}
 // 📊 تحديث عداد الطلبات المعلقة
 function updatePendingWithdrawalsCount(change) {
   const el = document.getElementById('pendingWithdrawalsCount');
@@ -1687,14 +1708,6 @@ document.addEventListener('keydown', (e) => {
   }
 });
 </script>
-  <!-- ✅ مربع منبثق لنتيجة عمليات السحب -->
-<div id="withdrawalResultModal" class="modal">
-  <div class="modal-content" style="max-width:400px; text-align:center; border-top:4px solid #3b82f6;">
-    <div id="wResultIcon" style="font-size:52px; margin-bottom:15px;"></div>
-    <h3 id="wResultTitle" style="margin:0 0 10px; color:#fff;"></h3>
-    <p id="wResultMsg" style="color:#94a3b8; margin:0 0 20px; line-height:1.5;"></p>
-    <button class="btn btn-primary" onclick="closeWithdrawalResultModal()" style="width:100%; padding:12px;">👍 تم</button>
-  </div>
 </div>
 </body>
 </html>
