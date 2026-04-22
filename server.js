@@ -1711,9 +1711,12 @@ app.get("/user/dashboard", async (req, res) => {
         
         // ✅ جلب بيانات المستخدم
         const userQuery = await pool.query(
-            "SELECT telegram_id, username, name, balance, payeer_wallet FROM users WHERE telegram_id=$1",
-            [telegramId]
-        );
+    `UPDATE users 
+     SET last_login_at = now() 
+     WHERE telegram_id=$1
+     RETURNING telegram_id, username, name, balance, payeer_wallet`,
+    [telegramId]
+);
         
         if(userQuery.rows.length === 0){
             return res.json({success:false, message:"User not found"});
