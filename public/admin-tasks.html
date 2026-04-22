@@ -333,7 +333,7 @@ tr:hover{background:#1e293b/50}
       <div class="tab" data-tab="withdrawals" onclick="switchTab('withdrawals')">📤 Withdrawals</div>
       <div class="tab" data-tab="balance" onclick="switchTab('balance')">💰 Balance</div>
       <div class="tab" data-tab="messages" onclick="switchTab('messages')">📬 Messages</div>
-      <div class="tab active" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
+      <div class="tab" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
       <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
       <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
     </div>
@@ -582,6 +582,10 @@ window.addEventListener('load', async () => {
   await loadDashboardStats();
   await loadTotalUsers(); 
   await loadDeposits();
+  await loadMessages();
+  await loadPendingProofs();
+  await loadDisputes();
+  await loadCommissionStats();
 });
 
 // ================= UTILS =================
