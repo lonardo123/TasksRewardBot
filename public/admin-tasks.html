@@ -130,6 +130,51 @@ tr:hover{background:#1e293b/50}
   border-color: #ef4444;
   outline: none;
 } 
+/* ✅ رسائل الإجراءات داخل الصفحة */
+.action-message {
+  display: none;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.action-message.success {
+  background: #dcfce7;
+  color: #166534;
+  border-left: 4px solid #22c55e;
+}
+.action-message.error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #ef4444;
+}
+
+/* ✅ شارات الحالة */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-paid { background: #dcfce7; color: #166534; }
+.status-rejected { background: #fee2e2; color: #991b1b; }
+
+.done-badge {
+  padding: 6px 14px;
+  background: #f1f5f9;
+  color: #64748b;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ✅ تحديث العداد */
+#pendingWithdrawalsCount {
+  transition: all 0.3s ease;
+}  
 </style>
 </head>
 <body>
@@ -827,146 +872,211 @@ async function rejectDeposit(depositId, userId) {
 // ================= 📤 WITHDRAWALS =================
 async function loadWithdrawals() {
   const list = document.getElementById('withdrawalsList');
-  if (!list) return;
+  const countEl = document.getElementById('pendingWithdrawalsCount');
   
+  if (!list) return;
   list.innerHTML = '<div class="loading">Loading withdrawal requests...</div>';
   
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
+    const res = await fetch(`${API}/api/admin/withdrawals?status=pending&admin_id=${REQUIRED_ADMIN_ID}`);
     
-    if (!res.ok) throw new Error('Failed to fetch withdrawals');
+    if (!res.ok) throw new Error('Failed to fetch');
     
     const data = await res.json();
     
     // ✅ عرض رسالة عند عدم وجود طلبات
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending withdrawal requests</p>';
-      document.getElementById('pendingWithdrawalsCount').textContent = '0';
+      list.innerHTML = '<p class="empty-state">✅ No pending withdrawal requests</p>';
+      if (countEl) countEl.textContent = '0';
       return;
     }
     
-    // ✅ تحديث عداد الطلبات المعلقة
-    document.getElementById('pendingWithdrawalsCount').textContent = data.data.length;
+    // ✅ تحديث العداد
+    if (countEl) countEl.textContent = data.data.length;
     
-    // ✅ عرض قائمة طلبات السحب
+    // ✅ عرض القائمة
     list.innerHTML = data.data.map(wd => `
-      <div class="request-item">
+      <div class="request-item" id="withdrawal-${wd.id}">
         <div class="request-header">
           <div class="request-info">
-            <p><strong>👤 User:</strong> @${wd.username || wd.user_id} <span style="color:#64748b">(ID: ${wd.user_id})</span></p>
-            <p><strong>💳 Payeer Wallet:</strong> <span class="txid-box">${wd.payeer_wallet || 'N/A'}</span></p>
+            <p><strong>👤 User:</strong> <span class="user-id">(ID: ${wd.user_id})</span></p>
+            <p><strong>💳 Payeer:</strong> <span class="txid-box">${wd.payeer_wallet || 'N/A'}</span></p>
             <p><strong>📅 Requested:</strong> ${formatDate(wd.requested_at)}</p>
-            <p><strong>💰 Amount:</strong> <span style="color:#ef4444">$${parseFloat(wd.amount).toFixed(2)}</span></p>
-            ${wd.admin_note ? `<p><strong>📝 Admin Note:</strong> ${wd.admin_note}</p>` : ''}
+            <p><strong>💰 Amount:</strong> <span class="amount">$${parseFloat(wd.amount).toFixed(2)}</span></p>
+            <p><strong>📊 Status:</strong> <span class="status-badge status-pending">⏳ Pending</span></p>
           </div>
           <div class="request-actions">
-            <button class="btn-approve" onclick="approveWithdrawal(${wd.id}, ${wd.user_id}, ${wd.amount})" 
-                    style="padding:8px 16px;background:#22c55e;color:#fff;border:none;border-radius:6px;cursor:pointer;">
+            <button class="btn-approve" onclick="approveWithdrawal(${wd.id})" 
+                    title="Approve this withdrawal">
               ✅ Approve
             </button>
-            <button class="btn-reject" onclick="openRejectWithdrawalModal(${wd.id}, ${wd.user_id})" 
-                    style="padding:8px 16px;background:#ef4444;color:#fff;border:none;border-radius:6px;cursor:pointer;">
+            <button class="btn-reject" onclick="rejectWithdrawal(${wd.id})" 
+                    title="Reject and refund">
               ❌ Reject
             </button>
           </div>
         </div>
+        <!-- ✅ منطقة عرض الرسائل -->
+        <div class="action-message" id="msg-${wd.id}"></div>
       </div>
     `).join('');
-    
-    showAlert('✅ Withdrawals loaded successfully', 'success');
     
   } catch (err) {
     console.error('❌ loadWithdrawals:', err);
     list.innerHTML = `
-      <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
-        ⚠️ Failed to load withdrawals. Please check server connection.<br>
-        <button class="btn btn-primary btn-sm" onclick="loadWithdrawals()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
-          🔄 Retry
-        </button>
+      <div class="alert alert-error">
+        ⚠️ Failed to load withdrawals.<br>
+        <button onclick="loadWithdrawals()">🔄 Retry</button>
       </div>`;
-    showAlert('⚠️ Failed to load withdrawals', 'error');
   }
 }
-
-// ✅ الموافقة على سحب
-async function approveWithdrawal(withdrawalId, userId, amount) {
-  if (!confirm(`✅ Confirm approving withdrawal of $${parseFloat(amount).toFixed(2)} for user ${userId}?`)) return;
+// ✅ الموافقة على سحب - عرض الرسالة داخل الصفحة
+async function approveWithdrawal(withdrawId) {
+  const messageEl = document.getElementById(`msg-${withdrawId}`);
+  const itemEl = document.getElementById(`withdrawal-${withdrawId}`);
+  const approveBtn = itemEl?.querySelector('.btn-approve');
+  
+  if (!confirm('✅ Confirm approving this withdrawal?')) return;
+  
+  // ✅ تعطيل الزر أثناء المعالجة
+  if (approveBtn) {
+    approveBtn.disabled = true;
+    approveBtn.textContent = '⏳ Processing...';
+  }
   
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawalId}/approve`, {
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId,
-        amount: amount 
-      })
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
     });
     
     const data = await res.json();
     
-    if (data.success) {
-      showAlert(`✅ Withdrawal approved! $${parseFloat(amount).toFixed(2)} processed.`, 'success');
-      loadWithdrawals();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to approve withdrawal'), 'error');
+    // ✅ عرض الرسالة داخل العنصر المخصص
+    if (messageEl) {
+      messageEl.className = 'action-message ' + (data.success ? 'success' : 'error');
+      messageEl.textContent = data.message || (data.success ? '✅ Approved' : '❌ Failed');
+      messageEl.style.display = 'block';
     }
+    
+    if (data.success) {
+      // ✅ تحديث حالة العنصر بعد 1.5 ثانية
+      setTimeout(() => {
+        if (itemEl) {
+          itemEl.style.opacity = '0.6';
+          itemEl.querySelector('.status-badge')?.classList.replace('status-pending', 'status-paid');
+          itemEl.querySelector('.status-badge').textContent = '✅ Paid';
+          itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">✅ Completed</span>';
+        }
+      }, 1500);
+      
+      // ✅ تحديث العداد والإحصائيات
+      updatePendingWithdrawalsCount(-1);
+      loadDashboardStats();
+      
+    } else {
+      if (approveBtn) {
+        approveBtn.disabled = false;
+        approveBtn.textContent = '✅ Approve';
+      }
+    }
+    
   } catch (err) {
     console.error('❌ approveWithdrawal:', err);
-    showAlert('⚠️ Connection error while approving withdrawal', 'error');
+    if (messageEl) {
+      messageEl.className = 'action-message error';
+      messageEl.textContent = '⚠️ Connection error';
+      messageEl.style.display = 'block';
+    }
+    if (approveBtn) {
+      approveBtn.disabled = false;
+      approveBtn.textContent = '✅ Approve';
+    }
   }
 }
 
-// ❌ فتح مودال رفض السحب
-function openRejectWithdrawalModal(withdrawalId, userId) {
-  const modal = document.getElementById('rejectWithdrawalModal');
-  if (modal) {
-    modal.dataset.withdrawalId = withdrawalId;
-    modal.dataset.userId = userId;
-    modal.style.display = 'flex';
-    document.getElementById('rejectWithdrawalReason').value = '';
-  }
-}
-
-// ❌ تأكيد رفض السحب
-async function confirmRejectWithdrawal() {
-  const modal = document.getElementById('rejectWithdrawalModal');
-  const withdrawalId = modal?.dataset.withdrawalId;
-  const userId = modal?.dataset.userId;
-  const reason = document.getElementById('rejectWithdrawalReason')?.value || 'No reason provided';
+// ❌ رفض سحب مع إرجاع الرصيد - عرض الرسالة داخل الصفحة
+async function rejectWithdrawal(withdrawId) {
+  const messageEl = document.getElementById(`msg-${withdrawId}`);
+  const itemEl = document.getElementById(`withdrawal-${withdrawId}`);
+  const rejectBtn = itemEl?.querySelector('.btn-reject');
   
-  if (!withdrawalId || !userId) {
-    showAlert('❌ Invalid withdrawal data', 'error');
-    return;
+  // ✅ طلب سبب الرفض (اختياري)
+  const reason = prompt('Reason for rejection (optional):', 'Verification failed');
+  if (reason === null) return; // إذا ضغط Cancel
+  
+  if (rejectBtn) {
+    rejectBtn.disabled = true;
+    rejectBtn.textContent = '⏳ Processing...';
   }
   
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawalId}/reject`, {
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId,
-        reason: reason 
+        reason: reason || 'Verification failed' 
       })
     });
     
     const data = await res.json();
     
-    if (data.success) {
-      showAlert(`✅ Withdrawal rejected. Reason: ${reason}`, 'success');
-      modal.style.display = 'none';
-      loadWithdrawals();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed to reject withdrawal'), 'error');
+    // ✅ عرض الرسالة داخل العنصر
+    if (messageEl) {
+      messageEl.className = 'action-message ' + (data.success ? 'success' : 'error');
+      messageEl.textContent = data.message || (data.success ? '❌ Rejected & Refunded' : '❌ Failed');
+      messageEl.style.display = 'block';
     }
+    
+    if (data.success) {
+      // ✅ تحديث حالة العنصر
+      setTimeout(() => {
+        if (itemEl) {
+          itemEl.style.opacity = '0.6';
+          itemEl.querySelector('.status-badge')?.classList.replace('status-pending', 'status-rejected');
+          itemEl.querySelector('.status-badge').textContent = '❌ Rejected';
+          itemEl.querySelector('.request-actions').innerHTML = '<span class="done-badge">❌ Refunded</span>';
+        }
+      }, 1500);
+      
+      updatePendingWithdrawalsCount(-1);
+      loadDashboardStats();
+      
+    } else {
+      if (rejectBtn) {
+        rejectBtn.disabled = false;
+        rejectBtn.textContent = '❌ Reject';
+      }
+    }
+    
   } catch (err) {
-    console.error('❌ confirmRejectWithdrawal:', err);
-    showAlert('⚠️ Connection error while rejecting withdrawal', 'error');
+    console.error('❌ rejectWithdrawal:', err);
+    if (messageEl) {
+      messageEl.className = 'action-message error';
+      messageEl.textContent = '⚠️ Connection error';
+      messageEl.style.display = 'block';
+    }
+    if (rejectBtn) {
+      rejectBtn.disabled = false;
+      rejectBtn.textContent = '❌ Reject';
+    }
   }
+}  
+// 📊 تحديث عداد الطلبات المعلقة
+function updatePendingWithdrawalsCount(change) {
+  const el = document.getElementById('pendingWithdrawalsCount');
+  if (!el) return;
+  
+  let current = parseInt(el.textContent) || 0;
+  let newValue = Math.max(0, current + change);
+  
+  // تأثير عدّاد بسيط
+  el.textContent = newValue;
+  el.style.transform = 'scale(1.2)';
+  setTimeout(() => el.style.transform = 'scale(1)', 200);
 }
-
 // ================= 💰 BALANCE MANAGEMENT =================
 // ➕ إضافة رصيد لمستخدم
 async function addBalanceToUser() {
