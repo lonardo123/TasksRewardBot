@@ -2494,20 +2494,36 @@ app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => 
   }
 });
 
-// ❌ 6. رفض سحب (مع إرجاع الرصيد)
+// ❌ 6. رفض سحب (مع إرجاع الرصيد الأصلي كاملاً)
 app.post('/api/admin/withdrawals/:id/reject', verifyAdmin, async (req, res) => {
   try {
     const withdrawId = req.params.id;
     const { reason = 'Verification failed' } = req.body;
+    
+    // جلب بيانات السحب
     const withdrawal = await pool.query('SELECT * FROM withdrawals WHERE id = $1 AND status = $2', [withdrawId, 'pending']);
     if (withdrawal.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
+    
     const { user_id, amount } = withdrawal.rows[0];
     
+    // --- تحسين هام: حساب المبلغ الأصلي قبل الخصم ---
+    // نفترض أن المبلغ المسحب هو 95% من الأصل (بعد خصم 5%)
+    // المعادلة: المبلغ الأصلي = المبلغ المسحوب / 0.95
+    const FEE_PERCENT = 0.05; 
+    const originalAmount = parseFloat(amount) / (1 - FEE_PERCENT);
+    // ---------------------------------------------
+
+    // تحديث حالة السحب
     await pool.query('UPDATE withdrawals SET status = $1, processed_at = NOW(), admin_note = $2 WHERE id = $3', ['rejected', reason, withdrawId]);
-    await pool.query('UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', [amount, user_id]);
-    await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, amount, 'withdrawal_refund', `Refund for rejected withdrawal #${withdrawId}`]);
     
-    res.json({ success: true, message: '❌ Withdrawal rejected. Amount refunded.' });
+    // إضافة الرصيد الأصلي للمستخدم
+    await pool.query('UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', [originalAmount, user_id]);
+    
+    // تسجيل العملية في الجدول المالي
+    await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', 
+        [user_id, originalAmount, 'withdrawal_refund', `Refund for rejected withdrawal #${withdrawId} (Original Amount)`]);
+    
+    res.json({ success: true, message: `❌ Withdrawal rejected. Original amount $${originalAmount} refunded.` });
   } catch (err) {
     console.error('❌ POST /api/admin/withdrawals/:id/reject:', err);
     res.status(500).json({ success: false, message: 'Server error' });
