@@ -466,31 +466,34 @@ tr:hover{background:#1e293b/50}
   <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
 </div>
     <!-- 📬 Messages Section -->
-    <div id="messagesSection" class="card hidden">
-      <div class="section-title">
-        <h3>📬 User Messages</h3>
-        <button class="btn btn-sm btn-secondary" onclick="loadMessages()">🔄 Refresh</button>
-      </div>
-      <div id="messagesList"></div>
-    </div>
+<div id="messagesSection" class="card hidden">
+  <div class="section-title">
+    <h3>📬 User Messages</h3>
+    <button type="button" id="btn-refresh-msg" onclick="loadMessages()">🔄 Refresh</button>
+  </div>
+  <div id="messages-list"></div>
+</div>
 
      <!-- Pending Proofs Section -->
-    <div id="proofsSection" class="card hidden">
-      <h3>📋 Pending Proofs Review</h3>
-      <div id="pendingProofsList"></div>
-    </div>
+    <div id="proofs-container">
+  <h3>📋 Pending Proofs Review</h3>
+  <button type="button" onclick="loadProofs()">🔄 Refresh</button>
+  <div id="proofs-list"></div>
+</div>
 
     <!-- Disputes Section -->
-    <div id="disputesSection" class="card hidden">
-      <h3>⚠️ Open Disputes</h3>
-      <div id="disputesList"></div>
-    </div>
+    <div id="disputes-container">
+  <h3>⚠️ Open Disputes</h3>
+  <button type="button" onclick="loadDisputes()">🔄 Refresh</button>
+  <div id="disputes-list"></div>
+</div>
 
     <!-- Statistics Section -->
-    <div id="statsSection" class="card hidden">
-      <h3>📊 Commission Statistics</h3>
-      <div id="statsContent"></div>
-    </div>
+    <div id="stats-container">
+  <h3>📊 Commission Statistics</h3>
+  <button type="button" onclick="loadStats()">🔄 Refresh</button>
+  <div id="stats-data"></div>
+</div>
 
   </div>
 </div>
@@ -511,7 +514,7 @@ tr:hover{background:#1e293b/50}
   </div>
 </div>
 
- <!-- Resolve Dispute Modal -->
+<!-- ⚖️ Resolve Dispute Modal -->
 <div id="resolveModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -538,7 +541,7 @@ tr:hover{background:#1e293b/50}
     <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
   </div>
 </div>
-
+  
 <script>
 // ================= CONFIG =================
 const API = "https://perceptive-victory-production.up.railway.app";
@@ -1682,7 +1685,6 @@ async function loadCommissionStats() {
     content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
   }
 }
-
 
 
   
