@@ -1266,125 +1266,62 @@ async function deductBalanceFromUser() {
 }
 
 // ================= 📬 MESSAGES =================
+let currentReplyMessageId = null;
+
 async function loadMessages() {
   const list = document.getElementById('messagesList');
-  if (!list) return;
-  
   list.innerHTML = '<div class="loading">Loading user messages...</div>';
-  
   try {
-    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=all`);
-    
-    if (!res.ok) throw new Error('Failed to fetch messages');
-    
+    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=unread`);
+    if (!res.ok) throw new Error('Messages endpoint not ready');
     const data = await res.json();
-    
-    // ✅ عرض رسالة عند عدم وجود رسائل
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No user messages found</p>';
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No unread messages</p>';
       document.getElementById('unreadMessagesCount').textContent = '0';
       return;
     }
-    
-    // ✅ تحديث عداد الرسائل غير المقروءة
-    const unreadCount = data.data.filter(m => !m.replied).length;
-    document.getElementById('unreadMessagesCount').textContent = unreadCount;
-    
-    // داخل دالة loadMessages() - عند بناء كل عنصر رسالة
-list.innerHTML = data.data.map(msg => `
-  <div class="message-item" id="msg-item-${msg.id}">
-    <div class="message-header">
-      <span class="message-user">@${msg.username || msg.user_id} (ID: ${msg.user_id})</span>
-      <span class="message-time">${formatDate(msg.created_at)}</span>
-    </div>
-    <div class="message-text">${msg.message || 'No content'}</div>
-    ${msg.admin_reply ? `<div style="margin-top:10px;padding:10px;background:#dcfce7;border-radius:6px;color:#166534;font-size:13px"><strong>✅ Your Reply:</strong> ${msg.admin_reply}</div>` : ''}
-    
-    <div class="reply-box">
-      <input type="text" id="reply-input-${msg.id}" placeholder="Type your reply..." style="width:100%;padding:10px;border:1px solid #475569;border-radius:6px;background:#0f172a;color:#fff;margin-bottom:8px">
-      <button class="btn btn-primary btn-sm" onclick="sendInlineReply(${msg.id}, ${msg.user_id})">📤 Send Reply</button>
-      <!-- ✅ منطقة عرض نتيجة الرد -->
-      <div class="message-action-result" id="reply-result-${msg.id}"></div>
-    </div>
-  </div>
-`).join('');
-    
+    document.getElementById('unreadMessagesCount').textContent = data.data.length;
+    list.innerHTML = data.data.map(msg => `
+      <div class="message-item">
+        <div class="message-header">
+          <span class="message-user">👤 User: ${msg.user_id}</span>
+          <span class="message-time">📅 ${formatDate(msg.created_at)}</span>
+        </div>
+        <div class="message-text">${msg.message}</div>
+        <button class="btn btn-primary btn-sm" onclick="openReplyModal(${msg.id}, ${msg.user_id}, '${msg.message.replace(/'/g,"\\'")}')">💬 Reply</button>
+      </div>
+    `).join('');
   } catch (err) {
     console.error('❌ loadMessages:', err);
     list.innerHTML = `
-      <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
-        ⚠️ Failed to load messages. Please check server connection.<br>
-        <button class="btn btn-primary btn-sm" onclick="loadMessages()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
-          🔄 Retry
-        </button>
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot:<br>
+        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📬 رسائل المستخدمين')">📱 Open Bot → 📬 Messages</button>
       </div>`;
   }
 }
 
-// 📩 فتح مودال الرد على رسالة
-function openReplyModal(userId, username, originalMessage) {
-  const modal = document.getElementById('replyModal');
-  if (modal) {
-    modal.dataset.userId = userId;
-    modal.dataset.username = username;
-    document.getElementById('replyToUserLabel').textContent = `Reply to @${username} (ID: ${userId})`;
-    document.getElementById('originalMessagePreview').textContent = originalMessage || 'No content';
-    document.getElementById('replyInput').value = '';
-    modal.style.display = 'flex';
-  }
+function openReplyModal(msgId, userId, message) {
+  currentReplyMessageId = msgId;
+  document.getElementById('replyUserId').textContent = userId;
+  document.getElementById('replyMessageContent').textContent = message;
+  document.getElementById('replyText').value = '';
+  openModal('replyModal');
 }
 
-// 📤 إرسال رد مع عرض النتيجة داخل عنصر الرسالة
-async function sendInlineReply(messageId, userId) {
-  const replyInput = document.getElementById(`reply-input-${messageId}`);
-  const resultEl = document.getElementById(`reply-result-${messageId}`);
-  const reply = replyInput?.value?.trim();
-  
-  // ✅ مسح نتيجة سابقة
-  if (resultEl) {
-    resultEl.className = 'message-action-result';
-    resultEl.textContent = '';
-  }
-  
-  if (!reply) {
-    if (resultEl) {
-      resultEl.className = 'message-action-result error';
-      resultEl.textContent = '❌ Please enter a reply message';
-    }
-    return;
-  }
-  
+async function sendReply() {
+  const replyText = document.getElementById('replyText').value.trim();
+  if (!replyText || !currentReplyMessageId) { showAlert('❌ Write a reply', 'error'); return; }
   try {
-    const res = await fetch(`${API}/api/admin/messages/${messageId}/reply`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        reply: reply 
-      })
+    const res = await fetch(`${API}/api/admin/messages/${currentReplyMessageId}/reply`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply: replyText })
     });
-    
     const data = await res.json();
-    
-    // ✅ عرض النتيجة داخل العنصر المخصص
-    if (resultEl) {
-      resultEl.className = 'message-action-result ' + (data.success ? 'success' : 'error');
-      resultEl.textContent = data.message || (data.success ? '✅ Reply sent' : '❌ Failed');
-    }
-    
-    if (data.success) {
-      // تفريغ حقل الإدخال
-      if (replyInput) replyInput.value = '';
-      // تحديث قائمة الرسائل بعد ثانية
-      setTimeout(() => loadMessages(), 1000);
-    }
-    
+    if (data.success) { showAlert('✅ Reply sent', 'success'); closeModal('replyModal'); loadMessages(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ sendInlineReply:', err);
-    if (resultEl) {
-      resultEl.className = 'message-action-result error';
-      resultEl.textContent = '⚠️ Connection error';
-    }
+    showAlert('⚠️ Use bot: /reply <msg_id> <text>', 'error');
   }
 }
 
@@ -1682,8 +1619,6 @@ async function loadCommissionStats() {
     content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
   }
 }
-
-
   
 // ================= REFRESH ALL =================
 async function refreshAll() {
