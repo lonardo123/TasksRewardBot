@@ -2196,13 +2196,7 @@ bot.hears((text, ctx) => {
     const lang = getLang(ctx);
     await ctx.replyWithHTML(
       t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
-      Markup.keyboard([
-  [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-  [t(lang, 'withdraw'), t(lang, 'deposit')], 
-  [t(lang, 'tasks'), t(lang, 'videos')],
-  [t(lang, 'referral'), t(lang, 'Units')],
-  [t(lang, 'language'), t(lang, 'facebook')],
-  [t(lang, 'contact_admin')]
+    
 ]).resize()
     );
   } catch (err) {
