@@ -130,106 +130,6 @@ tr:hover{background:#1e293b/50}
   border-color: #ef4444;
   outline: none;
 } 
-/* ✅ مربع الرسالة أسفل كل طلب سحب */
-.action-message {
-  display: none;
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-.action-message.show {
-  display: block !important;
-  animation: fadeInDown 0.3s ease;
-}
-.action-message.success {
-  background: #22c55e20;
-  color: #22c55e;
-  border: 1px solid #22c55e40;
-}
-.action-message.error {
-  background: #ef444420;
-  color: #ef4444;
-  border: 1px solid #ef444440;
-}
-@keyframes fadeInDown {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
- /* ✅ رسائل داخل نماذج الرصيد */
-.balance-message {
-  display: none;
-  margin-top: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  animation: slideIn 0.2s ease;
-}
-.balance-message.success {
-  background: #dcfce7;
-  color: #166534;
-  border-left: 4px solid #22c55e;
-  display: block;
-}
-.balance-message.error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-left: 4px solid #ef4444;
-  display: block;
-}
-
-/* ✅ رسائل داخل قائمة الرسائل */
-.message-action-result {
-  display: none;
-  margin-top: 10px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-.message-action-result.success {
-  background: #dcfce7;
-  color: #166534;
-  border-left: 4px solid #22c55e;
-  display: block;
-}
-.message-action-result.error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-left: 4px solid #ef4444;
-  display: block;
-}
-
-
-/* ✅ شارات الحالة */
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.status-pending { background: #fef3c7; color: #92400e; }
-.status-paid { background: #dcfce7; color: #166534; }
-.status-rejected { background: #fee2e2; color: #991b1b; }
-
-.done-badge {
-  padding: 6px 14px;
-  background: #f1f5f9;
-  color: #64748b;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-/* ✅ تحديث العداد */
-#pendingWithdrawalsCount {
-  transition: all 0.3s ease;
-}  
 </style>
 </head>
 <body>
@@ -240,10 +140,11 @@ tr:hover{background:#1e293b/50}
     <h2>🔐 Access Denied</h2>
     <p>This page is restricted to admin only.</p>
     <p>Required parameter:</p>
-    <p class="admin-id"></p>
+    <p class="admin-id">admin_id=7171208519</p>
     <p style="font-size:13px;color:#64748b;margin-top:15px">
       ❌ Invalid or missing admin_id parameter
     </p>
+    <button class="btn btn-primary" onclick="window.location.href='/'">🏠 Return Home</button>
   </div>
 </div>
 
@@ -333,7 +234,7 @@ tr:hover{background:#1e293b/50}
       <div class="tab" data-tab="withdrawals" onclick="switchTab('withdrawals')">📤 Withdrawals</div>
       <div class="tab" data-tab="balance" onclick="switchTab('balance')">💰 Balance</div>
       <div class="tab" data-tab="messages" onclick="switchTab('messages')">📬 Messages</div>
-      <div class="tab" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
+      <div class="tab active" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
       <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
       <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
     </div>
@@ -347,24 +248,6 @@ tr:hover{background:#1e293b/50}
       <div id="depositsList"></div>
     </div>
 
-    <!-- ✅ Modal: Confirm Deposit Amount -->
-<div id="approveDepositModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
-  <div style="background:#fff; padding:20px; border-radius:12px; min-width:320px; max-width:90%;">
-    <h3 style="margin:0 0 15px; color:#2c3e50;">✅ تأكيد مبلغ الإيداع</h3>
-    <p style="margin:5px 0; font-size:14px;"><strong>User ID:</strong> <span id="modalUserId"></span></p>
-    <p style="margin:5px 0; font-size:14px;"><strong>TXID:</strong> <span id="modalTxid" style="word-break:break-all;"></span></p>
-    <p style="margin:5px 0; font-size:14px;"><strong>المبلغ المطلوب:</strong> $<span id="modalRequestedAmount"></span></p>
-    
-    <label style="display:block; margin:15px 0 5px; font-weight:600;">💰 المبلغ المراد إضافته للحساب ($):</label>
-    <input type="number" id="modalFinalAmount" step="0.01" min="0" style="width:100%; padding:10px; border:2px solid #3498db; border-radius:6px; font-size:16px;">
-    
-    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
-      <button onclick="closeApproveModal()" style="padding:10px 20px; background:#95a5a6; color:#fff; border:none; border-radius:6px; cursor:pointer;">❌ إلغاء</button>
-      <button onclick="confirmApproveDeposit()" style="padding:10px 20px; background:#27ae60; color:#fff; border:none; border-radius:6px; cursor:pointer;">✅ تأكيد وإضافة</button>
-    </div>
-  </div>
-</div>
-    
     <!-- ✅ Modal للرفض داخل الصفحة -->
 <div id="rejectModal" class="modal">
   <div class="modal-content" style="max-width:500px">
@@ -386,6 +269,919 @@ tr:hover{background:#1e293b/50}
     </div>
   </div>
 </div>
+    <!-- 📤 Withdrawals Section -->
+    <div id="withdrawalsSection" class="card hidden">
+      <div class="section-title">
+        <h3>📤 Pending Withdrawal Requests</h3>
+        <button class="btn btn-sm btn-secondary" onclick="loadWithdrawals()">🔄 Refresh</button>
+      </div>
+      <div id="withdrawalsList"></div>
+    </div>
+
+    <!-- 💰 Balance Management Section -->
+    <div id="balanceSection" class="card hidden">
+      <h3>💰 User Balance Management</h3>
+      
+      <!-- Add Balance Form -->
+      <div class="card" style="margin-bottom:15px">
+        <h4 style="color:#22c55e;margin-bottom:15px">➕ Add Balance to User</h4>
+        <div class="balance-form">
+          <div class="input-group">
+            <label>User Telegram ID</label>
+            <input type="text" id="addBalanceUserId" placeholder="e.g., 7171208519">
+          </div>
+          <div class="input-group">
+            <label>Amount ($)</label>
+            <input type="number" id="addBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 5.50">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Reason (optional)</label>
+          <input type="text" id="addBalanceReason" placeholder="e.g., Bonus, Manual credit">
+        </div>
+        <button class="btn btn-success" onclick="addBalanceToUser()">✅ Add Balance</button>
+      </div>
+
+      <!-- Deduct Balance Form -->
+      <div class="card">
+        <h4 style="color:#ef4444;margin-bottom:15px">➖ Deduct Balance from User</h4>
+        <div class="balance-form">
+          <div class="input-group">
+            <label>User Telegram ID</label>
+            <input type="text" id="deductBalanceUserId" placeholder="e.g., 7171208519">
+          </div>
+          <div class="input-group">
+            <label>Amount ($)</label>
+            <input type="number" id="deductBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 2.00">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Reason (required)</label>
+          <input type="text" id="deductBalanceReason" placeholder="e.g., Violation, Refund">
+        </div>
+        <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
+      </div>
+    </div>
+
+    <!-- 📬 Messages Section -->
+    <div id="messagesSection" class="card hidden">
+      <div class="section-title">
+        <h3>📬 User Messages</h3>
+        <button class="btn btn-sm btn-secondary" onclick="loadMessages()">🔄 Refresh</button>
+      </div>
+      <div id="messagesList"></div>
+    </div>
+
+     <!-- Pending Proofs Section -->
+    <div id="proofsSection" class="card">
+      <h3>📋 Pending Proofs Review</h3>
+      <div id="pendingProofsList"></div>
+    </div>
+
+    <!-- Disputes Section -->
+    <div id="disputesSection" class="card hidden">
+      <h3>⚠️ Open Disputes</h3>
+      <div id="disputesList"></div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div id="statsSection" class="card hidden">
+      <h3>📊 Commission Statistics</h3>
+      <div id="statsContent"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 💬 Reply Modal -->
+<div id="replyModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📩 Reply to User #<span id="replyUserId"></span></h3>
+      <button class="modal-close" onclick="closeModal('replyModal')">&times;</button>
+    </div>
+    <div id="replyMessageContent" class="proof-content" style="margin-bottom:15px"></div>
+    <div class="input-group">
+      <label>Your Reply:</label>
+      <textarea id="replyText" rows="4" placeholder="Type your reply here..."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="sendReply()">📤 Send Reply</button>
+  </div>
+</div>
+
+ <!-- Resolve Dispute Modal -->
+<div id="resolveModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>⚖️ Resolve Dispute #<span id="resolveDisputeId"></span></h3>
+      <button class="modal-close" onclick="closeModal('resolveModal')">&times;</button>
+    </div>
+    <div class="alert alert-info">Review the proof and decide the outcome.</div>
+    
+    <!-- ✅ هذا العنصر مطلوب لعرض الإثبات -->
+    <div id="resolveProofContent" style="margin:15px 0"></div>
+    
+    <div class="input-group">
+      <label>Decision:</label>
+      <select id="resolveDecision">
+        <option value="executor">✅ Pay executor (full amount)</option>
+        <option value="none">❌ No payment (refund to creator)</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Resolution Note:</label>
+      <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
+    </div>
+    <!-- ✅ تأكد أن onclick يستدعي submitResolution() -->
+    <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
+  </div>
+</div>
+
+<script>
+// ================= CONFIG =================
+const API = "https://perceptive-victory-production.up.railway.app";
+const REQUIRED_ADMIN_ID = "7171208519";
+const BOT_USERNAME = "TasksRewardBot";
+
+// ================= 🔐 ACCESS CONTROL =================
+function checkAdminAccess() {
+  const url = window.location.href;
+  let adminIdFromUrl = null;
+  
+  try {
+    const urlObj = new URL(url);
+    adminIdFromUrl = urlObj.searchParams.get('admin_id');
+  } catch (e) {
+    const match = url.match(/[?&]admin_id=([^&]+)/);
+    if (match && match[1]) {
+      adminIdFromUrl = decodeURIComponent(match[1].trim());
+    }
+  }
+  
+  if (!adminIdFromUrl || adminIdFromUrl.toString().trim() !== REQUIRED_ADMIN_ID) {
+    console.error('🔐 Access denied. Required: admin_id=' + REQUIRED_ADMIN_ID);
+    document.getElementById('accessDenied').style.display = 'flex';
+    document.getElementById('adminContent').classList.add('hidden');
+    return false;
+  }
+  
+  console.log('✅ Admin access granted');
+  document.getElementById('accessDenied').style.display = 'none';
+  document.getElementById('adminContent').classList.remove('hidden');
+  localStorage.setItem('admin_verified', 'true');
+  localStorage.setItem('admin_id', REQUIRED_ADMIN_ID);
+  return true;
+}
+
+// ================= INIT =================
+window.addEventListener('load', async () => {
+  const hasAccess = checkAdminAccess();
+  if (!hasAccess) return;
+  await loadDashboardStats();
+  await loadDeposits();
+});
+
+// ================= UTILS =================
+function showAlert(msg, type) {
+  const el = document.getElementById('alertBox');
+  if (!el) return;
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 5000);
+}
+
+function closeModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.remove('active');
+}
+
+function openModal(id) {
+  const modal = document.getElementById(id);
+  if (modal) modal.classList.add('active');
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const activeTab = document.querySelector(`.tab[data-tab="${tab}"]`);
+  if (activeTab) activeTab.classList.add('active');
+  
+  const sections = ['deposits', 'withdrawals', 'balance', 'messages', 'proofs', 'disputes', 'stats'];
+  sections.forEach(s => {
+    const sec = document.getElementById(s + 'Section');
+    if (sec) sec.classList.add('hidden');
+  });
+  
+  const section = document.getElementById(tab + 'Section');
+  if (section) {
+    section.classList.remove('hidden');
+    switch(tab) {
+      case 'deposits': loadDeposits(); break;
+      case 'withdrawals': loadWithdrawals(); break;
+      case 'messages': loadMessages(); break;
+      case 'proofs': loadPendingProofs(); break;
+      case 'disputes': loadDisputes(); break;
+      case 'stats': loadCommissionStats(); break;
+      // balance section has manual forms, no auto-load
+    }
+  }
+}
+
+function showSection(section) {
+  const tabMap = {
+    'deposits': 'deposits', 'withdrawals': 'withdrawals',
+    'addBalance': 'balance', 'deductBalance': 'balance',
+    'messages': 'messages', 'proofs': 'proofs',
+    'disputes': 'disputes', 'stats': 'stats'
+  };
+  switchTab(tabMap[section] || section);
+}
+
+function formatPrice(amount) {
+  if (amount === null || amount === undefined || isNaN(amount)) return '$0.0000';
+  return '$' + parseFloat(amount).toFixed(4);
+}
+
+function formatDate(date) {
+  if (!date) return 'N/A';
+  try {
+    return new Date(date).toLocaleString('en-US', { 
+      year:'numeric', month:'short', day:'numeric', 
+      hour:'2-digit', minute:'2-digit' 
+    });
+  } catch (e) { return 'Invalid Date'; }
+}
+
+function truncate(text, len = 50) {
+  if (!text) return '';
+  return text.length > len ? text.substring(0, len) + '...' : text;
+}
+
+function logout() {
+  localStorage.removeItem('admin_verified');
+  localStorage.removeItem('admin_id');
+  window.location.href = window.location.pathname;
+}
+
+async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    showAlert('📋 Copied to clipboard', 'success');
+    return true;
+  } catch (err) {
+    showAlert('⚠️ Failed to copy', 'error');
+    return false;
+  }
+}
+
+// ================= 📈 INVESTMENT PANEL =================
+function openInvestmentPanel() {
+  const url = `${API}/admin-investment.html?admin_id=${REQUIRED_ADMIN_ID}`;
+  window.open(url, '_blank', 'width=1200,height=800');
+}
+
+// ================= 🚀 TELEGRAM DEEP LINKS (Fallback) =================
+function openTelegramSection(command, hint) {
+  const url = `https://t.me/${BOT_USERNAME}?start=admin`;
+  showAlert(`📱 Opening bot...\n⚙️ Tap: "${hint}"`, 'info');
+  const win = window.open(url, '_blank');
+  if (!win || win.closed) {
+    copyToClipboard(`/${command}`).then(() => {
+      showAlert(`📋 Copied /${command} - paste in Telegram bot`, 'success');
+    });
+  }
+  setTimeout(() => {
+    showAlert(`💡 If bot didn't open, paste this in Telegram:\n\`/${command}\``, 'info');
+  }, 3000);
+}
+
+// ================= DASHBOARD STATS =================
+async function loadDashboardStats() {
+  try {
+    const res = await fetch(`${API}/api/admin/stats?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    
+    if (data.success) {
+      document.getElementById('pendingProofsCount').textContent = data.data.pending_proofs;
+      document.getElementById('openDisputesCount').textContent = data.data.open_disputes;
+      document.getElementById('approvedTodayCount').textContent = data.data.approved_today;
+      document.getElementById('adminCommissionTotal').textContent = formatPrice(data.data.admin_commission);
+    }
+  } catch (err) {
+    console.error('❌ loadDashboardStats:', err);
+  }
+}
+
+
+// ================= 📥 DEPOSITS =================
+async function loadDeposits() {
+  const list = document.getElementById('depositsList');
+  list.innerHTML = '<div class="loading">Loading deposit requests...</div>';
+  try {
+    const res = await fetch(`${API}/api/admin/deposits?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
+    if (!res.ok) throw new Error('Deposits endpoint not ready');
+    const data = await res.json();
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending deposit requests</p>';
+      document.getElementById('pendingDepositsCount').textContent = '0';
+      return;
+    }
+    document.getElementById('pendingDepositsCount').textContent = data.data.length;
+    list.innerHTML = data.data.map(dep => `
+      <div class="request-item">
+        <div class="request-header">
+          <div class="request-info">
+            <p><strong>👤 User:</strong> @${dep.username || dep.user_id} <span style="color:#64748b">(ID: ${dep.user_id})</span></p>
+            <p><strong>🔗 TxID:</strong> <span class="txid-box">${dep.txid}</span></p>
+            <p><strong>📅 Submitted:</strong> ${formatDate(dep.created_at)}</p>
+            <p><strong>💰 Amount:</strong> <span style="color:#facc15">Pending approval</span></p>
+          </div>
+          <div class="request-actions">
+            <button class="btn btn-success btn-sm" onclick="approveDeposit(${dep.id}, ${dep.user_id})">✅ Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectDeposit(${dep.id}, ${dep.user_id})">❌ Reject</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('❌ loadDeposits:', err);
+    list.innerHTML = `
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot directly:<br>
+        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📥 طلبات الإيداع')">📱 Open Bot → 📥 Deposits</button>
+      </div>`;
+  }
+}
+
+async function approveDeposit(requestId, userId) {
+  if (!confirm('✅ Confirm approving this deposit?')) return;
+  try {
+    const res = await fetch(`${API}/api/admin/deposits/${requestId}/approve`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId })
+    });
+    const data = await res.json();
+    if (data.success) { showAlert('✅ Deposit approved', 'success'); loadDeposits(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /admin → 📥 طلبات الإيداع', 'error');
+  }
+}
+
+// متغير عالمي لتخزين بيانات الرفض المؤقت
+let pendingReject = null;
+
+// ✅ دالة فتح نموذج الرفض (بدون prompt)
+function openRejectModal(depositId, userId) {
+  pendingReject = { depositId, userId };
+  document.getElementById('rejectDepositId').textContent = depositId;
+  document.getElementById('rejectUserId').textContent = userId;
+  document.getElementById('rejectReason').value = ''; // مسح أي نص سابق
+  openModal('rejectModal');
+}
+
+// ✅ دالة تأكيد الرفض (تُستدعى عند الضغط على الزر داخل المودال)
+async function confirmReject() {
+  if (!pendingReject) return;
+  
+  const { depositId, userId } = pendingReject;
+  const reason = document.getElementById('rejectReason').value.trim() || 'Does not meet requirements';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/deposits/${depositId}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        admin_id: REQUIRED_ADMIN_ID, 
+        reason: reason 
+      })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('❌ Deposit rejected', 'success');
+      closeModal('rejectModal');
+      loadDeposits();      // تحديث القائمة
+      loadDashboardStats(); // تحديث الإحصائيات
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to reject'), 'error');
+    }
+  } catch (err) {
+    console.error('❌ confirmReject:', err);
+    showAlert('⚠️ Connection error. Please try again.', 'error');
+  }
+  
+  // مسح البيانات المؤقتة
+  pendingReject = null;
+}
+
+// ✅ دالة رفض الإيداع (تُستدعى من زر الرفض في القائمة)
+async function rejectDeposit(depositId, userId) {
+  // فتح المودال بدلاً من prompt
+  openRejectModal(depositId, userId);
+}
+// ================= 📤 WITHDRAWALS =================
+async function loadWithdrawals() {
+  const list = document.getElementById('withdrawalsList');
+  list.innerHTML = '<div class="loading">Loading withdrawal requests...</div>';
+  try {
+    const res = await fetch(`${API}/api/admin/withdrawals?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
+    if (!res.ok) throw new Error('Withdrawals endpoint not ready');
+    const data = await res.json();
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending withdrawal requests</p>';
+      document.getElementById('pendingWithdrawalsCount').textContent = '0';
+      return;
+    }
+    document.getElementById('pendingWithdrawalsCount').textContent = data.data.length;
+    list.innerHTML = data.data.map(wd => `
+      <div class="request-item">
+        <div class="request-header">
+          <div class="request-info">
+            <p><strong>👤 User:</strong> <span style="color:#60a5fa">${wd.user_id}</span></p>
+            <p><strong>💰 Amount:</strong> <span style="color:#22c55e;font-weight:600">${formatPrice(wd.amount)}</span></p>
+            <p><strong>💳 Wallet (TRC20):</strong> <span class="txid-box">${wd.payeer_wallet}</span></p>
+            <p><strong>📅 Requested:</strong> ${formatDate(wd.created_at)}</p>
+          </div>
+          <div class="request-actions">
+            <button class="btn btn-success btn-sm" onclick="approveWithdrawal(${wd.id}, ${wd.user_id}, ${wd.amount})">✅ Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectWithdrawal(${wd.id}, ${wd.user_id})">❌ Reject</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('❌ loadWithdrawals:', err);
+    list.innerHTML = `
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot commands:<br>
+        <code>/pay &lt;id&gt;</code> to approve | <code>/reject &lt;id&gt;</code> to reject
+      </div>`;
+  }
+}
+
+async function approveWithdrawal(withdrawId, userId, amount) {
+  if (!confirm(`✅ Approve withdrawal #${withdrawId}?\nUser: ${userId}\nAmount: ${formatPrice(amount)}`)) return;
+  try {
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
+    });
+    const data = await res.json();
+    if (data.success) { showAlert('✅ Withdrawal approved', 'success'); loadWithdrawals(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /pay ' + withdrawId, 'error');
+  }
+}
+
+async function rejectWithdrawal(withdrawId, userId) {
+  const reason = prompt('Reason (optional):') || 'Verification failed';
+  try {
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
+    });
+    const data = await res.json();
+    if (data.success) { showAlert('❌ Withdrawal rejected', 'success'); loadWithdrawals(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /reject ' + withdrawId, 'error');
+  }
+}
+
+// ================= 💰 BALANCE MANAGEMENT =================
+async function addBalanceToUser() {
+  const userId = document.getElementById('addBalanceUserId').value.trim();
+  const amount = parseFloat(document.getElementById('addBalanceAmount').value);
+  const reason = document.getElementById('addBalanceReason').value.trim() || 'Manual credit';
+  if (!userId || isNaN(amount) || amount <= 0) { showAlert('❌ Valid User ID and Amount required', 'error'); return; }
+  if (!confirm(`➕ Add ${formatPrice(amount)} to user ${userId}?\nReason: ${reason}`)) return;
+  try {
+    const res = await fetch(`${API}/api/admin/balance/add`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason, source:'admin_panel' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showAlert(`✅ Added ${formatPrice(amount)} to user ${userId}`, 'success');
+      document.getElementById('addBalanceUserId').value='';
+      document.getElementById('addBalanceAmount').value='';
+      document.getElementById('addBalanceReason').value='';
+      loadDashboardStats();
+    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /admin → ➕ إضافة رصيد', 'error');
+  }
+}
+
+async function deductBalanceFromUser() {
+  const userId = document.getElementById('deductBalanceUserId').value.trim();
+  const amount = parseFloat(document.getElementById('deductBalanceAmount').value);
+  const reason = document.getElementById('deductBalanceReason').value.trim();
+  if (!userId || isNaN(amount) || amount <= 0 || !reason) { showAlert('❌ Fill all fields (Reason required)', 'error'); return; }
+  if (!confirm(`⚠️ Deduct ${formatPrice(amount)} from user ${userId}?\nReason: ${reason}`)) return;
+  try {
+    const res = await fetch(`${API}/api/admin/balance/deduct`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showAlert(`✅ Deducted ${formatPrice(amount)} from user ${userId}`, 'success');
+      document.getElementById('deductBalanceUserId').value='';
+      document.getElementById('deductBalanceAmount').value='';
+      document.getElementById('deductBalanceReason').value='';
+      loadDashboardStats();
+    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /admin → ➖ خصم رصيد', 'error');
+  }
+}
+
+// ================= 📬 MESSAGES =================
+let currentReplyMessageId = null;
+
+async function loadMessages() {
+  const list = document.getElementById('messagesList');
+  list.innerHTML = '<div class="loading">Loading user messages...</div>';
+  try {
+    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=unread`);
+    if (!res.ok) throw new Error('Messages endpoint not ready');
+    const data = await res.json();
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No unread messages</p>';
+      document.getElementById('unreadMessagesCount').textContent = '0';
+      return;
+    }
+    document.getElementById('unreadMessagesCount').textContent = data.data.length;
+    list.innerHTML = data.data.map(msg => `
+      <div class="message-item">
+        <div class="message-header">
+          <span class="message-user">👤 User: ${msg.user_id}</span>
+          <span class="message-time">📅 ${formatDate(msg.created_at)}</span>
+        </div>
+        <div class="message-text">${msg.message}</div>
+        <button class="btn btn-primary btn-sm" onclick="openReplyModal(${msg.id}, ${msg.user_id}, '${msg.message.replace(/'/g,"\\'")}')">💬 Reply</button>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('❌ loadMessages:', err);
+    list.innerHTML = `
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot:<br>
+        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📬 رسائل المستخدمين')">📱 Open Bot → 📬 Messages</button>
+      </div>`;
+  }
+}
+
+function openReplyModal(msgId, userId, message) {
+  currentReplyMessageId = msgId;
+  document.getElementById('replyUserId').textContent = userId;
+  document.getElementById('replyMessageContent').textContent = message;
+  document.getElementById('replyText').value = '';
+  openModal('replyModal');
+}
+
+async function sendReply() {
+  const replyText = document.getElementById('replyText').value.trim();
+  if (!replyText || !currentReplyMessageId) { showAlert('❌ Write a reply', 'error'); return; }
+  try {
+    const res = await fetch(`${API}/api/admin/messages/${currentReplyMessageId}/reply`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply: replyText })
+    });
+    const data = await res.json();
+    if (data.success) { showAlert('✅ Reply sent', 'success'); closeModal('replyModal'); loadMessages(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /reply <msg_id> <text>', 'error');
+  }
+}
+
+// ================= PENDING PROOFS =================
+async function loadPendingProofs() {
+  const list = document.getElementById('pendingProofsList');
+  list.innerHTML = '<div class="loading">Loading pending proofs...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/pending-proofs?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending proofs to review</p>';
+      document.getElementById('pendingProofsCount').textContent = '0';
+      return;
+    }
+    
+    document.getElementById('pendingProofsCount').textContent = data.data.length;
+    
+    list.innerHTML = data.data.map(proof => `
+      <div class="proof-item">
+        <div class="proof-header">
+          <div>
+            <strong>📋 ${proof.task_title}</strong>
+            <span style="color:#94a3b8;font-size:12px;margin-left:10px">#${proof.task_id}</span>
+          </div>
+          <span class="status-badge status-pending">⏳ Pending</span>
+        </div>
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+          👤 Executor: @${proof.executor_username || proof.executor_id} | 
+          📅 ${formatDate(proof.submitted_at)}
+        </p>
+        <p style="color:#94a3b8;font-size:13px;margin:5px 0">
+          💰 Payment: <strong style="color:#22c55e">${formatPrice(proof.payment_amount)}</strong>
+        </p>
+        <p style="color:#cbd5e1;font-size:13px;margin:5px 0">
+          📝 Task: ${proof.task_description?.substring(0, 100)}${proof.task_description?.length > 100 ? '...' : ''}
+        </p>
+        ${proof.proof ? `<div class="proof-content" style="margin:10px 0"><strong>Executor's Proof:</strong><br>${proof.proof}</div>` : ''}
+        <div class="proof-actions">
+          <button class="btn btn-success btn-sm" onclick="approveProof(${proof.task_id}, ${proof.id})">✅ Approve & Pay ${formatPrice(proof.payment_amount)}</button>
+          <button class="btn btn-danger btn-sm" onclick="rejectProof(${proof.task_id}, ${proof.id})">❌ Reject</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error(err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load proofs</p>';
+  }
+}
+
+async function approveProof(taskId, proofId) {
+  if (!confirm('✅ Confirm approving this proof and sending payment?')) return;
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/approve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: REQUIRED_ADMIN_ID })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '✅ Approved and paid' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      loadPendingProofs();
+      loadDashboardStats(); // ✅ تحديث الإحصائيات
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+async function rejectProof(taskId, proofId) {
+  const reason = prompt('Reason for rejection (optional):') || 'Does not meet requirements';
+  
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId}/proofs/${proofId}/reject`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ user_id: REQUIRED_ADMIN_ID, reason })
+    });
+    const data = await res.json();
+    showAlert(data.success ? '❌ Proof rejected' : '❌ ' + data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      loadPendingProofs();
+      loadDashboardStats();
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+  }
+}
+
+
+// ================= DISPUTES =================
+let currentDispute = null;
+
+async function loadDisputes() {
+  const list = document.getElementById('disputesList');
+  list.innerHTML = '<div class="loading">Loading disputes...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/disputes?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    
+    const count = data.success && data.data ? data.data.length : 0;
+    document.getElementById('openDisputesCount').textContent = count;
+    
+    if (!data.success || !data.data?.length) {
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No open disputes</p>';
+      return;
+    }
+    
+    list.innerHTML = data.data.map(d => `
+      <div class="proof-item" style="border-left:4px solid #8b5cf6">
+        <div class="proof-header" style="border-bottom:1px solid #334155;padding-bottom:10px;margin-bottom:15px">
+          <strong>⚠️ Dispute #${d.dispute_id}</strong>
+          <span class="status-badge status-disputed">Open</span>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:15px">
+          <div style="background:#0f172a;padding:12px;border-radius:8px">
+            <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">📋 Task Details</h4>
+            <p style="font-size:13px"><strong>Title:</strong> ${d.task_title} <span style="color:#94a3b8">#${d.task_id}</span></p>
+            <p style="font-size:13px"><strong>Creator:</strong> @${d.creator_username || d.creator_telegram}</p>
+            <p style="font-size:13px"><strong>Reward:</strong> <span style="color:#22c55e">${formatPrice(d.executor_reward)}</span></p>
+            ${d.target_url ? `<p style="font-size:13px"><strong>URL:</strong> <a href="${d.target_url}" target="_blank" style="color:#60a5fa">Open Link ↗</a></p>` : ''}
+          </div>
+          
+          <div style="background:#0f172a;padding:12px;border-radius:8px">
+            <h4 style="color:#60a5fa;font-size:14px;margin-bottom:10px">👤 Executor Details</h4>
+            <p style="font-size:13px"><strong>Executor:</strong> @${d.executor_username || d.executor_telegram}</p>
+            <p style="font-size:13px"><strong>Submitted:</strong> ${formatDate(d.proof_submitted_at)}</p>
+            <p style="font-size:13px"><strong>Amount:</strong> <span style="color:#22c55e">${formatPrice(d.payment_amount)}</span></p>
+          </div>
+        </div>
+        
+        <div style="margin-bottom:15px">
+          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📄 Task Description:</h4>
+          <div style="background:#0f172a;padding:12px;border-radius:6px;color:#cbd5e1;font-size:13px;white-space:pre-wrap">${d.task_description || 'No description'}</div>
+        </div>
+        
+        <div style="margin-bottom:15px">
+          <h4 style="color:#94a3b8;font-size:13px;margin-bottom:5px">📤 Executor's Proof:</h4>
+          <div class="proof-content" style="margin:0;background:#0f172a;border:1px solid #475569">${d.executor_proof || '<span style="color:#ef4444">No proof</span>'}</div>
+        </div>
+        
+        <div style="margin-bottom:15px">
+          <h4 style="color:#facc15;font-size:13px;margin-bottom:5px">⚠️ Dispute Reason:</h4>
+          <div style="background:#fef3c720;padding:12px;border-radius:6px;color:#facc15;font-size:13px;white-space:pre-wrap;border:1px solid #facc1540">${d.reason}</div>
+        </div>
+        
+        <div class="proof-actions" style="border-top:1px solid #334155;padding-top:15px">
+          <button class="btn btn-primary btn-sm" onclick="openResolveModal(${d.dispute_id}, ${d.execution_id}, '${d.executor_proof?.replace(/'/g, "\\'") || ''}')">⚖️ Review & Resolve</button>
+        </div>
+      </div>
+    `).join('');
+    
+  } catch (err) {
+    console.error('❌ loadDisputes:', err);
+    list.innerHTML = '<p class="alert alert-error">Failed to load disputes</p>';
+  }
+}
+
+function openResolveModal(disputeId, executionId, proof = '') {
+  currentDispute = { id: disputeId, executionId, proof };
+  
+  document.getElementById('resolveDisputeId').textContent = disputeId;
+  document.getElementById('resolveDecision').value = 'executor';
+  document.getElementById('resolveNote').value = '';
+  
+  const proofContent = document.getElementById('resolveProofContent');
+  if (proofContent) {
+    if (proof && proof.trim()) {
+      proofContent.innerHTML = `
+        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
+          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
+          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
+        </div>
+      `;
+    } else {
+      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
+    }
+  }
+  
+  openModal('resolveModal');
+}
+
+async function submitResolution() {
+  const payout = document.getElementById('resolveDecision').value;
+  const resolution = document.getElementById('resolveNote').value || 'Resolved by admin';
+  
+  if (!currentDispute) {
+    showAlert('⚠️ No dispute selected', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch(`${API}/api/admin/task-disputes/${currentDispute.id}/resolve`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        admin_id: REQUIRED_ADMIN_ID,
+        payout_to: payout,
+        resolution
+      })
+    });
+    const data = await res.json();
+    
+    if (data.success) {
+      showAlert('✅ Dispute resolved', 'success');
+      closeModal('resolveModal');
+      loadDisputes();
+      loadDashboardStats();
+    } else {
+      showAlert('❌ ' + data.message, 'error');
+    }
+  } catch (err) {
+    showAlert('⚠️ Connection error', 'error');
+    console.error('❌ submitResolution:', err);
+  }
+}
+// ✅ دالة مساعدة لعرض تفاصيل المهمة الكاملة
+function viewTaskDetail(taskId) {
+  window.open(`/tasks.html?user_id=${REQUIRED_ADMIN_ID}#task-${taskId}`, '_blank');
+}
+
+// ================= RESOLVE MODAL =================
+
+function openResolveModal(disputeId, executionId, proof = '') {
+  currentDispute = { id: disputeId, executionId, proof };
+  
+  document.getElementById('resolveDisputeId').textContent = disputeId;
+  document.getElementById('resolveDecision').value = 'executor';
+  document.getElementById('resolveNote').value = '';
+  
+  // ✅ عرض الإثبات داخل المودال
+  const proofContent = document.getElementById('resolveProofContent');
+  if (proofContent) {
+    if (proof && proof.trim()) {
+      proofContent.innerHTML = `
+        <div style="background:#0f172a;padding:12px;border-radius:6px;margin-bottom:15px">
+          <strong style="color:#94a3b8;font-size:13px">📤 Executor's Proof:</strong>
+          <p style="color:#cbd5e1;font-size:13px;white-space:pre-wrap;margin-top:5px">${proof}</p>
+        </div>
+      `;
+    } else {
+      proofContent.innerHTML = '<p style="color:#ef4444">⚠️ No proof available</p>';
+    }
+  }
+  
+  openModal('resolveModal');
+}
+// ================= COMMISSION STATS =================
+async function loadCommissionStats() {
+  const content = document.getElementById('statsContent');
+  content.innerHTML = '<div class="loading">Loading statistics...</div>';
+  
+  try {
+    const res = await fetch(`${API}/api/admin/commission-stats?user_id=${REQUIRED_ADMIN_ID}`);
+    const data = await res.json();
+    
+    if (!data.success) {
+      content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
+      return;
+    }
+    
+    const stats = data.data;
+    
+    content.innerHTML = `
+      <div style="display:grid;gap:15px">
+        <div class="card">
+          <h4>💰 Today's Commission</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.today)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">From task completions</p>
+        </div>
+        <div class="card">
+          <h4>📊 This Week</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.week)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
+        </div>
+        <div class="card">
+          <h4>📈 This Month</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.month)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission</p>
+        </div>
+        <div class="card">
+          <h4>🏆 All Time</h4>
+          <p class="value" style="font-size:28px;color:#22c55e">${formatPrice(stats.all_time)}</p>
+          <p style="color:#94a3b8;font-size:13px;margin-top:5px">Total admin commission earned</p>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    console.error(err);
+    content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
+  }
+}
+
+// ================= REFRESH ALL =================
+async function refreshAll() {
+  await loadDashboardStats();
+  await loadDeposits();
+  await loadWithdrawals();
+  await loadMessages();
+  await loadPendingProofs();
+  await loadDisputes();
+  await loadCommissionStats();
+  showAlert('🔄 All data refreshed', 'success');
+}
+
+// ================= KEYBOARD SHORTCUTS =================
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key==='1') { e.preventDefault(); switchTab('deposits'); }
+    if (e.key==='2') { e.preventDefault(); switchTab('withdrawals'); }
+    if (e.key==='3') { e.preventDefault(); switchTab('balance'); }
+    if (e.key==='4') { e.preventDefault(); switchTab('messages'); }
+    if (e.key==='5') { e.preventDefault(); switchTab('proofs'); }
+    if (e.key==='6') { e.preventDefault(); switchTab('disputes'); }
+    if (e.key==='7') { e.preventDefault(); switchTab('stats'); }
+    if (e.key==='r') { e.preventDefault(); refreshAll(); }
+  }
+});
+</script>
+</body>
+</html>
     <!-- 📤 Withdrawals Section -->
     <div id="withdrawalsSection" class="card hidden">
       <div class="section-title">
@@ -616,16 +1412,12 @@ function switchTab(tab) {
   const sections = ['deposits', 'withdrawals', 'balance', 'messages', 'proofs', 'disputes', 'stats'];
   sections.forEach(s => {
     const sec = document.getElementById(s + 'Section');
-    if (sec) {
-  sec.classList.add('hidden');
-  sec.classList.remove('active');
-}
+    if (sec) sec.classList.add('hidden');
   });
   
   const section = document.getElementById(tab + 'Section');
   if (section) {
-  section.classList.remove('hidden');
-  section.classList.add('active');
+    section.classList.remove('hidden');
     switch(tab) {
       case 'deposits': loadDeposits(); break;
       case 'withdrawals': loadWithdrawals(); break;
