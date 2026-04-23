@@ -415,54 +415,39 @@ bot.command('admin', async (ctx) => {
 });
 
 // 🏠 /start
+// 🏠 /start - رسالة ترحيبية فقط مع زر تحميل (بدون قاعدة بيانات، بدون إحالات)
 bot.start(async (ctx) => {
-  const userId = ctx.from.id;
-  const firstName = ctx.from.first_name || '';
-  const lang = getLang(ctx);
-  try {
-    let payload = null;
-    if (ctx.startPayload) {
-      payload = ctx.startPayload;
-    } else if (ctx.message?.text?.includes('/start')) {
-      const parts = ctx.message.text.split(' ');
-      payload = parts[1] || null;
+    try {
+        // ✅ الرسالة الترحيبية (بدون رابط في النص)
+        const welcomeMessage = `🌍 Start Earning Real Money Online with Taskora! 💸✨
+No experience needed. No hidden fees. Just simple tasks, real rewards.
+✅ Free to join | ✅ Min withdrawal: only $1.00
+✅ Get paid in USDT (TRC20) | ✅ Transparent & secure
+🔥 Referral Bonus: Invite friends & earn 5% on their earnings + 3% on deposits – lifetime passive income!
+🚀 Ready to turn your spare time into real cash?`;
+
+        // ✅ رابط التحميل
+        const downloadLink = "https://upload.app/download/taskora/earn.cash71/49e0b46a8044a4774ba5d3f0b771b64b3cbbdfb792c23d3fb7d361557a07e908";
+
+        // ✅ إرسال الرسالة مع زر التحميل فقط
+        await ctx.reply(welcomeMessage, {
+            reply_markup: {
+                inline_keyboard: [[
+                    { 
+                        text: "🚀 Download & Register Now", 
+                        url: downloadLink 
+                    }
+                ]]
+            },
+            disable_web_page_preview: false
+        });
+        
+    } catch (err) {
+        console.error('❌ /start error:', err);
+        // في حال حدوث خطأ، نرسل الرسالة مع الرابط كنص عادي
+        await ctx.reply(`🌍 Start Earning Real Money Online with Taskora! 💸✨
+🚀 Download Now: https://upload.app/download/taskora/earn.cash71/49e0b46a8044a4774ba5d3f0b771b64b3cbbdfb792c23d3fb7d361557a07e908`);
     }
-    let res = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-    let balance = 0;
-    if (res.rows.length > 0) {
-      balance = parseFloat(res.rows[0].balance) || 0;
-    } else {
-      await pool.query('INSERT INTO users (telegram_id, balance) VALUES ($1, $2)', [userId, 0]);
-    }
-    if (payload && /^ref_\d+$/i.test(payload)) {
-      const referrerId = Number(payload.replace(/ref_/i, ''));
-      if (referrerId && referrerId !== userId) {
-        const exists = await pool.query('SELECT 1 FROM referrals WHERE referee_id = $1', [userId]);
-        if (exists.rows.length === 0) {
-          await pool.query('INSERT INTO referrals (referrer_id, referee_id) VALUES ($1,$2)', [referrerId, userId]);
-          try {
-            await bot.telegram.sendMessage(referrerId, `🎉 مستخدم جديد انضم من رابطك: ${userId}`);
-          } catch (_) {}
-        }
-      }
-    }
-    await ctx.replyWithHTML(
-      t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
-      Markup.keyboard([
-        [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-        [t(lang, 'deposit'), t(lang, 'withdraw')], 
-        [t(lang, 'referral')],
-        [t(lang, 'tasks'), t(lang, 'videos')],
-        [t(lang, 'language'), t(lang,'Units')],
-        [t(lang, 'facebook')],
-        [t(lang, 'contact_admin')]
-      ]).resize()
-    );
-    await ctx.replyWithHTML(t(lang, 'earn_sources_instructions'));
-  } catch (err) {
-    console.error('❌ /start:', err);
-    await ctx.reply(t(lang, 'internal_error'));
-  }
 });
 
 // 💰 رصيدك
