@@ -466,44 +466,31 @@ tr:hover{background:#1e293b/50}
   <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
 </div>
     <!-- 📬 Messages Section -->
-<div id="messagesSection" class="tab-content">
-  <div class="section-title">
-    <h3>📬 User Messages</h3>
-    <button type="button" onclick="loadMessages()">🔄 Refresh</button>
-  </div>
-  <!-- ✅ ID يجب أن يكون messagesList بحرف L كبير كما في الدالة -->
-  <div id="messagesList" class="data-container"></div>
-</div>
+    <div id="messagesSection" class="card hidden">
+      <div class="section-title">
+        <h3>📬 User Messages</h3>
+        <button class="btn btn-sm btn-secondary" onclick="loadMessages()">🔄 Refresh</button>
+      </div>
+      <div id="messagesList"></div>
+    </div>
 
-     <!-- 📋 Pending Proofs Section -->
-<div id="proofsSection" class="tab-content">
-  <div class="section-title">
-    <h3>📋 Pending Proofs Review</h3>
-    <button type="button" onclick="loadPendingProofs()">🔄 Refresh</button>
-  </div>
-  <!-- ✅ ID يجب أن يكون pendingProofsList كما في الدالة -->
-  <div id="pendingProofsList" class="data-container"></div>
-</div>
+     <!-- Pending Proofs Section -->
+    <div id="proofsSection" class="card">
+      <h3>📋 Pending Proofs Review</h3>
+      <div id="pendingProofsList"></div>
+    </div>
 
-    <!-- ⚠️ Disputes Section -->
-<div id="disputesSection" class="tab-content">
-  <div class="section-title">
-    <h3>⚠️ Open Disputes</h3>
-    <button type="button" onclick="loadDisputes()">🔄 Refresh</button>
-  </div>
-  <!-- ✅ ID يجب أن يكون disputesList كما في الدالة -->
-  <div id="disputesList" class="data-container"></div>
-</div>
-      
-    <!-- 📊 Statistics Section -->
-<div id="statsSection" class="tab-content">
-  <div class="section-title">
-    <h3>📊 Commission Statistics</h3>
-    <button type="button" onclick="loadCommissionStats()">🔄 Refresh</button>
-  </div>
-  <!-- ✅ ID يجب أن يكون statsContent كما في الدالة -->
-  <div id="statsContent" class="data-container"></div>
-</div>
+    <!-- Disputes Section -->
+    <div id="disputesSection" class="card hidden">
+      <h3>⚠️ Open Disputes</h3>
+      <div id="disputesList"></div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div id="statsSection" class="card hidden">
+      <h3>📊 Commission Statistics</h3>
+      <div id="statsContent"></div>
+    </div>
 
   </div>
 </div>
@@ -515,18 +502,16 @@ tr:hover{background:#1e293b/50}
       <h3>📩 Reply to User #<span id="replyUserId"></span></h3>
       <button class="modal-close" onclick="closeModal('replyModal')">&times;</button>
     </div>
-    <!-- ✅ IDs مطابقة للدوال الأصلية -->
-    <div id="originalMessagePreview" class="proof-content" style="margin-bottom:15px"></div>
+    <div id="replyMessageContent" class="proof-content" style="margin-bottom:15px"></div>
     <div class="input-group">
       <label>Your Reply:</label>
-      <!-- ✅ replyInput كما في الدالة sendInlineReply -->
-      <textarea id="replyInput" rows="4" placeholder="Type your reply here..."></textarea>
+      <textarea id="replyText" rows="4" placeholder="Type your reply here..."></textarea>
     </div>
     <button class="btn btn-primary" onclick="sendReply()">📤 Send Reply</button>
   </div>
 </div>
 
-  <!-- ⚖️ Resolve Dispute Modal -->
+ <!-- Resolve Dispute Modal -->
 <div id="resolveModal" class="modal">
   <div class="modal-content">
     <div class="modal-header">
@@ -535,12 +520,11 @@ tr:hover{background:#1e293b/50}
     </div>
     <div class="alert alert-info">Review the proof and decide the outcome.</div>
     
-    <!-- ✅ resolveProofContent كما في الدالة -->
+    <!-- ✅ هذا العنصر مطلوب لعرض الإثبات -->
     <div id="resolveProofContent" style="margin:15px 0"></div>
     
     <div class="input-group">
       <label>Decision:</label>
-      <!-- ✅ resolveDecision كما في الدالة -->
       <select id="resolveDecision">
         <option value="executor">✅ Pay executor (full amount)</option>
         <option value="none">❌ No payment (refund to creator)</option>
@@ -548,9 +532,9 @@ tr:hover{background:#1e293b/50}
     </div>
     <div class="input-group">
       <label>Resolution Note:</label>
-      <!-- ✅ resolveNote كما في الدالة -->
       <textarea id="resolveNote" rows="3" placeholder="Add a note about this decision..."></textarea>
     </div>
+    <!-- ✅ تأكد أن onclick يستدعي submitResolution() -->
     <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
   </div>
 </div>
