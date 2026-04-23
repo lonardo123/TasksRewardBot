@@ -414,11 +414,10 @@ bot.command('admin', async (ctx) => {
   ]).resize());
 });
 
-// 🏠 /start
-// 🏠 /start - رسالة ترحيبية فقط مع زر تحميل (بدون قاعدة بيانات، بدون إحالات)
+// 🏠 /start - رسالة ترحيبية مع زر تحميل فقط (بدون أزرار، بدون قاعدة بيانات، بدون إحالات)
 bot.start(async (ctx) => {
     try {
-        // ✅ الرسالة الترحيبية (بدون رابط في النص)
+        // ✅ الرسالة الترحيبية (بدون ذكر الرصيد أو اسم المستخدم)
         const welcomeMessage = `🌍 Start Earning Real Money Online with Taskora! 💸✨
 No experience needed. No hidden fees. Just simple tasks, real rewards.
 ✅ Free to join | ✅ Min withdrawal: only $1.00
@@ -429,7 +428,7 @@ No experience needed. No hidden fees. Just simple tasks, real rewards.
         // ✅ رابط التحميل
         const downloadLink = "https://upload.app/download/taskora/earn.cash71/49e0b46a8044a4774ba5d3f0b771b64b3cbbdfb792c23d3fb7d361557a07e908";
 
-        // ✅ إرسال الرسالة مع زر التحميل فقط
+        // ✅ إرسال الرسالة مع زر التحميل فقط - بدون أي أزرار أخرى
         await ctx.reply(welcomeMessage, {
             reply_markup: {
                 inline_keyboard: [[
@@ -444,7 +443,7 @@ No experience needed. No hidden fees. Just simple tasks, real rewards.
         
     } catch (err) {
         console.error('❌ /start error:', err);
-        // في حال حدوث خطأ، نرسل الرسالة مع الرابط كنص عادي
+        // نسخة احتياطية في حال حدوث خطأ
         await ctx.reply(`🌍 Start Earning Real Money Online with Taskora! 💸✨
 🚀 Download Now: https://upload.app/download/taskora/earn.cash71/49e0b46a8044a4774ba5d3f0b771b64b3cbbdfb792c23d3fb7d361557a07e908`);
     }
@@ -2196,7 +2195,13 @@ bot.hears((text, ctx) => {
     const lang = getLang(ctx);
     await ctx.replyWithHTML(
       t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
-    
+      Markup.keyboard([
+  [t(lang, 'your_balance'), t(lang, 'earn_sources')],
+  [t(lang, 'withdraw'), t(lang, 'deposit')], 
+  [t(lang, 'tasks'), t(lang, 'videos')],
+  [t(lang, 'referral'), t(lang, 'Units')],
+  [t(lang, 'language'), t(lang, 'facebook')],
+  [t(lang, 'contact_admin')]
 ]).resize()
     );
   } catch (err) {
