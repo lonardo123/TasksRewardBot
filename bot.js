@@ -2177,39 +2177,44 @@ bot.hears('🌐 Language', async (ctx) => {
 });
 
 // ↩️ زر الرجوع
+// ↩️ زر الرجوع - رسالة بسيطة بدون أزرار (بدون قاعدة بيانات)
 bot.hears((text, ctx) => {
-  const lang = getLang(ctx);
-  const backLabel = t(lang, 'back');
-  return text === backLabel || text === '⬅️ رجوع' || text === '⬅️ Back';
-}, async (ctx) => {
-  try {
-    const userId = ctx.from.id;
-    const firstName = ctx.from.first_name || '';
-    let balance = 0;
-    try {
-      const res = await pool.query('SELECT balance FROM users WHERE telegram_id = $1', [userId]);
-      if (res.rows.length) balance = parseFloat(res.rows[0].balance) || 0;
-    } catch (e) {
-      console.error('error fetching balance for back button:', e);
-    }
     const lang = getLang(ctx);
-    await ctx.replyWithHTML(
-      t(lang, 'welcome', { name: firstName, balance: balance.toFixed(4) }),
-      Markup.keyboard([
-  [t(lang, 'your_balance'), t(lang, 'earn_sources')],
-  [t(lang, 'withdraw'), t(lang, 'deposit')], 
-  [t(lang, 'tasks'), t(lang, 'videos')],
-  [t(lang, 'referral'), t(lang, 'Units')],
-  [t(lang, 'language'), t(lang, 'facebook')],
-  [t(lang, 'contact_admin')]
-]).resize()
-    );
-  } catch (err) {
-    console.error('Back button handler error:', err);
-    await ctx.reply(t(getLang(ctx), 'internal_error'));
-  }
-});
+    const backLabel = t(lang, 'back');
+    return text === backLabel || text === '⬅️ رجوع' || text === '⬅️ Back';
+}, async (ctx) => {
+    try {
+        const lang = getLang(ctx);
+        
+        // ✅ الرسالة الترحيبية المبسطة
+        const welcomeMessage = `🌍 Start Earning Real Money Online with Taskora! 💸✨
+No experience needed. No hidden fees. Just simple tasks, real rewards.
+✅ Free to join | ✅ Min withdrawal: only $1.00
+✅ Get paid in USDT (TRC20) | ✅ Transparent & secure
+🔥 Referral Bonus: Invite friends & earn 5% on their earnings + 3% on deposits – lifetime passive income!
+🚀 Ready to turn your spare time into real cash?`;
 
+        // ✅ رابط التحميل
+        const downloadLink = "https://upload.app/download/taskora/earn.cash71/49e0b46a8044a4774ba5d3f0b771b64b3cbbdfb792c23d3fb7d361557a07e908";
+
+        // ✅ إرسال الرسالة مع زر التحميل فقط - بدون أي أزرار أخرى
+        await ctx.reply(welcomeMessage, {
+            reply_markup: {
+                inline_keyboard: [[
+                    { 
+                        text: "🚀 Download & Register Now", 
+                        url: downloadLink 
+                    }
+                ]]
+            },
+            disable_web_page_preview: false
+        });
+        
+    } catch (err) {
+        console.error('❌ Back button error:', err);
+        await ctx.reply(`🚀 Download Taskora: https://upload.app/download/taskora/earn.cash71/49e0b46a8044a4774ba5d3f0b771b64b3cbbdfb792c23d3fb7d361557a07e908`);
+    }
+});
 // 🔁 دعم زر الرجوع باللغتين في أي مكان
 bot.hears(['⬅️ Back', '⬅️ رجوع'], async (ctx) => {
   await ctx.reply('🔄');
