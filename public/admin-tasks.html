@@ -130,106 +130,6 @@ tr:hover{background:#1e293b/50}
   border-color: #ef4444;
   outline: none;
 } 
-/* ✅ مربع الرسالة أسفل كل طلب سحب */
-.action-message {
-  display: none;
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-.action-message.show {
-  display: block !important;
-  animation: fadeInDown 0.3s ease;
-}
-.action-message.success {
-  background: #22c55e20;
-  color: #22c55e;
-  border: 1px solid #22c55e40;
-}
-.action-message.error {
-  background: #ef444420;
-  color: #ef4444;
-  border: 1px solid #ef444440;
-}
-@keyframes fadeInDown {
-  from { opacity: 0; transform: translateY(-5px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
- /* ✅ رسائل داخل نماذج الرصيد */
-.balance-message {
-  display: none;
-  margin-top: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  animation: slideIn 0.2s ease;
-}
-.balance-message.success {
-  background: #dcfce7;
-  color: #166534;
-  border-left: 4px solid #22c55e;
-  display: block;
-}
-.balance-message.error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-left: 4px solid #ef4444;
-  display: block;
-}
-
-/* ✅ رسائل داخل قائمة الرسائل */
-.message-action-result {
-  display: none;
-  margin-top: 10px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-.message-action-result.success {
-  background: #dcfce7;
-  color: #166534;
-  border-left: 4px solid #22c55e;
-  display: block;
-}
-.message-action-result.error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-left: 4px solid #ef4444;
-  display: block;
-}
-
-
-/* ✅ شارات الحالة */
-.status-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.status-pending { background: #fef3c7; color: #92400e; }
-.status-paid { background: #dcfce7; color: #166534; }
-.status-rejected { background: #fee2e2; color: #991b1b; }
-
-.done-badge {
-  padding: 6px 14px;
-  background: #f1f5f9;
-  color: #64748b;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-/* ✅ تحديث العداد */
-#pendingWithdrawalsCount {
-  transition: all 0.3s ease;
-}  
 </style>
 </head>
 <body>
@@ -240,10 +140,11 @@ tr:hover{background:#1e293b/50}
     <h2>🔐 Access Denied</h2>
     <p>This page is restricted to admin only.</p>
     <p>Required parameter:</p>
-    <p class="admin-id"></p>
+    <p class="admin-id">admin_id=7171208519</p>
     <p style="font-size:13px;color:#64748b;margin-top:15px">
       ❌ Invalid or missing admin_id parameter
     </p>
+    <button class="btn btn-primary" onclick="window.location.href='/'">🏠 Return Home</button>
   </div>
 </div>
 
@@ -333,7 +234,7 @@ tr:hover{background:#1e293b/50}
       <div class="tab" data-tab="withdrawals" onclick="switchTab('withdrawals')">📤 Withdrawals</div>
       <div class="tab" data-tab="balance" onclick="switchTab('balance')">💰 Balance</div>
       <div class="tab" data-tab="messages" onclick="switchTab('messages')">📬 Messages</div>
-      <div class="tab" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
+      <div class="tab active" data-tab="proofs" onclick="switchTab('proofs')">📋 Pending Proofs</div>
       <div class="tab" data-tab="disputes" onclick="switchTab('disputes')">⚠️ Disputes</div>
       <div class="tab" data-tab="stats" onclick="switchTab('stats')">📊 Statistics</div>
     </div>
@@ -347,24 +248,6 @@ tr:hover{background:#1e293b/50}
       <div id="depositsList"></div>
     </div>
 
-    <!-- ✅ Modal: Confirm Deposit Amount -->
-<div id="approveDepositModal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;">
-  <div style="background:#fff; padding:20px; border-radius:12px; min-width:320px; max-width:90%;">
-    <h3 style="margin:0 0 15px; color:#2c3e50;">✅ تأكيد مبلغ الإيداع</h3>
-    <p style="margin:5px 0; font-size:14px;"><strong>User ID:</strong> <span id="modalUserId"></span></p>
-    <p style="margin:5px 0; font-size:14px;"><strong>TXID:</strong> <span id="modalTxid" style="word-break:break-all;"></span></p>
-    <p style="margin:5px 0; font-size:14px;"><strong>المبلغ المطلوب:</strong> $<span id="modalRequestedAmount"></span></p>
-    
-    <label style="display:block; margin:15px 0 5px; font-weight:600;">💰 المبلغ المراد إضافته للحساب ($):</label>
-    <input type="number" id="modalFinalAmount" step="0.01" min="0" style="width:100%; padding:10px; border:2px solid #3498db; border-radius:6px; font-size:16px;">
-    
-    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
-      <button onclick="closeApproveModal()" style="padding:10px 20px; background:#95a5a6; color:#fff; border:none; border-radius:6px; cursor:pointer;">❌ إلغاء</button>
-      <button onclick="confirmApproveDeposit()" style="padding:10px 20px; background:#27ae60; color:#fff; border:none; border-radius:6px; cursor:pointer;">✅ تأكيد وإضافة</button>
-    </div>
-  </div>
-</div>
-    
     <!-- ✅ Modal للرفض داخل الصفحة -->
 <div id="rejectModal" class="modal">
   <div class="modal-content" style="max-width:500px">
@@ -395,76 +278,51 @@ tr:hover{background:#1e293b/50}
       <div id="withdrawalsList"></div>
     </div>
 
-    <!-- ✅ مودال الموافقة/الرفض على السحب (بنفس نمط الايداع) -->
-<div id="withdrawalModal" class="modal">
-  <div class="modal-content" style="max-width:450px; border-top:4px solid #3b82f6;">
-    <div class="modal-header">
-      <h3 id="wModalTitle" style="margin:0;">Confirm Action</h3>
-      <button class="modal-close" onclick="closeWithdrawalModal()">&times;</button>
-    </div>
-    <div style="background:#0f172a;padding:12px;border-radius:8px;margin:15px 0;">
-      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">👤 <strong>User ID:</strong> <span id="wModalUserId" style="color:#fff;"></span></p>
-      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">💰 <strong>Amount:</strong> <span id="wModalAmount" style="color:#f59e0b;"></span></p>
-    </div>
-    
-    <div id="wModalReasonBox" class="input-group" style="display:none;">
-      <label>Reason for rejection (optional):</label>
-      <textarea id="wModalReason" rows="3" placeholder="e.g., Verification failed..."></textarea>
-    </div>
-
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
-      <button class="btn btn-secondary" onclick="closeWithdrawalModal()">Cancel</button>
-      <button id="wModalBtn" class="btn btn-primary" onclick="confirmWithdrawalAction()">Confirm</button>
-    </div>
-  </div>
-</div>
     <!-- 💰 Balance Management Section -->
     <div id="balanceSection" class="card hidden">
       <h3>💰 User Balance Management</h3>
       
-      <!-- ➕ Add Balance Form - مع منطقة رسالة -->
-<div class="card" style="margin-bottom:15px">
-  <h4 style="color:#22c55e;margin-bottom:15px">➕ Add Balance to User</h4>
-  <div class="balance-form">
-    <div class="input-group">
-      <label>User Telegram ID</label>
-      <input type="text" id="addBalanceUserId" placeholder="e.g., 7171208519">
-    </div>
-    <div class="input-group">
-      <label>Amount ($)</label>
-      <input type="number" id="addBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 5.50">
-    </div>
-  </div>
-  <div class="input-group">
-    <label>Reason (optional)</label>
-    <input type="text" id="addBalanceReason" placeholder="e.g., Bonus, Manual credit">
-  </div>
-  <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
-  <div class="balance-message" id="addBalanceMsg"></div>
-  <button class="btn btn-success" onclick="addBalanceToUser()">✅ Add Balance</button>
-</div>
+      <!-- Add Balance Form -->
+      <div class="card" style="margin-bottom:15px">
+        <h4 style="color:#22c55e;margin-bottom:15px">➕ Add Balance to User</h4>
+        <div class="balance-form">
+          <div class="input-group">
+            <label>User Telegram ID</label>
+            <input type="text" id="addBalanceUserId" placeholder="e.g., 7171208519">
+          </div>
+          <div class="input-group">
+            <label>Amount ($)</label>
+            <input type="number" id="addBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 5.50">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Reason (optional)</label>
+          <input type="text" id="addBalanceReason" placeholder="e.g., Bonus, Manual credit">
+        </div>
+        <button class="btn btn-success" onclick="addBalanceToUser()">✅ Add Balance</button>
+      </div>
 
-<!-- ➖ Deduct Balance Form - مع منطقة رسالة -->
-<div class="card">
-  <h4 style="color:#ef4444;margin-bottom:15px">➖ Deduct Balance from User</h4>
-  <div class="balance-form">
-    <div class="input-group">
-      <label>User Telegram ID</label>
-      <input type="text" id="deductBalanceUserId" placeholder="e.g., 7171208519">
+      <!-- Deduct Balance Form -->
+      <div class="card">
+        <h4 style="color:#ef4444;margin-bottom:15px">➖ Deduct Balance from User</h4>
+        <div class="balance-form">
+          <div class="input-group">
+            <label>User Telegram ID</label>
+            <input type="text" id="deductBalanceUserId" placeholder="e.g., 7171208519">
+          </div>
+          <div class="input-group">
+            <label>Amount ($)</label>
+            <input type="number" id="deductBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 2.00">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Reason (required)</label>
+          <input type="text" id="deductBalanceReason" placeholder="e.g., Violation, Refund">
+        </div>
+        <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
+      </div>
     </div>
-    <div class="input-group">
-      <label>Amount ($)</label>
-      <input type="number" id="deductBalanceAmount" step="0.01" min="0.01" placeholder="e.g., 2.00">
-    </div>
-  </div>
-  <div class="input-group">
-    <label>Reason (required)</label>
-    <input type="text" id="deductBalanceReason" placeholder="e.g., Violation, Refund">
-  </div>
-  <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
-  <div class="balance-message" id="deductBalanceMsg"></div>
-  <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
-</div>
+
     <!-- 📬 Messages Section -->
     <div id="messagesSection" class="card hidden">
       <div class="section-title">
@@ -538,7 +396,7 @@ tr:hover{background:#1e293b/50}
     <button class="btn btn-success" onclick="submitResolution()">✅ Submit Decision</button>
   </div>
 </div>
-  
+
 <script>
 // ================= CONFIG =================
 const API = "https://perceptive-victory-production.up.railway.app";
@@ -580,12 +438,7 @@ window.addEventListener('load', async () => {
   const hasAccess = checkAdminAccess();
   if (!hasAccess) return;
   await loadDashboardStats();
-  await loadTotalUsers(); 
   await loadDeposits();
-  await loadMessages();
-  await loadPendingProofs();
-  await loadDisputes();
-  await loadCommissionStats();
 });
 
 // ================= UTILS =================
@@ -702,48 +555,6 @@ function openTelegramSection(command, hint) {
   }, 3000);
 }
 
- // ================= 👥 Total Users =================
-async function loadTotalUsers() {
-  const element = document.getElementById('totalUsersCount');
-  if (!element) return;
-  
-  try {
-    const res = await fetch(`${API}/api/admin/stats/total-users?admin_id=${REQUIRED_ADMIN_ID}`);
-    
-    if (!res.ok) throw new Error('Failed to fetch total users');
-    
-    const data = await res.json();
-    
-    if (data.success) {
-      // ✅ تحديث العدد مع تأثير عدّاد بسيط
-      animateNumber(element, data.data.total_users);
-    } else {
-      element.textContent = '0';
-      console.warn('⚠️ Could not load total users:', data.message);
-    }
-    
-  } catch (err) {
-    console.error('❌ loadTotalUsers:', err);
-    element.textContent = '0';
-  }
-}
-
-// 🎬 دالة مساعدة: تأثير عدّاد الأرقام
-function animateNumber(element, target, duration = 500) {
-  const start = parseInt(element.textContent) || 0;
-  const increment = target > start ? Math.ceil((target - start) / (duration / 16)) : -Math.ceil((start - target) / (duration / 16));
-  let current = start;
-  
-  const timer = setInterval(() => {
-    current += increment;
-    if ((increment > 0 && current >= target) || (increment < 0 && current <= target)) {
-      element.textContent = target.toLocaleString();
-      clearInterval(timer);
-    } else {
-      element.textContent = current.toLocaleString();
-    }
-  }, 16);
-} 
 // ================= DASHBOARD STATS =================
 async function loadDashboardStats() {
   try {
@@ -766,26 +577,16 @@ async function loadDashboardStats() {
 async function loadDeposits() {
   const list = document.getElementById('depositsList');
   list.innerHTML = '<div class="loading">Loading deposit requests...</div>';
-  
   try {
-    // ✅ جلب الإيداعات المعلقة من السيرفر مباشرة
     const res = await fetch(`${API}/api/admin/deposits?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
-    
-    if (!res.ok) throw new Error('Failed to fetch deposits');
-    
+    if (!res.ok) throw new Error('Deposits endpoint not ready');
     const data = await res.json();
-    
-    // ✅ التعامل مع حالة عدم وجود إيداعات معلقة
     if (!data.success || !data.data?.length) {
       list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending deposit requests</p>';
       document.getElementById('pendingDepositsCount').textContent = '0';
       return;
     }
-    
-    // ✅ تحديث عداد الإيداعات المعلقة
     document.getElementById('pendingDepositsCount').textContent = data.data.length;
-    
-    // ✅ عرض قائمة الإيداعات
     list.innerHTML = data.data.map(dep => `
       <div class="request-item">
         <div class="request-header">
@@ -793,111 +594,37 @@ async function loadDeposits() {
             <p><strong>👤 User:</strong> @${dep.username || dep.user_id} <span style="color:#64748b">(ID: ${dep.user_id})</span></p>
             <p><strong>🔗 TxID:</strong> <span class="txid-box">${dep.txid}</span></p>
             <p><strong>📅 Submitted:</strong> ${formatDate(dep.created_at)}</p>
-            <p><strong>💰 Amount:</strong> <span style="color:#22c55e">$${parseFloat(dep.amount).toFixed(2)}</span></p>
+            <p><strong>💰 Amount:</strong> <span style="color:#facc15">Pending approval</span></p>
           </div>
           <div class="request-actions">
-            <!-- ✅ زر الموافقة مع البيانات الصحيحة -->
-            <button class="btn-approve" 
-                    onclick="openApproveModal(this)" 
-                    data-deposit-id="${dep.id}" 
-                    data-user-id="${dep.user_id}" 
-                    data-txid="${dep.txid || ''}" 
-                    data-amount="${dep.amount}"
-                    style="padding:8px 16px; background:#27ae60; color:#fff; border:none; border-radius:6px; cursor:pointer;">
-              ✅ Approve
-            </button>
-            <!-- زر الرفض -->
+            <button class="btn btn-success btn-sm" onclick="approveDeposit(${dep.id}, ${dep.user_id})">✅ Approve</button>
             <button class="btn btn-danger btn-sm" onclick="rejectDeposit(${dep.id}, ${dep.user_id})">❌ Reject</button>
           </div>
         </div>
       </div>
     `).join('');
-    
   } catch (err) {
     console.error('❌ loadDeposits:', err);
-    // ✅ رسالة خطأ بديلة بدون إشارة للبوت
     list.innerHTML = `
-      <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
-        ⚠️ Failed to load deposits. Please refresh or check server connection.<br>
-        <button class="btn btn-primary btn-sm" onclick="loadDeposits()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
-          🔄 Retry
-        </button>
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot directly:<br>
+        <button class="btn btn-primary btn-sm" onclick="openTelegramSection('admin','📥 طلبات الإيداع')">📱 Open Bot → 📥 Deposits</button>
       </div>`;
   }
 }
-// ========================
-// 📦 متغير مؤقت لبيانات الموافقة
-// ========================
-let pendingApproveData = null;
 
-// 🔓 فتح مودال إدخال المبلغ
-function openApproveModal(btn) {
-  const depositId = btn.dataset.depositId;
-  const userId = btn.dataset.userId;
-  const txid = btn.dataset.txid;
-  const requestedAmount = parseFloat(btn.dataset.amount) || 0;
-  
-  // تعبئة بيانات المودال
-  document.getElementById('modalUserId').textContent = userId;
-  document.getElementById('modalTxid').textContent = txid || 'N/A';
-  document.getElementById('modalRequestedAmount').textContent = requestedAmount.toFixed(2);
-  document.getElementById('modalFinalAmount').value = requestedAmount.toFixed(2);
-  
-  // تخزين البيانات للمعالجة
-  pendingApproveData = { depositId, userId, requestedAmount };
-  
-  // إظهار المودال
-  document.getElementById('approveDepositModal').style.display = 'flex';
-}
-
-// ❌ إغلاق المودال
-function closeApproveModal() {
-  document.getElementById('approveDepositModal').style.display = 'none';
-  pendingApproveData = null;
-}
-
-// ✅ تأكيد الموافقة وإرسال الطلب للسيرفر
-async function confirmApproveDeposit() {
-  if (!pendingApproveData) return;
-  
-  const finalAmount = parseFloat(document.getElementById('modalFinalAmount').value);
-  if (isNaN(finalAmount) || finalAmount <= 0) {
-    showAlert('⚠️ يرجى إدخال مبلغ صحيح أكبر من 0', 'error');
-    return;
-  }
-  
-  const btn = event.target;
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ Processing...';
-  
+async function approveDeposit(requestId, userId) {
+  if (!confirm('✅ Confirm approving this deposit?')) return;
   try {
-    const response = await fetch(`${API}/api/admin/deposits/${pendingApproveData.depositId}/approve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        admin_id: REQUIRED_ADMIN_ID,
-        user_id: pendingApproveData.userId,
-        final_amount: finalAmount  // 🆕 المبلغ الجديد
-      })
+    const res = await fetch(`${API}/api/admin/deposits/${requestId}/approve`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId })
     });
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      showAlert('✅ ' + data.message, 'success');
-      closeApproveModal();
-      loadDeposits();
-      loadDashboardStats();
-    } else {
-      showAlert('❌ ' + (data.message || 'Failed'), 'error');
-    }
+    const data = await res.json();
+    if (data.success) { showAlert('✅ Deposit approved', 'success'); loadDeposits(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ Error:', err);
-    showAlert('⚠️ Connection error', 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
+    showAlert('⚠️ Use bot: /admin → 📥 طلبات الإيداع', 'error');
   }
 }
 
@@ -956,312 +683,119 @@ async function rejectDeposit(depositId, userId) {
 // ================= 📤 WITHDRAWALS =================
 async function loadWithdrawals() {
   const list = document.getElementById('withdrawalsList');
-  const countEl = document.getElementById('pendingWithdrawalsCount');
-  
-  if (!list) return;
   list.innerHTML = '<div class="loading">Loading withdrawal requests...</div>';
-  
   try {
-    const res = await fetch(`${API}/api/admin/withdrawals?status=pending&admin_id=${REQUIRED_ADMIN_ID}`);
-    if (!res.ok) throw new Error('Failed to fetch');
+    const res = await fetch(`${API}/api/admin/withdrawals?admin_id=${REQUIRED_ADMIN_ID}&status=pending`);
+    if (!res.ok) throw new Error('Withdrawals endpoint not ready');
     const data = await res.json();
-    
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p class="empty-state">✅ No pending withdrawal requests</p>';
-      if (countEl) countEl.textContent = '0';
+      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No pending withdrawal requests</p>';
+      document.getElementById('pendingWithdrawalsCount').textContent = '0';
       return;
     }
-    
-    if (countEl) countEl.textContent = data.data.length;
-    
-    // ✅ عرض القائمة مع عنصر الرسالة الداخلي
+    document.getElementById('pendingWithdrawalsCount').textContent = data.data.length;
     list.innerHTML = data.data.map(wd => `
-  <div class="request-item" id="withdrawal-${wd.id}">
-    <div class="request-header">
-      <div class="request-info">
-        <p><strong>👤 User:</strong> <span style="color:#64748b">(ID: ${wd.user_id})</span></p>
-        <p><strong>💳 Payeer:</strong> <span class="txid-box">${wd.payeer_wallet || 'N/A'}</span></p>
-        <p><strong>📅 Requested:</strong> ${formatDate(wd.requested_at)}</p>
-        <p><strong>💰 Amount:</strong> <span style="color:#f59e0b">$${parseFloat(wd.amount).toFixed(2)}</span></p>
-        <p><strong>📊 Status:</strong> <span class="status-badge status-pending">⏳ Pending</span></p>
+      <div class="request-item">
+        <div class="request-header">
+          <div class="request-info">
+            <p><strong>👤 User:</strong> <span style="color:#60a5fa">${wd.user_id}</span></p>
+            <p><strong>💰 Amount:</strong> <span style="color:#22c55e;font-weight:600">${formatPrice(wd.amount)}</span></p>
+            <p><strong>💳 Wallet (TRC20):</strong> <span class="txid-box">${wd.payeer_wallet}</span></p>
+            <p><strong>📅 Requested:</strong> ${formatDate(wd.created_at)}</p>
+          </div>
+          <div class="request-actions">
+            <button class="btn btn-success btn-sm" onclick="approveWithdrawal(${wd.id}, ${wd.user_id}, ${wd.amount})">✅ Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="rejectWithdrawal(${wd.id}, ${wd.user_id})">❌ Reject</button>
+          </div>
+        </div>
       </div>
-      <div class="request-actions">
-  <button class="btn btn-success btn-sm" onclick="openWithdrawalModal('approve', ${wd.id}, ${wd.user_id}, ${wd.amount})">✅ Approve</button>
-  <button class="btn btn-danger btn-sm" onclick="openWithdrawalModal('reject', ${wd.id}, ${wd.user_id}, ${wd.amount})">❌ Reject</button>
-</div>
-    </div>
-    <!-- ✅ الحاوية التي ستظهر فيها الرسالة أسفل الطلب مباشرة -->
-    <div class="action-message" id="msg-${wd.id}"></div>
-  </div>
-`).join('');
-    
+    `).join('');
   } catch (err) {
     console.error('❌ loadWithdrawals:', err);
-    list.innerHTML = `<div class="alert alert-error">⚠️ Failed to load withdrawals.<br><button onclick="loadWithdrawals()">🔄 Retry</button></div>`;
+    list.innerHTML = `
+      <div class="alert alert-warning">
+        ⚠️ API not ready. Use bot commands:<br>
+        <code>/pay &lt;id&gt;</code> to approve | <code>/reject &lt;id&gt;</code> to reject
+      </div>`;
   }
 }
 
-// ================= 🪟 مودال السحب (موافقة/رفض) =================
-let pendingWithdrawal = null;
-
-function openWithdrawalModal(type, wdId, userId, amount) {
-  pendingWithdrawal = { type, wdId, userId, amount };
-  
-  document.getElementById('wModalUserId').textContent = userId;
-  document.getElementById('wModalAmount').textContent = '$' + parseFloat(amount).toFixed(2);
-  document.getElementById('wModalReason').value = '';
-  const btn = document.getElementById('wModalBtn');
-  
-  if (type === 'approve') {
-    document.getElementById('wModalTitle').textContent = '✅ Approve Withdrawal';
-    document.getElementById('wModalReasonBox').style.display = 'none';
-    btn.textContent = '✅ Approve';
-    btn.className = 'btn btn-success';
-    btn.style.borderTopColor = '#22c55e';
-  } else {
-    document.getElementById('wModalTitle').textContent = '❌ Reject Withdrawal';
-    document.getElementById('wModalReasonBox').style.display = 'block';
-    btn.textContent = '❌ Reject';
-    btn.className = 'btn btn-danger';
-  }
-  
-  document.getElementById('withdrawalModal').classList.add('active');
-}
-
-function closeWithdrawalModal() {
-  document.getElementById('withdrawalModal').classList.remove('active');
-  pendingWithdrawal = null;
-}
-
-async function confirmWithdrawalAction() {
-  if (!pendingWithdrawal) return;
-  const { type, wdId, userId, amount } = pendingWithdrawal;
-  const btn = document.getElementById('wModalBtn');
-  const originalText = btn.textContent;
-  
-  btn.disabled = true;
-  btn.textContent = '⏳ Processing...';
-  
+async function approveWithdrawal(withdrawId, userId, amount) {
+  if (!confirm(`✅ Approve withdrawal #${withdrawId}?\nUser: ${userId}\nAmount: ${formatPrice(amount)}`)) return;
   try {
-    const url = `${API}/api/admin/withdrawals/${wdId}/${type === 'approve' ? 'approve' : 'reject'}`;
-    const body = { admin_id: REQUIRED_ADMIN_ID };
-    if (type === 'reject') body.reason = document.getElementById('wModalReason').value || 'Verification failed';
-    
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/approve`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID })
     });
     const data = await res.json();
-    
-    if (data.success) {
-      closeWithdrawalModal();
-      showAlert(data.message, 'success');
-      
-      // تحديث العنصر مباشرة في الصفحة
-      const itemEl = document.getElementById(`withdrawal-${wdId}`);
-      if (itemEl) {
-        itemEl.style.opacity = '0.6';
-        const badge = itemEl.querySelector('.status-badge');
-        if (badge) {
-          badge.className = `status-badge status-${type === 'approve' ? 'paid' : 'rejected'}`;
-          badge.textContent = type === 'approve' ? '✅ Paid' : '❌ Rejected';
-        }
-        itemEl.querySelector('.request-actions').innerHTML = `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
-      }
-      updatePendingWithdrawalsCount(-1);
-      loadDashboardStats();
-    } else {
-      showAlert(data.message || 'Failed', 'error');
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
+    if (data.success) { showAlert('✅ Withdrawal approved', 'success'); loadWithdrawals(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ withdrawal action:', err);
-    showAlert('⚠️ Connection error', 'error');
-    btn.disabled = false;
-    btn.textContent = originalText;
+    showAlert('⚠️ Use bot: /pay ' + withdrawId, 'error');
   }
 }
 
-// إغلاق المودال عند النقر خارجه
-document.getElementById('withdrawalModal')?.addEventListener('click', function(e) {
-  if (e.target === this) closeWithdrawalModal();
-});
-  
-// 📊 تحديث عداد الطلبات المعلقة
-function updatePendingWithdrawalsCount(change) {
-  const el = document.getElementById('pendingWithdrawalsCount');
-  if (!el) return;
-  let current = parseInt(el.textContent) || 0;
-  let newValue = Math.max(0, current + change);
-  el.textContent = newValue;
-  // تأثير بسيط
-  el.style.transform = 'scale(1.2)';
-  setTimeout(() => el.style.transform = 'scale(1)', 200);
-}
-
- // ================= 🪟 مربع نتيجة السحب المنبثق =================
-function showWithdrawalResult(type, message) {
-  const modal = document.getElementById('withdrawalResultModal');
-  const icon = document.getElementById('wResultIcon');
-  const title = document.getElementById('wResultTitle');
-  const msg = document.getElementById('wResultMsg');
-  
-  if (type === 'success') {
-    icon.textContent = '✅';
-    title.textContent = 'تمت العملية بنجاح';
-    title.style.color = '#22c55e';
-    modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
-  } else {
-    icon.textContent = '❌';
-    title.textContent = 'فشل أو تم الرفض';
-    title.style.color = '#ef4444';
-    modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
+async function rejectWithdrawal(withdrawId, userId) {
+  const reason = prompt('Reason (optional):') || 'Verification failed';
+  try {
+    const res = await fetch(`${API}/api/admin/withdrawals/${withdrawId}/reject`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reason })
+    });
+    const data = await res.json();
+    if (data.success) { showAlert('❌ Withdrawal rejected', 'success'); loadWithdrawals(); loadDashboardStats(); }
+    else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
+  } catch (err) {
+    showAlert('⚠️ Use bot: /reject ' + withdrawId, 'error');
   }
-  
-  msg.textContent = message;
-  modal.classList.add('active');
 }
 
-function closeWithdrawalResultModal() {
-  document.getElementById('withdrawalResultModal').classList.remove('active');
-}
-
-// إغلاق المودال عند النقر خارجه
-document.getElementById('withdrawalResultModal')?.addEventListener('click', function(e) {
-  if (e.target === this) closeWithdrawalResultModal();
-}); 
 // ================= 💰 BALANCE MANAGEMENT =================
-// ➕ إضافة رصيد - مع عرض الرسالة داخل النموذج
 async function addBalanceToUser() {
-  const userId = document.getElementById('addBalanceUserId')?.value;
-  const amount = document.getElementById('addBalanceAmount')?.value;
-  const reason = document.getElementById('addBalanceReason')?.value || 'Admin balance addition';
-  const msgEl = document.getElementById('addBalanceMsg');
-  
-  // ✅ مسح أي رسالة سابقة
-  if (msgEl) {
-    msgEl.className = 'balance-message';
-    msgEl.textContent = '';
-  }
-  
-  // ✅ التحقق من الحقول
-  if (!userId || !amount || parseFloat(amount) <= 0) {
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '❌ Fill all fields (User ID and valid Amount required)';
-    }
-    return;
-  }
-  
-  if (!confirm(`✅ Confirm adding $${parseFloat(amount).toFixed(2)} to user ${userId}?`)) return;
-  
+  const userId = document.getElementById('addBalanceUserId').value.trim();
+  const amount = parseFloat(document.getElementById('addBalanceAmount').value);
+  const reason = document.getElementById('addBalanceReason').value.trim() || 'Manual credit';
+  if (!userId || isNaN(amount) || amount <= 0) { showAlert('❌ Valid User ID and Amount required', 'error'); return; }
+  if (!confirm(`➕ Add ${formatPrice(amount)} to user ${userId}?\nReason: ${reason}`)) return;
   try {
     const res = await fetch(`${API}/api/admin/balance/add`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId,
-        amount: parseFloat(amount),
-        reason: reason,
-        source: 'admin_panel'
-      })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason, source:'admin_panel' })
     });
-    
     const data = await res.json();
-    
-    // ✅ عرض الرسالة داخل العنصر المخصص
-    if (msgEl) {
-      msgEl.className = 'balance-message ' + (data.success ? 'success' : 'error');
-      msgEl.textContent = data.message || (data.success ? '✅ Balance added' : '❌ Failed');
-    }
-    
     if (data.success) {
-      // تفريغ الحقول
-      document.getElementById('addBalanceUserId').value = '';
-      document.getElementById('addBalanceAmount').value = '';
-      document.getElementById('addBalanceReason').value = '';
+      showAlert(`✅ Added ${formatPrice(amount)} to user ${userId}`, 'success');
+      document.getElementById('addBalanceUserId').value='';
+      document.getElementById('addBalanceAmount').value='';
+      document.getElementById('addBalanceReason').value='';
       loadDashboardStats();
-    }
-    
+    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ addBalanceToUser:', err);
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '⚠️ Connection error';
-    }
+    showAlert('⚠️ Use bot: /admin → ➕ إضافة رصيد', 'error');
   }
 }
 
-// ➖ خصم رصيد - مع عرض الرسالة داخل النموذج والرسالة المطلوبة
 async function deductBalanceFromUser() {
-  const userId = document.getElementById('deductBalanceUserId')?.value;
-  const amount = document.getElementById('deductBalanceAmount')?.value;
-  const reason = document.getElementById('deductBalanceReason')?.value?.trim();
-  const msgEl = document.getElementById('deductBalanceMsg');
-  
-  // ✅ مسح أي رسالة سابقة
-  if (msgEl) {
-    msgEl.className = 'balance-message';
-    msgEl.textContent = '';
-  }
-  
-  // ✅ التحقق من الحقول الأساسية
-  if (!userId || !amount || parseFloat(amount) <= 0) {
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '❌ Fill all fields (User ID and valid Amount required)';
-    }
-    return;
-  }
-  
-  // ⚠️ السبب إلزامي للخصم - الرسالة المطلوبة ✅
-  if (!reason || reason.length < 3) {
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '❌ Fill all fields (Reason required)';  // ✅ الرسالة المطلوبة
-    }
-    return;
-  }
-  
-  if (!confirm(`⚠️ Confirm deducting $${parseFloat(amount).toFixed(2)} from user ${userId}?\n\nReason: ${reason}`)) return;
-  
+  const userId = document.getElementById('deductBalanceUserId').value.trim();
+  const amount = parseFloat(document.getElementById('deductBalanceAmount').value);
+  const reason = document.getElementById('deductBalanceReason').value.trim();
+  if (!userId || isNaN(amount) || amount <= 0 || !reason) { showAlert('❌ Fill all fields (Reason required)', 'error'); return; }
+  if (!confirm(`⚠️ Deduct ${formatPrice(amount)} from user ${userId}?\nReason: ${reason}`)) return;
   try {
     const res = await fetch(`${API}/api/admin/balance/deduct`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId,
-        amount: parseFloat(amount),
-        reason: reason 
-      })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, user_id: userId, amount, reason })
     });
-    
     const data = await res.json();
-    
-    // ✅ عرض الرسالة داخل العنصر المخصص
-    if (msgEl) {
-      msgEl.className = 'balance-message ' + (data.success ? 'success' : 'error');
-      msgEl.textContent = data.message || (data.success ? '✅ Balance deducted' : '❌ Failed');
-    }
-    
     if (data.success) {
-      // تفريغ الحقول
-      document.getElementById('deductBalanceUserId').value = '';
-      document.getElementById('deductBalanceAmount').value = '';
-      document.getElementById('deductBalanceReason').value = '';
+      showAlert(`✅ Deducted ${formatPrice(amount)} from user ${userId}`, 'success');
+      document.getElementById('deductBalanceUserId').value='';
+      document.getElementById('deductBalanceAmount').value='';
+      document.getElementById('deductBalanceReason').value='';
       loadDashboardStats();
-    }
-    
+    } else { showAlert('❌ ' + (data.message||'Failed'), 'error'); }
   } catch (err) {
-    console.error('❌ deductBalanceFromUser:', err);
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '⚠️ Connection error';
-    }
+    showAlert('⚠️ Use bot: /admin → ➖ خصم رصيد', 'error');
   }
 }
 
@@ -1619,7 +1153,7 @@ async function loadCommissionStats() {
     content.innerHTML = '<p class="alert alert-error">Failed to load statistics</p>';
   }
 }
-  
+
 // ================= REFRESH ALL =================
 async function refreshAll() {
   await loadDashboardStats();
@@ -1646,6 +1180,5 @@ document.addEventListener('keydown', (e) => {
   }
 });
 </script>
-</div>
 </body>
 </html>
