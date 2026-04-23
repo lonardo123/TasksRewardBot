@@ -616,12 +616,16 @@ function switchTab(tab) {
   const sections = ['deposits', 'withdrawals', 'balance', 'messages', 'proofs', 'disputes', 'stats'];
   sections.forEach(s => {
     const sec = document.getElementById(s + 'Section');
-    if (sec) sec.classList.add('hidden');
+    if (sec) {
+  sec.classList.add('hidden');
+  sec.classList.remove('active');
+}
   });
   
   const section = document.getElementById(tab + 'Section');
   if (section) {
-    section.classList.remove('hidden');
+  section.classList.remove('hidden');
+  section.classList.add('active');
     switch(tab) {
       case 'deposits': loadDeposits(); break;
       case 'withdrawals': loadWithdrawals(); break;
