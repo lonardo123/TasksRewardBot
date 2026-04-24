@@ -1044,27 +1044,19 @@ async function confirmWithdrawalAction() {
   btn.textContent = '⏳ Processing...';
   
   try {
-    // ✅ تصحيح المسار: استخدام نفس النمط للـ approve و reject
-    const action = type === 'approve' ? 'approve' : 'reject';
-    const url = `${API}/api/admin/withdrawals/${wdId}/${action}`;
-    
-    // ✅ تصحيح الجسم: إزالة admin_id لأن السيرفر يستخدم verifyAdmin
-    const body = {};
-    if (type === 'reject') {
-      body.reason = document.getElementById('wModalReason').value || 'Verification failed';
-    }
-    
-    // ✅ تصحيح الهيدر: إضافة توكن المصادقة إذا كان موجوداً
-    const headers = { 'Content-Type': 'application/json' };
-    const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const url = `${API}/api/admin/withdrawals/${wdId}/${type === 'approve' ? 'approve' : 'reject'}`;
+    // ✅ إزالة admin_id لأن السيرفر يستخدم verifyAdmin للتحقق
+const body = {};
+if (type === 'reject') {
+    body.reason = document.getElementById('wModalReason').value || 'Verification failed';
+}
+    if (type === 'reject') body.reason = document.getElementById('wModalReason').value || 'Verification failed';
     
     const res = await fetch(url, {
       method: 'POST',
-      headers: headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    
     const data = await res.json();
     
     if (data.success) {
@@ -1080,19 +1072,18 @@ async function confirmWithdrawalAction() {
           badge.className = `status-badge status-${type === 'approve' ? 'paid' : 'rejected'}`;
           badge.textContent = type === 'approve' ? '✅ Paid' : '❌ Rejected';
         }
-        itemEl.querySelector('.request-actions').innerHTML = 
-          `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
+        itemEl.querySelector('.request-actions').innerHTML = `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
       }
       updatePendingWithdrawalsCount(-1);
       loadDashboardStats();
     } else {
-      showAlert(data.message || 'Operation failed', 'error');
+      showAlert(data.message || 'Failed', 'error');
       btn.disabled = false;
       btn.textContent = originalText;
     }
   } catch (err) {
     console.error('❌ withdrawal action:', err);
-    showAlert('⚠️ Connection error: ' + err.message, 'error');
+    showAlert('⚠️ Connection error', 'error');
     btn.disabled = false;
     btn.textContent = originalText;
   }
