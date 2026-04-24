@@ -441,7 +441,7 @@ tr:hover{background:#1e293b/50}
   </div>
   <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
   <div class="balance-message" id="addBalanceMsg"></div>
-  <button class="btn btn-success" onclick="addBalanceToUser()">✅ Add Balance</button>
+  <button class="btn btn-success" onclick="openBalanceModal('add', document.getElementById('addBalanceUserId').value, document.getElementById('addBalanceAmount').value, 'Bonus, Manual credit...')">✅ Add Balance</button>
 </div>
 
 <!-- ➖ Deduct Balance Form - مع منطقة رسالة -->
@@ -463,7 +463,7 @@ tr:hover{background:#1e293b/50}
   </div>
   <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
   <div class="balance-message" id="deductBalanceMsg"></div>
-  <button class="btn btn-danger" onclick="deductBalanceFromUser()">⚠️ Deduct Balance</button>
+  <button class="btn btn-danger" onclick="openBalanceModal('deduct', document.getElementById('deductBalanceUserId').value, document.getElementById('deductBalanceAmount').value, 'Violation, Refund...')">⚠️ Deduct Balance</button>
 </div>
 </div>    
     <!-- 📬 Messages Section -->
@@ -1210,139 +1210,110 @@ function closeWithdrawalResultModal() {
 document.getElementById('withdrawalResultModal')?.addEventListener('click', function(e) {
   if (e.target === this) closeWithdrawalResultModal();
 }); 
-// ================= 💰 BALANCE MANAGEMENT =================
-// ➕ إضافة رصيد - مع عرض الرسالة داخل النموذج
-async function addBalanceToUser() {
-  const userId = document.getElementById('addBalanceUserId')?.value;
-  const amount = document.getElementById('addBalanceAmount')?.value;
-  const reason = document.getElementById('addBalanceReason')?.value || 'Admin balance addition';
-  const msgEl = document.getElementById('addBalanceMsg');
-  
-  // ✅ مسح أي رسالة سابقة
-  if (msgEl) {
-    msgEl.className = 'balance-message';
-    msgEl.textContent = '';
-  }
-  
-  // ✅ التحقق من الحقول
+// ================= 💰 مودال إدارة الرصيد =================
+let pendingBalanceAction = null;
+
+function openBalanceModal(type, userId, amount, reasonPlaceholder) {
+  // ✅ التحقق من الحقول قبل فتح المودال
   if (!userId || !amount || parseFloat(amount) <= 0) {
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '❌ Fill all fields (User ID and valid Amount required)';
-    }
+    showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
     return;
   }
   
-  if (!confirm(`✅ Confirm adding $${parseFloat(amount).toFixed(2)} to user ${userId}?`)) return;
+  pendingBalanceAction = { type, userId, amount };
+  
+  document.getElementById('bModalUserId').textContent = userId;
+  document.getElementById('bModalAmount').textContent = '$' + parseFloat(amount).toFixed(2);
+  document.getElementById('bModalReason').value = '';
+  document.getElementById('bModalReasonLabel').textContent = type === 'add' ? 'Reason (optional):' : 'Reason (required):';
+  document.getElementById('bModalReason').placeholder = reasonPlaceholder;
+  
+  const btn = document.getElementById('bModalBtn');
+  const modal = document.getElementById('balanceModal');
+  
+  if (type === 'add') {
+    document.getElementById('bModalTitle').textContent = '➕ Add Balance';
+    modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
+    btn.textContent = '✅ Add Balance';
+    btn.className = 'btn btn-success';
+  } else {
+    document.getElementById('bModalTitle').textContent = '➖ Deduct Balance';
+    modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
+    btn.textContent = '⚠️ Deduct Balance';
+    btn.className = 'btn btn-danger';
+  }
+  
+  modal.classList.add('active');
+}
+
+function closeBalanceModal() {
+  document.getElementById('balanceModal').classList.remove('active');
+  pendingBalanceAction = null;
+}
+
+async function confirmBalanceAction() {
+  if (!pendingBalanceAction) return;
+  
+  const { type, userId, amount } = pendingBalanceAction;
+  const reason = document.getElementById('bModalReason').value.trim();
+  const btn = document.getElementById('bModalBtn');
+  
+  // ✅ التحقق من السبب للخصم (إلزامي) - الرسالة المطلوبة
+  if (type === 'deduct' && (!reason || reason.length < 3)) {
+    showAlert('❌ Fill all fields (Reason required)', 'error');
+    return;
+  }
+  
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing...';
   
   try {
-    const res = await fetch(`${API}/api/admin/balance/add`, {
+    const endpoint = type === 'add' ? '/api/admin/balance/add' : '/api/admin/balance/deduct';
+    const res = await fetch(`${API}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         admin_id: REQUIRED_ADMIN_ID, 
         user_id: userId,
         amount: parseFloat(amount),
-        reason: reason,
+        reason: reason || (type === 'add' ? 'Manual credit' : ''),
         source: 'admin_panel'
       })
     });
     
     const data = await res.json();
     
-    // ✅ عرض الرسالة داخل العنصر المخصص
-    if (msgEl) {
-      msgEl.className = 'balance-message ' + (data.success ? 'success' : 'error');
-      msgEl.textContent = data.message || (data.success ? '✅ Balance added' : '❌ Failed');
-    }
-    
     if (data.success) {
-      // تفريغ الحقول
+      showAlert(data.message, 'success');
+      closeBalanceModal();
+      
+      // تفريغ الحقول الأصلية
       document.getElementById('addBalanceUserId').value = '';
       document.getElementById('addBalanceAmount').value = '';
       document.getElementById('addBalanceReason').value = '';
-      loadDashboardStats();
-    }
-    
-  } catch (err) {
-    console.error('❌ addBalanceToUser:', err);
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '⚠️ Connection error';
-    }
-  }
-}
-
-// ➖ خصم رصيد - مع عرض الرسالة داخل النموذج والرسالة المطلوبة
-async function deductBalanceFromUser() {
-  const userId = document.getElementById('deductBalanceUserId')?.value;
-  const amount = document.getElementById('deductBalanceAmount')?.value;
-  const reason = document.getElementById('deductBalanceReason')?.value?.trim();
-  const msgEl = document.getElementById('deductBalanceMsg');
-  
-  // ✅ مسح أي رسالة سابقة
-  if (msgEl) {
-    msgEl.className = 'balance-message';
-    msgEl.textContent = '';
-  }
-  
-  // ✅ التحقق من الحقول الأساسية
-  if (!userId || !amount || parseFloat(amount) <= 0) {
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '❌ Fill all fields (User ID and valid Amount required)';
-    }
-    return;
-  }
-  
-  // ⚠️ السبب إلزامي للخصم - الرسالة المطلوبة ✅
-  if (!reason || reason.length < 3) {
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '❌ Fill all fields (Reason required)';  // ✅ الرسالة المطلوبة
-    }
-    return;
-  }
-  
-  if (!confirm(`⚠️ Confirm deducting $${parseFloat(amount).toFixed(2)} from user ${userId}?\n\nReason: ${reason}`)) return;
-  
-  try {
-    const res = await fetch(`${API}/api/admin/balance/deduct`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        user_id: userId,
-        amount: parseFloat(amount),
-        reason: reason 
-      })
-    });
-    
-    const data = await res.json();
-    
-    // ✅ عرض الرسالة داخل العنصر المخصص
-    if (msgEl) {
-      msgEl.className = 'balance-message ' + (data.success ? 'success' : 'error');
-      msgEl.textContent = data.message || (data.success ? '✅ Balance deducted' : '❌ Failed');
-    }
-    
-    if (data.success) {
-      // تفريغ الحقول
       document.getElementById('deductBalanceUserId').value = '';
       document.getElementById('deductBalanceAmount').value = '';
       document.getElementById('deductBalanceReason').value = '';
+      
       loadDashboardStats();
+    } else {
+      showAlert(data.message || 'Failed', 'error');
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
-    
   } catch (err) {
-    console.error('❌ deductBalanceFromUser:', err);
-    if (msgEl) {
-      msgEl.className = 'balance-message error';
-      msgEl.textContent = '⚠️ Connection error';
-    }
+    console.error('❌ balance action:', err);
+    showAlert('⚠️ Connection error', 'error');
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
 
+// إغلاق المودال عند النقر خارجه
+document.getElementById('balanceModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeBalanceModal();
+});
 // ================= 📬 MESSAGES =================
 async function loadMessages() {
   const list = document.getElementById('messagesList');
@@ -1351,47 +1322,46 @@ async function loadMessages() {
   list.innerHTML = '<div class="loading">Loading user messages...</div>';
   
   try {
-    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=all`);
+    // ✅ جلب الرسائل غير المُجاب عليها فقط (حسب السيرفر)
+    const res = await fetch(`${API}/api/admin/messages?admin_id=${REQUIRED_ADMIN_ID}&status=unread`);
     
     if (!res.ok) throw new Error('Failed to fetch messages');
     
     const data = await res.json();
     
-    // ✅ عرض رسالة عند عدم وجود رسائل
+    // ✅ عرض رسالة عند عدم وجود رسائل غير مقروءة
     if (!data.success || !data.data?.length) {
-      list.innerHTML = '<p style="text-align:center;color:#94a3b8;padding:20px">✅ No user messages found</p>';
+      list.innerHTML = '<p style="text-align:center;color:#22c55e;padding:20px">✅ All messages have been replied</p>';
       document.getElementById('unreadMessagesCount').textContent = '0';
       return;
     }
     
     // ✅ تحديث عداد الرسائل غير المقروءة
-    const unreadCount = data.data.filter(m => !m.replied).length;
-    document.getElementById('unreadMessagesCount').textContent = unreadCount;
+    document.getElementById('unreadMessagesCount').textContent = data.data.length;
     
-    // داخل دالة loadMessages() - عند بناء كل عنصر رسالة
-list.innerHTML = data.data.map(msg => `
-  <div class="message-item" id="msg-item-${msg.id}">
-    <div class="message-header">
-      <span class="message-user">@${msg.username || msg.user_id} (ID: ${msg.user_id})</span>
-      <span class="message-time">${formatDate(msg.created_at)}</span>
-    </div>
-    <div class="message-text">${msg.message || 'No content'}</div>
-    ${msg.admin_reply ? `<div style="margin-top:10px;padding:10px;background:#dcfce7;border-radius:6px;color:#166534;font-size:13px"><strong>✅ Your Reply:</strong> ${msg.admin_reply}</div>` : ''}
-    
-    <div class="reply-box">
-      <input type="text" id="reply-input-${msg.id}" placeholder="Type your reply..." style="width:100%;padding:10px;border:1px solid #475569;border-radius:6px;background:#0f172a;color:#fff;margin-bottom:8px">
-      <button class="btn btn-primary btn-sm" onclick="sendInlineReply(${msg.id}, ${msg.user_id})">📤 Send Reply</button>
-      <!-- ✅ منطقة عرض نتيجة الرد -->
-      <div class="message-action-result" id="reply-result-${msg.id}"></div>
-    </div>
-  </div>
-`).join('');
+    // ✅ عرض القائمة (فقط الرسائل غير المُجاب عليها)
+    list.innerHTML = data.data.map(msg => `
+      <div class="message-item" id="msg-item-${msg.id}" style="border-left:4px solid #f59e0b;">
+        <div class="message-header">
+          <span class="message-user">@${msg.username || msg.user_id} (ID: ${msg.user_id})</span>
+          <span class="message-time">${formatDate(msg.created_at)}</span>
+          <span style="padding:2px 8px;background:#f59e0b;color:#fff;border-radius:12px;font-size:11px;">🔴 Unread</span>
+        </div>
+        <div class="message-text" style="margin:10px 0;padding:10px;background:#1e293b;border-radius:6px;">${msg.message || 'No content'}</div>
+        
+        <div class="reply-box" style="margin-top:10px;">
+          <button class="btn btn-primary btn-sm" onclick="openReplyMessageModal(${msg.id}, '${(msg.username || msg.user_id).replace(/'/g, "\\'")}', '${(msg.message || '').replace(/'/g, "\\'").replace(/\n/g, '\\n')}')">
+            📩 Reply Now
+          </button>
+        </div>
+      </div>
+    `).join('');
     
   } catch (err) {
     console.error('❌ loadMessages:', err);
     list.innerHTML = `
       <div class="alert alert-warning" style="padding:15px;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;margin:10px 0;">
-        ⚠️ Failed to load messages. Please check server connection.<br>
+        ⚠️ Failed to load messages.<br>
         <button class="btn btn-primary btn-sm" onclick="loadMessages()" style="margin-top:10px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:4px;cursor:pointer;">
           🔄 Retry
         </button>
@@ -1399,41 +1369,42 @@ list.innerHTML = data.data.map(msg => `
   }
 }
 
-// 📩 فتح مودال الرد على رسالة
-function openReplyModal(userId, username, originalMessage) {
-  const modal = document.getElementById('replyModal');
-  if (modal) {
-    modal.dataset.userId = userId;
-    modal.dataset.username = username;
-    document.getElementById('replyToUserLabel').textContent = `Reply to @${username} (ID: ${userId})`;
-    document.getElementById('originalMessagePreview').textContent = originalMessage || 'No content';
-    document.getElementById('replyInput').value = '';
-    modal.style.display = 'flex';
-  }
+// ================= 📬 مودال الرد على الرسائل =================
+let pendingReplyMsg = null;
+
+function openReplyMessageModal(msgId, username, originalMsg) {
+  pendingReplyMsg = { msgId, username, originalMsg };
+  
+  document.getElementById('rModalUserId').textContent = msgId;
+  document.getElementById('rModalUsername').textContent = '@' + username;
+  document.getElementById('rModalOriginalMsg').textContent = originalMsg || 'No content';
+  document.getElementById('rModalReply').value = '';
+  
+  document.getElementById('replyMessageModal').classList.add('active');
 }
 
-// 📤 إرسال رد مع عرض النتيجة داخل عنصر الرسالة
-async function sendInlineReply(messageId, userId) {
-  const replyInput = document.getElementById(`reply-input-${messageId}`);
-  const resultEl = document.getElementById(`reply-result-${messageId}`);
-  const reply = replyInput?.value?.trim();
+function closeReplyMessageModal() {
+  document.getElementById('replyMessageModal').classList.remove('active');
+  pendingReplyMsg = null;
+}
+
+async function confirmSendReply() {
+  if (!pendingReplyMsg) return;
   
-  // ✅ مسح نتيجة سابقة
-  if (resultEl) {
-    resultEl.className = 'message-action-result';
-    resultEl.textContent = '';
-  }
+  const reply = document.getElementById('rModalReply').value.trim();
+  const btn = document.querySelector('#replyMessageModal .btn-primary');
   
   if (!reply) {
-    if (resultEl) {
-      resultEl.className = 'message-action-result error';
-      resultEl.textContent = '❌ Please enter a reply message';
-    }
+    showAlert('❌ Please enter a reply message', 'error');
     return;
   }
   
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Sending...';
+  
   try {
-    const res = await fetch(`${API}/api/admin/messages/${messageId}/reply`, {
+    const res = await fetch(`${API}/api/admin/messages/${pendingReplyMsg.msgId}/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -1444,27 +1415,44 @@ async function sendInlineReply(messageId, userId) {
     
     const data = await res.json();
     
-    // ✅ عرض النتيجة داخل العنصر المخصص
-    if (resultEl) {
-      resultEl.className = 'message-action-result ' + (data.success ? 'success' : 'error');
-      resultEl.textContent = data.message || (data.success ? '✅ Reply sent' : '❌ Failed');
-    }
-    
     if (data.success) {
-      // تفريغ حقل الإدخال
-      if (replyInput) replyInput.value = '';
-      // تحديث قائمة الرسائل بعد ثانية
-      setTimeout(() => loadMessages(), 1000);
+      showAlert('✅ Reply sent successfully', 'success');
+      closeReplyMessageModal();
+      
+      // ✅ إزالة الرسالة من القائمة فوراً (لأنها أصبحت مُجاب عليها)
+      const msgItem = document.getElementById(`msg-item-${pendingReplyMsg.msgId}`);
+      if (msgItem) {
+        msgItem.style.transition = 'all 0.3s ease';
+        msgItem.style.opacity = '0';
+        msgItem.style.transform = 'translateX(-20px)';
+        setTimeout(() => msgItem.remove(), 300);
+      }
+      
+      // تحديث العداد
+      const countEl = document.getElementById('unreadMessagesCount');
+      if (countEl) {
+        let count = parseInt(countEl.textContent) || 0;
+        countEl.textContent = Math.max(0, count - 1);
+      }
+      
+      loadDashboardStats();
+    } else {
+      showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
+      btn.disabled = false;
+      btn.textContent = originalText;
     }
-    
   } catch (err) {
-    console.error('❌ sendInlineReply:', err);
-    if (resultEl) {
-      resultEl.className = 'message-action-result error';
-      resultEl.textContent = '⚠️ Connection error';
-    }
+    console.error('❌ confirmSendReply:', err);
+    showAlert('⚠️ Connection error', 'error');
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 }
+
+// إغلاق المودال عند النقر خارجه
+document.getElementById('replyMessageModal')?.addEventListener('click', function(e) {
+  if (e.target === this) closeReplyMessageModal();
+});
 
 // ================= PENDING PROOFS =================
 async function loadPendingProofs() {
