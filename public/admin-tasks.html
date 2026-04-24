@@ -1277,11 +1277,11 @@ async function confirmBalanceAction() {
   const reason = document.getElementById('bModalReason').value.trim();
   const btn = document.getElementById('bModalBtn');
   
-  // ⚠️ التحقق من السبب يحدث فقط عند الضغط على Confirm داخل المودال
-  if (type === 'deduct' && (!reason || reason.length < 3)) {
-    showAlert('❌ Fill all fields (Reason required)', 'error');
-    return;
-  }
+ // ✅ الجديد (أكثر وضوحاً للمستخدم)
+if (type === 'deduct' && (!reason || reason.trim().length < 1)) {
+  showAlert('❌ Reason is required (min 1 character)', 'error');
+  return;
+}
   
   const originalText = btn.textContent;
   btn.disabled = true;
