@@ -778,20 +778,31 @@ function animateNumber(element, target, duration = 500) {
 // ================= DASHBOARD STATS =================
 async function loadDashboardStats() {
   try {
-    const res = await fetch(`${API}/api/admin/stats?user_id=${REQUIRED_ADMIN_ID}`);
+    const res = await fetch(`${API}/api/admin/stats?admin_id=${REQUIRED_ADMIN_ID}`);
+
+    if (!res.ok) {
+      console.error('Stats error:', res.status);
+      return;
+    }
+
     const data = await res.json();
     
     if (data.success) {
-      document.getElementById('pendingProofsCount').textContent = data.data.pending_proofs;
-      document.getElementById('openDisputesCount').textContent = data.data.open_disputes;
-      document.getElementById('approvedTodayCount').textContent = data.data.approved_today;
-      document.getElementById('adminCommissionTotal').textContent = formatPrice(data.data.admin_commission);
+      document.getElementById('pendingProofsCount').textContent = data.data.pending_proofs ?? 0;
+      document.getElementById('openDisputesCount').textContent = data.data.open_disputes ?? 0;
+      document.getElementById('approvedTodayCount').textContent = data.data.approved_today ?? 0;
+      document.getElementById('adminCommissionTotal').textContent = formatPrice(data.data.admin_commission ?? 0);
+
+      // ✅ إضافة ربط باقي الإحصائيات (موجودة عندك في HTML)
+      document.getElementById('pendingDepositsCount').textContent = data.data.pending_deposits ?? 0;
+      document.getElementById('pendingWithdrawalsCount').textContent = data.data.pending_withdrawals ?? 0;
+      document.getElementById('unreadMessagesCount').textContent = data.data.unread_messages ?? 0;
+      
     }
   } catch (err) {
     console.error('❌ loadDashboardStats:', err);
   }
 }
-
 
 // ================= 📥 DEPOSITS =================
 async function loadDeposits() {
