@@ -2485,38 +2485,79 @@ app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
 app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => {
   try {
     const withdrawId = req.params.id;
-    const result = await pool.query(`UPDATE withdrawals SET status = 'paid', processed_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *`, [withdrawId]);
-    if (result.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
-    res.json({ success: true, message: '✅ Withdrawal approved' });
+    
+    // تحديث الحالة فقط (الرصيد تم خصمه مسبقاً عند إنشاء الطلب)
+    const result = await pool.query(
+      `UPDATE withdrawals 
+       SET status = 'paid', processed_at = NOW(), admin_note = COALESCE($1, admin_note)
+       WHERE id = $2 AND status = 'pending' 
+       RETURNING *`, 
+      [req.body.note || null, withdrawId]
+    );
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ success: false, message: '❌ Withdrawal not found or already processed' });
+    }
+    
+    res.json({ success: true, message: '✅ Withdrawal approved successfully' });
   } catch (err) {
     console.error('❌ POST /api/admin/withdrawals/:id/approve:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
   }
 });
-
-// ❌ 6. رفض سحب (مع إرجاع المبلغ الأصلي كاملاً قبل خصم 5%)
+// ❌ 6. رفض سحب (مع إرجاع المبلغ الأصلي قبل خصم 5%)
 app.post('/api/admin/withdrawals/:id/reject', verifyAdmin, async (req, res) => {
+  const client = await pool.connect();
   try {
+    await client.query('BEGIN'); // 🔄 بدء معاملة لضمان الاتساق
+    
     const withdrawId = req.params.id;
     const { reason = 'Verification failed' } = req.body;
-    const withdrawal = await pool.query('SELECT * FROM withdrawals WHERE id = $1 AND status = $2', [withdrawId, 'pending']);
-    if (withdrawal.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
+    
+    // جلب بيانات السحب
+    const withdrawal = await client.query(
+      'SELECT * FROM withdrawals WHERE id = $1 AND status = $2', 
+      [withdrawId, 'pending']
+    );
+    
+    if (withdrawal.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: '❌ Withdrawal not found or already processed' });
+    }
+    
     const { user_id, amount } = withdrawal.rows[0];
     
     // 💡 حساب المبلغ الأصلي قبل خصم 5% (المسجل = 95% من الأصل)
-    const originalAmount = parseFloat(amount) / 0.95;
+    const WITHDRAW_FEE_RATE = 0.05;
+    const originalAmount = parseFloat(amount) / (1 - WITHDRAW_FEE_RATE);
     
-    await pool.query('UPDATE withdrawals SET status = $1, processed_at = NOW(), admin_note = $2 WHERE id = $3', ['rejected', reason, withdrawId]);
+    // تحديث حالة السحب
+    await client.query(
+      'UPDATE withdrawals SET status = $1, processed_at = NOW(), admin_note = $2 WHERE id = $3', 
+      ['rejected', reason, withdrawId]
+    );
     
-    // ✅ إرجاع المبلغ الأصلي (100$) وليس المبلغ بعد الخصم (95$)
-    await pool.query('UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', [originalAmount, user_id]);
+    // ✅ إرجاع المبلغ الأصلي لرصيد المستخدم (مطابقة user_id مع telegram_id)
+    await client.query(
+      'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', 
+      [originalAmount, user_id]
+    );
     
-    await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, originalAmount, 'withdrawal_refund', `Refund for rejected withdrawal #${withdrawId} - Original amount`]);
+    // تسجيل العملية للشفافية
+    await client.query(
+      'INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())', 
+      [user_id, originalAmount, 'withdrawal_refund', `Refund: Rejected withdrawal #${withdrawId}`]
+    );
     
+    await client.query('COMMIT');
     res.json({ success: true, message: `❌ Withdrawal rejected. Original amount $${originalAmount.toFixed(2)} refunded.` });
+    
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('❌ POST /api/admin/withdrawals/:id/reject:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+  } finally {
+    client.release();
   }
 });
 
