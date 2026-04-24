@@ -1047,20 +1047,18 @@ async function confirmWithdrawalAction() {
     const action = type === 'approve' ? 'approve' : 'reject';
     const url = `${API || ''}/api/admin/withdrawals/${wdId}/${action}`;
     
-    // ✅ إزالة admin_id - السيرفر يستخدم verifyAdmin
-    const body = {};
+    // ✅ إرسال admin_id في الجسم + في رابط الـ URL للتوافق مع verifyAdmin
+    const body = { admin_id: REQUIRED_ADMIN_ID };
     if (type === 'reject') {
       body.reason = document.getElementById('wModalReason').value?.trim() || 'Verification failed';
     }
     
-    // ✅ إضافة Authorization Header إذا وجد توكن
-    const headers = { 'Content-Type': 'application/json' };
-    const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
-    if (token) headers['Authorization'] = `Bearer ${token}`;
+    // ✅ إضافة admin_id كـ query param أيضاً لضمان القبول من السيرفر
+    const fetchUrl = `${url}?admin_id=${REQUIRED_ADMIN_ID}`;
     
-    const res = await fetch(url, {
+    const res = await fetch(fetchUrl, {
       method: 'POST',
-      headers: headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     
@@ -1096,7 +1094,6 @@ async function confirmWithdrawalAction() {
     btn.textContent = originalText;
   }
 }
-
 // إغلاق المودال عند النقر خارجه
 document.getElementById('withdrawalModal')?.addEventListener('click', function(e) {
   if (e.target === this) closeWithdrawalModal();
