@@ -1044,26 +1044,33 @@ async function confirmWithdrawalAction() {
   btn.textContent = '⏳ Processing...';
   
   try {
-    const url = `${API}/api/admin/withdrawals/${wdId}/${type === 'approve' ? 'approve' : 'reject'}`;
-    // ✅ إزالة admin_id لأن السيرفر يستخدم verifyAdmin للتحقق
-const body = {};
-if (type === 'reject') {
-    body.reason = document.getElementById('wModalReason').value || 'Verification failed';
-}
-    if (type === 'reject') body.reason = document.getElementById('wModalReason').value || 'Verification failed';
+    const action = type === 'approve' ? 'approve' : 'reject';
+    const url = `${API || ''}/api/admin/withdrawals/${wdId}/${action}`;
+    
+    // ✅ إزالة admin_id - السيرفر يستخدم verifyAdmin
+    const body = {};
+    if (type === 'reject') {
+      body.reason = document.getElementById('wModalReason').value?.trim() || 'Verification failed';
+    }
+    
+    // ✅ إضافة Authorization Header إذا وجد توكن
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(body)
     });
+    
     const data = await res.json();
     
     if (data.success) {
       closeWithdrawalModal();
       showAlert(data.message, 'success');
       
-      // تحديث العنصر مباشرة في الصفحة
+      // تحديث العنصر في الصفحة
       const itemEl = document.getElementById(`withdrawal-${wdId}`);
       if (itemEl) {
         itemEl.style.opacity = '0.6';
@@ -1072,18 +1079,19 @@ if (type === 'reject') {
           badge.className = `status-badge status-${type === 'approve' ? 'paid' : 'rejected'}`;
           badge.textContent = type === 'approve' ? '✅ Paid' : '❌ Rejected';
         }
-        itemEl.querySelector('.request-actions').innerHTML = `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
+        itemEl.querySelector('.request-actions').innerHTML = 
+          `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
       }
       updatePendingWithdrawalsCount(-1);
-      loadDashboardStats();
+      if (typeof loadDashboardStats === 'function') loadDashboardStats();
     } else {
-      showAlert(data.message || 'Failed', 'error');
+      showAlert(data.message || 'Operation failed', 'error');
       btn.disabled = false;
       btn.textContent = originalText;
     }
   } catch (err) {
     console.error('❌ withdrawal action:', err);
-    showAlert('⚠️ Connection error', 'error');
+    showAlert('⚠️ Connection error: ' + err.message, 'error');
     btn.disabled = false;
     btn.textContent = originalText;
   }
