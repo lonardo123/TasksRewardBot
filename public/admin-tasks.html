@@ -1472,7 +1472,7 @@ async function confirmSendReply() {
     }
   } catch (err) {
     console.error('❌ confirmSendReply:', err);
-    showAlert('⚠️ Connection error', 'error');
+    showAlert('⚠️ ' + (err.message || 'Connection error'), 'error');
     if(btn) { btn.disabled = false; btn.textContent = originalText; }
   }
 }
