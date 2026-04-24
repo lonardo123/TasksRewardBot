@@ -1421,54 +1421,62 @@ function closeReplyMessageModal() {
 
 async function confirmSendReply() {
   if (!pendingReplyMsg) return showAlert('⚠️ No message selected', 'error');
-  
+
+  // ✅ حفظ msgId لتجنب null بعد إغلاق المودال
+  const msgId = pendingReplyMsg.msgId;
+
   const reply = document.getElementById('rModalReply')?.value?.trim();
   const btn = document.querySelector('#replyMessageModal .btn-primary');
-  
+
   if (!reply) return showAlert('❌ Please enter a reply message', 'error');
-  
+
   const originalText = btn ? btn.textContent : '📤 Send Reply';
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending...'; }
-  
+
   try {
-    const res = await fetch(`${API}/api/admin/messages/${pendingReplyMsg.msgId}/reply`, {
+    const res = await fetch(`${API}/api/admin/messages/${msgId}/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply })
     });
-    
-    if (!res.ok) {
-  throw new Error('Server error');
-}
 
-const data = await res.json();
-    
-    // ✅ عرض رسالة النجاح وتحديث الواجهة
+    // ✅ التأكد من أن الرد ناجح
+    if (!res.ok) {
+      throw new Error('Server error');
+    }
+
+    // ✅ قراءة JSON بشكل صحيح
+    const data = await res.json();
+
+    // ✅ نجاح العملية
     if (data.success) {
       showAlert('✅ Reply sent successfully', 'success');
-      closeReplyMessageModal();
-      
+
       // إزالة الرسالة من القائمة
-      const item = document.getElementById(`msg-item-${pendingReplyMsg.msgId}`);
+      const item = document.getElementById(`msg-item-${msgId}`);
       if (item) item.remove();
-      
+
       // تحديث العداد
       const countEl = document.getElementById('unreadMessagesCount');
       if (countEl) {
         countEl.textContent = Math.max(0, (parseInt(countEl.textContent) || 0) - 1);
       }
+
+      closeReplyMessageModal();
       loadDashboardStats();
+
     } else {
       showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
     }
-    
+
   } catch (err) {
     console.error('❌ Reply Error:', err);
     showAlert('⚠️ ' + (err.message || 'Connection error'), 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = originalText; }
   }
-}
+}  
+
 
 // إغلاق المودال عند النقر خارجه
 document.getElementById('replyMessageModal')?.addEventListener('click', function(e) {
