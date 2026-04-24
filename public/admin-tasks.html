@@ -1420,60 +1420,56 @@ function closeReplyMessageModal() {
 }
 
 async function confirmSendReply() {
-  if (!pendingReplyMsg) return;
+  if (!pendingReplyMsg) return showAlert('⚠️ No message selected', 'error');
   
   const reply = document.getElementById('rModalReply')?.value?.trim();
   const btn = document.querySelector('#replyMessageModal .btn-primary');
   
-  if (!reply) {
-    showAlert('❌ Please enter a reply message', 'error');
-    return;
-  }
+  if (!reply) return showAlert('❌ Please enter a reply message', 'error');
   
-  const originalText = btn?.textContent || '';
-  if(btn) { btn.disabled = true; btn.textContent = '⏳ Sending...'; }
+  const originalText = btn ? btn.textContent : '📤 Send Reply';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending...'; }
   
   try {
     const res = await fetch(`${API}/api/admin/messages/${pendingReplyMsg.msgId}/reply`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        admin_id: REQUIRED_ADMIN_ID, 
-        reply: reply 
-      })
+      body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply })
     });
     
-    const data = await res.json();
+    // ✅ قراءة النص أولاً لتجنب انهيار الدالة إذا لم يكن الرد JSON صالحاً
+    const responseText = await res.text();
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      throw new Error('Server returned invalid response');
+    }
     
+    // ✅ عرض رسالة النجاح وتحديث الواجهة
     if (data.success) {
       showAlert('✅ Reply sent successfully', 'success');
       closeReplyMessageModal();
       
-      // ✅ إزالة الرسالة من القائمة فوراً
-      const msgItem = document.getElementById(`msg-item-${pendingReplyMsg.msgId}`);
-      if (msgItem) {
-        msgItem.style.transition = 'all 0.3s ease';
-        msgItem.style.opacity = '0';
-        msgItem.style.transform = 'translateX(-20px)';
-        setTimeout(() => msgItem.remove(), 300);
-      }
+      // إزالة الرسالة من القائمة
+      const item = document.getElementById(`msg-item-${pendingReplyMsg.msgId}`);
+      if (item) item.remove();
       
       // تحديث العداد
       const countEl = document.getElementById('unreadMessagesCount');
       if (countEl) {
-        let count = parseInt(countEl.textContent) || 0;
-        countEl.textContent = Math.max(0, count - 1);
+        countEl.textContent = Math.max(0, (parseInt(countEl.textContent) || 0) - 1);
       }
-      
       loadDashboardStats();
     } else {
-      showAlert('❌ ' + (data.message || 'Failed'), 'error');
-      if(btn) { btn.disabled = false; btn.textContent = originalText; }
+      showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
     }
+    
   } catch (err) {
-    console.error('❌ confirmSendReply:', err);
+    console.error('❌ Reply Error:', err);
     showAlert('⚠️ ' + (err.message || 'Connection error'), 'error');
-    if(btn) { btn.disabled = false; btn.textContent = originalText; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
   }
 }
 
