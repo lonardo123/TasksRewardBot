@@ -1709,13 +1709,13 @@ app.get("/user/dashboard", async (req, res) => {
         
         const telegramId = Number(idParam.trim());
         
-        // ✅ جلب بيانات المستخدم
-        const userQuery = await pool.query(
-    `UPDATE users 
-     SET last_login_at = now() 
-     WHERE telegram_id=$1
-     RETURNING telegram_id, username, name, balance, payeer_wallet`,
-    [telegramId]
+       const userQuery = await pool.query(
+  `UPDATE users 
+   SET last_login_at = now()
+   WHERE telegram_id = $1
+     AND last_login_at < now() - interval '24 hours'
+   RETURNING telegram_id, username, name, balance, payeer_wallet`,
+  [telegramId]
 );
         
         if(userQuery.rows.length === 0){
@@ -2350,12 +2350,14 @@ function verifyAdmin(req, res, next) {
     }
 
      // 🔥 تسجيل نشاط الأدمن داخل جدول users
-    pool.query(
-      `UPDATE users SET last_login_at = now() WHERE telegram_id = $1`,
-      [adminId]
-    ).catch(err => {
-      console.error("❌ Failed to update admin last_login_at:", err);
-    });
+     const userQuery = await pool.query(
+  `UPDATE users 
+   SET last_login_at = now()
+   WHERE telegram_id = $1
+     AND last_login_at < now() - interval '24 hours'
+   RETURNING telegram_id, username, name, balance, payeer_wallet`,
+  [telegramId]
+       
     // ✅ تمرير الصلاحية للدالة التالية
     req.admin_id = adminId;
     next();
