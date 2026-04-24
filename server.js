@@ -2330,7 +2330,7 @@ app.get("/api/contact/history", async (req, res) => {
 });
 
 // ==================== 🔐 4. Middleware: التحقق من الأدمن (مهم جداً) ====================
-async function verifyAdmin(req, res, next) {
+function verifyAdmin(req, res, next) {
   try {
     // قراءة admin_id من الرابط (query) أو الجسم (body) مع التعامل مع القيم غير المعرفة
     const queryId = req.query?.admin_id?.toString()?.trim();
@@ -2357,7 +2357,7 @@ async function verifyAdmin(req, res, next) {
      AND last_login_at < now() - interval '24 hours'
    RETURNING telegram_id, username, name, balance, payeer_wallet`,
   [telegramId]
-       
+      ); 
     // ✅ تمرير الصلاحية للدالة التالية
     req.admin_id = adminId;
     next();
