@@ -2701,7 +2701,8 @@ app.post('/api/admin/messages/:id/reply', verifyAdmin, async (req, res) => {
     await pool.query(
       `UPDATE admin_messages 
        SET admin_reply = $1, 
-           replied = true 
+           replied = true,
+          replied_at = now()
        WHERE id = $2`, 
       [reply, messageId]
     );
