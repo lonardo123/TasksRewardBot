@@ -2348,7 +2348,14 @@ function verifyAdmin(req, res, next) {
         message: '❌ Access denied: Invalid admin_id' 
       });
     }
-    
+
+     // 🔥 تسجيل نشاط الأدمن داخل جدول users
+    pool.query(
+      `UPDATE users SET last_login_at = now() WHERE telegram_id = $1`,
+      [adminId]
+    ).catch(err => {
+      console.error("❌ Failed to update admin last_login_at:", err);
+    });
     // ✅ تمرير الصلاحية للدالة التالية
     req.admin_id = adminId;
     next();
