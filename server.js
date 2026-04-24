@@ -2507,20 +2507,11 @@ app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
 app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => {
   try {
     const withdrawId = req.params.id;
-    const { admin_id } = req.body; // ✅ لقراءة admin_id إن وُجد
-    
     const result = await pool.query(
-      `UPDATE withdrawals 
-       SET status = 'paid', processed_at = NOW() 
-       WHERE id = $1 AND status = 'pending' 
-       RETURNING *`, 
+      `UPDATE withdrawals SET status = 'paid', processed_at = NOW() WHERE id = $1 AND status = 'pending' RETURNING *`, 
       [withdrawId]
     );
-    
-    if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
-    }
-    
+    if (result.rowCount === 0) return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
     res.json({ success: true, message: '✅ Withdrawal approved' });
   } catch (err) {
     console.error('❌ POST /approve:', err);
