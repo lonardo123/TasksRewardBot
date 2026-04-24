@@ -466,6 +466,28 @@ tr:hover{background:#1e293b/50}
   <button class="btn btn-danger" onclick="openBalanceModal('deduct', document.getElementById('deductBalanceUserId').value, document.getElementById('deductBalanceAmount').value, 'Violation, Refund...')">⚠️ Deduct Balance</button>
 </div>
 </div>    
+
+    <!-- 💰 مودال إدارة الرصيد -->
+<div id="balanceModal" class="modal">
+  <div class="modal-content" style="max-width:450px; border-top:4px solid #3b82f6;">
+    <div class="modal-header">
+      <h3 id="bModalTitle" style="margin:0;">Confirm Action</h3>
+      <button class="modal-close" onclick="closeBalanceModal()">&times;</button>
+    </div>
+    <div style="background:#0f172a;padding:12px;border-radius:8px;margin:15px 0;">
+      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">👤 <strong>User ID:</strong> <span id="bModalUserId" style="color:#fff;"></span></p>
+      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">💰 <strong>Amount:</strong> <span id="bModalAmount" style="color:#f59e0b;"></span></p>
+    </div>
+    <div id="bModalReasonBox" class="input-group">
+      <label id="bModalReasonLabel">Reason:</label>
+      <input type="text" id="bModalReason" placeholder="e.g., Bonus, Violation...">
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-secondary" onclick="closeBalanceModal()">Cancel</button>
+      <button id="bModalBtn" class="btn btn-primary" onclick="confirmBalanceAction()">Confirm</button>
+    </div>
+  </div>
+</div>
     <!-- 📬 Messages Section -->
     <div id="messagesSection" class="card hidden">
       <div class="section-title">
@@ -1214,7 +1236,6 @@ document.getElementById('withdrawalResultModal')?.addEventListener('click', func
 let pendingBalanceAction = null;
 
 function openBalanceModal(type, userId, amount, reasonPlaceholder) {
-  // ✅ التحقق من الحقول قبل فتح المودال
   if (!userId || !amount || parseFloat(amount) <= 0) {
     showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
     return;
@@ -1222,28 +1243,29 @@ function openBalanceModal(type, userId, amount, reasonPlaceholder) {
   
   pendingBalanceAction = { type, userId, amount };
   
-  document.getElementById('bModalUserId').textContent = userId;
-  document.getElementById('bModalAmount').textContent = '$' + parseFloat(amount).toFixed(2);
-  document.getElementById('bModalReason').value = '';
-  document.getElementById('bModalReasonLabel').textContent = type === 'add' ? 'Reason (optional):' : 'Reason (required):';
-  document.getElementById('bModalReason').placeholder = reasonPlaceholder;
-  
-  const btn = document.getElementById('bModalBtn');
+  // ✅ حماية من أخطاء null في حالة عدم وجود العناصر في HTML
+  const uidEl = document.getElementById('bModalUserId');
+  const amtEl = document.getElementById('bModalAmount');
+  const reasonEl = document.getElementById('bModalReason');
+  const labelEl = document.getElementById('bModalReasonLabel');
   const modal = document.getElementById('balanceModal');
+  const btn = document.getElementById('bModalBtn');
+
+  if(uidEl) uidEl.textContent = userId;
+  if(amtEl) amtEl.textContent = '$' + parseFloat(amount).toFixed(2);
+  if(reasonEl) { reasonEl.value = ''; reasonEl.placeholder = reasonPlaceholder; }
+  if(labelEl) labelEl.textContent = type === 'add' ? 'Reason (optional):' : 'Reason (required):';
   
-  if (type === 'add') {
-    document.getElementById('bModalTitle').textContent = '➕ Add Balance';
-    modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
-    btn.textContent = '✅ Add Balance';
-    btn.className = 'btn btn-success';
-  } else {
-    document.getElementById('bModalTitle').textContent = '➖ Deduct Balance';
-    modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
-    btn.textContent = '⚠️ Deduct Balance';
-    btn.className = 'btn btn-danger';
+  if (modal) {
+    if(type === 'add') {
+      modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
+      if(btn) { btn.textContent = '✅ Add Balance'; btn.className = 'btn btn-success'; }
+    } else {
+      modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
+      if(btn) { btn.textContent = '⚠️ Deduct Balance'; btn.className = 'btn btn-danger'; }
+    }
+    modal.classList.add('active');
   }
-  
-  modal.classList.add('active');
 }
 
 function closeBalanceModal() {
