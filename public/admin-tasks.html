@@ -1437,14 +1437,11 @@ async function confirmSendReply() {
       body: JSON.stringify({ admin_id: REQUIRED_ADMIN_ID, reply })
     });
     
-    // ✅ قراءة النص أولاً لتجنب انهيار الدالة إذا لم يكن الرد JSON صالحاً
-    const responseText = await res.text();
-    let data;
-    try {
-      data = JSON.parse(responseText);
-    } catch (e) {
-      throw new Error('Server returned invalid response');
-    }
+    if (!res.ok) {
+  throw new Error('Server error');
+}
+
+const data = await res.json();
     
     // ✅ عرض رسالة النجاح وتحديث الواجهة
     if (data.success) {
