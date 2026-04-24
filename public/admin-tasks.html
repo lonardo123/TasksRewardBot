@@ -1044,15 +1044,27 @@ async function confirmWithdrawalAction() {
   btn.textContent = '⏳ Processing...';
   
   try {
-    const url = `${API}/api/admin/withdrawals/${wdId}/${type === 'approve' ? 'approve' : 'reject'}`;
-    const body = { admin_id: REQUIRED_ADMIN_ID };
-    if (type === 'reject') body.reason = document.getElementById('wModalReason').value || 'Verification failed';
+    // ✅ تصحيح المسار: استخدام نفس النمط للـ approve و reject
+    const action = type === 'approve' ? 'approve' : 'reject';
+    const url = `${API}/api/admin/withdrawals/${wdId}/${action}`;
+    
+    // ✅ تصحيح الجسم: إزالة admin_id لأن السيرفر يستخدم verifyAdmin
+    const body = {};
+    if (type === 'reject') {
+      body.reason = document.getElementById('wModalReason').value || 'Verification failed';
+    }
+    
+    // ✅ تصحيح الهيدر: إضافة توكن المصادقة إذا كان موجوداً
+    const headers = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
       body: JSON.stringify(body)
     });
+    
     const data = await res.json();
     
     if (data.success) {
@@ -1068,18 +1080,19 @@ async function confirmWithdrawalAction() {
           badge.className = `status-badge status-${type === 'approve' ? 'paid' : 'rejected'}`;
           badge.textContent = type === 'approve' ? '✅ Paid' : '❌ Rejected';
         }
-        itemEl.querySelector('.request-actions').innerHTML = `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
+        itemEl.querySelector('.request-actions').innerHTML = 
+          `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
       }
       updatePendingWithdrawalsCount(-1);
       loadDashboardStats();
     } else {
-      showAlert(data.message || 'Failed', 'error');
+      showAlert(data.message || 'Operation failed', 'error');
       btn.disabled = false;
       btn.textContent = originalText;
     }
   } catch (err) {
     console.error('❌ withdrawal action:', err);
-    showAlert('⚠️ Connection error', 'error');
+    showAlert('⚠️ Connection error: ' + err.message, 'error');
     btn.disabled = false;
     btn.textContent = originalText;
   }
