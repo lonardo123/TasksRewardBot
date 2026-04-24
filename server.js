@@ -2601,21 +2601,35 @@ app.post('/api/admin/balance/add', verifyAdmin, async (req, res) => {
   }
 });
 
-// ➖ 8. خصم رصيد
+// ➖ 8. خصم رصيد - نسخة مُصحَّحة
 app.post('/api/admin/balance/deduct', verifyAdmin, async (req, res) => {
   try {
     const { user_id, amount, reason } = req.body;
-    if (!user_id || isNaN(amount) || amount <= 0 || !reason) return res.status(400).json({ success: false, message: '❌ Fill all fields (Reason required' });
+    
+    // ✅ تصحيح: إضافة قوس الإغلاق في رسالة الخطأ
+    if (!user_id || isNaN(amount) || amount <= 0 || !reason) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '❌ Fill all fields (Reason required)'  // ✅ الآن صحيح
+      });
+    }
     
     const userCheck = await pool.query('SELECT telegram_id, balance FROM users WHERE telegram_id = $1', [user_id]);
     if (userCheck.rows.length === 0) return res.status(404).json({ success: false, message: '❌ User not found' });
     
     const currentBalance = parseFloat(userCheck.rows[0].balance || 0);
     const newBalance = Math.max(0, currentBalance - parseFloat(amount));
+    
     await pool.query('UPDATE users SET balance = $1 WHERE telegram_id = $2', [newBalance, user_id]);
     await pool.query('INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', [user_id, -Math.abs(amount), 'admin_deduction', reason]);
     
-    res.json({ success: true, message: `✅ Deducted $${amount}`, previous_balance: currentBalance.toFixed(4), new_balance: newBalance.toFixed(4) });
+    res.json({ 
+      success: true, 
+      message: `✅ Deducted $${amount}`, 
+      previous_balance: currentBalance.toFixed(4), 
+      new_balance: newBalance.toFixed(4) 
+    });
+    
   } catch (err) {
     console.error('❌ POST /api/admin/balance/deduct:', err);
     res.status(500).json({ success: false, message: 'Server error' });
