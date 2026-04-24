@@ -546,9 +546,6 @@ const API = "https://perceptive-victory-production.up.railway.app";
 const REQUIRED_ADMIN_ID = "7171208519";
 const BOT_USERNAME = "TasksRewardBot";
 
-  // ⚙️ متغيرات عالمية لقسم السحوبات
-let pendingWithdrawal = null;
-let currentWithdrawalId = null;  // ← هذا السطر كان ناقصاً ويسبب توقف الزر بعد المرة الأولى!
 // ================= 🔐 ACCESS CONTROL =================
 function checkAdminAccess() {
   const url = window.location.href;
@@ -958,7 +955,10 @@ async function rejectDeposit(depositId, userId) {
   openRejectModal(depositId, userId);
 }
 // ================= 📤 WITHDRAWALS =================
-async function loadWithdrawals() {
+let pendingWithdrawal = null;
+let currentWithdrawalId = null;  
+  
+  async function loadWithdrawals() {
   const list = document.getElementById('withdrawalsList');
   const countEl = document.getElementById('pendingWithdrawalsCount');
   
