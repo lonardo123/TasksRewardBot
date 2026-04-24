@@ -2331,13 +2331,35 @@ app.get("/api/contact/history", async (req, res) => {
 
 // ==================== 🔐 4. Middleware: التحقق من الأدمن (مهم جداً) ====================
 function verifyAdmin(req, res, next) {
-  const adminId = req.query.admin_id || req.body.admin_id;
-  const REQUIRED_ADMIN_ID = process.env.ADMIN_ID || '7171208519';
-  
-  if (!adminId || String(adminId) !== String(REQUIRED_ADMIN_ID)) {
-    return res.status(403).json({ success: false, message: '❌ Access denied: Invalid admin_id' });
+  try {
+    // قراءة admin_id من الرابط (query) أو الجسم (body) مع التعامل مع القيم غير المعرفة
+    const queryId = req.query?.admin_id?.toString()?.trim();
+    const bodyId = req.body?.admin_id?.toString()?.trim();
+    const adminId = queryId || bodyId;
+    
+    // الحصول على الـ ID المطلوب من متغيرات البيئة أو القيمة الافتراضية
+    const REQUIRED_ADMIN_ID = process.env.ADMIN_ID || '7171208519';
+    
+    // التحقق من وجود admin_id ومطابقته للقيمة المطلوبة
+    if (!adminId || adminId !== String(REQUIRED_ADMIN_ID).trim()) {
+      console.warn(`❌ Access denied: received="${adminId}", required="${REQUIRED_ADMIN_ID}"`);
+      return res.status(403).json({ 
+        success: false, 
+        message: '❌ Access denied: Invalid admin_id' 
+      });
+    }
+    
+    // ✅ تمرير الصلاحية للدالة التالية
+    req.admin_id = adminId;
+    next();
+    
+  } catch (err) {
+    console.error('❌ verifyAdmin error:', err);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Server error in admin verification' 
+    });
   }
-  next();
 }
 // ================= 📥 1. جلب طلبات الإيداع =================
 app.get('/api/admin/deposits', verifyAdmin, async (req, res) => {
@@ -2481,83 +2503,77 @@ app.get('/api/admin/withdrawals', verifyAdmin, async (req, res) => {
   }
 });
 
-// ✅ 5. الموافقة على سحب
+// ✅ 5. الموافقة على سحب (لا يغير الرصيد - الخصم تم مسبقاً)
 app.post('/api/admin/withdrawals/:id/approve', verifyAdmin, async (req, res) => {
   try {
     const withdrawId = req.params.id;
+    const { admin_id } = req.body; // ✅ لقراءة admin_id إن وُجد
     
-    // تحديث الحالة فقط (الرصيد تم خصمه مسبقاً عند إنشاء الطلب)
     const result = await pool.query(
       `UPDATE withdrawals 
-       SET status = 'paid', processed_at = NOW(), admin_note = COALESCE($1, admin_note)
-       WHERE id = $2 AND status = 'pending' 
+       SET status = 'paid', processed_at = NOW() 
+       WHERE id = $1 AND status = 'pending' 
        RETURNING *`, 
-      [req.body.note || null, withdrawId]
+      [withdrawId]
     );
     
     if (result.rowCount === 0) {
-      return res.status(404).json({ success: false, message: '❌ Withdrawal not found or already processed' });
+      return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
     }
     
-    res.json({ success: true, message: '✅ Withdrawal approved successfully' });
+    res.json({ success: true, message: '✅ Withdrawal approved' });
   } catch (err) {
-    console.error('❌ POST /api/admin/withdrawals/:id/approve:', err);
-    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
+    console.error('❌ POST /approve:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
+
 // ❌ 6. رفض سحب (مع إرجاع المبلغ الأصلي قبل خصم 5%)
 app.post('/api/admin/withdrawals/:id/reject', verifyAdmin, async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN'); // 🔄 بدء معاملة لضمان الاتساق
-    
     const withdrawId = req.params.id;
-    const { reason = 'Verification failed' } = req.body;
+    const { reason = 'Verification failed', admin_id } = req.body; // ✅ قراءة admin_id
     
-    // جلب بيانات السحب
-    const withdrawal = await client.query(
+    const withdrawal = await pool.query(
       'SELECT * FROM withdrawals WHERE id = $1 AND status = $2', 
       [withdrawId, 'pending']
     );
     
     if (withdrawal.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ success: false, message: '❌ Withdrawal not found or already processed' });
+      return res.status(404).json({ success: false, message: '❌ Withdrawal not found' });
     }
     
     const { user_id, amount } = withdrawal.rows[0];
     
-    // 💡 حساب المبلغ الأصلي قبل خصم 5% (المسجل = 95% من الأصل)
+    // 💡 حساب المبلغ الأصلي قبل خصم 5%: الأصل = المسحوب ÷ 0.95
     const WITHDRAW_FEE_RATE = 0.05;
     const originalAmount = parseFloat(amount) / (1 - WITHDRAW_FEE_RATE);
     
-    // تحديث حالة السحب
-    await client.query(
+    await pool.query(
       'UPDATE withdrawals SET status = $1, processed_at = NOW(), admin_note = $2 WHERE id = $3', 
       ['rejected', reason, withdrawId]
     );
     
-    // ✅ إرجاع المبلغ الأصلي لرصيد المستخدم (مطابقة user_id مع telegram_id)
-    await client.query(
+    // ✅ إرجاع المبلغ الأصلي (100$) وليس بعد الخصم (95$)
+    // ملاحظة: withdrawals.user_id = users.telegram_id (bigint)
+    await pool.query(
       'UPDATE users SET balance = COALESCE(balance, 0) + $1 WHERE telegram_id = $2', 
       [originalAmount, user_id]
     );
     
-    // تسجيل العملية للشفافية
-    await client.query(
-      'INSERT INTO earnings (user_id, amount, source, description, created_at) VALUES ($1, $2, $3, $4, NOW())', 
+    await pool.query(
+      'INSERT INTO earnings (user_id, amount, source, description) VALUES ($1, $2, $3, $4)', 
       [user_id, originalAmount, 'withdrawal_refund', `Refund: Rejected withdrawal #${withdrawId}`]
     );
     
-    await client.query('COMMIT');
-    res.json({ success: true, message: `❌ Withdrawal rejected. Original amount $${originalAmount.toFixed(2)} refunded.` });
+    res.json({ 
+      success: true, 
+      message: `❌ Withdrawal rejected. Original amount $${originalAmount.toFixed(2)} refunded.` 
+    });
     
   } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('❌ POST /api/admin/withdrawals/:id/reject:', err);
-    res.status(500).json({ success: false, message: 'Server error: ' + err.message });
-  } finally {
-    client.release();
+    console.error('❌ POST /reject:', err);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
