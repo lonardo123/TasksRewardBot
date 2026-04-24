@@ -463,8 +463,7 @@ tr:hover{background:#1e293b/50}
   </div>
   <!-- ✅ منطقة عرض الرسالة داخل النموذج -->
   <div class="balance-message" id="deductBalanceMsg"></div>
-  <button class="btn btn-danger" onclick="openBalanceModal('deduct', document.getElementById('deductBalanceUserId').value, document.getElementById('deductBalanceAmount').value, 'Violation, Refund...')">⚠️ Deduct Balance</button>
-</div>
+<button class="btn btn-danger" onclick="openBalanceModal('deduct', document.getElementById('deductBalanceUserId').value, document.getElementById('deductBalanceAmount').value, 'Violation, Refund...')">⚠️ Deduct Balance</button>
 </div>    
 
     <!-- 💰 مودال إدارة الرصيد -->
@@ -1236,6 +1235,7 @@ document.getElementById('withdrawalResultModal')?.addEventListener('click', func
 let pendingBalanceAction = null;
 
 function openBalanceModal(type, userId, amount, reasonPlaceholder) {
+  // التحقق من ID والمبلغ فقط قبل فتح المودال
   if (!userId || !amount || parseFloat(amount) <= 0) {
     showAlert('❌ Fill all fields (User ID and valid Amount required)', 'error');
     return;
@@ -1243,29 +1243,26 @@ function openBalanceModal(type, userId, amount, reasonPlaceholder) {
   
   pendingBalanceAction = { type, userId, amount };
   
-  // ✅ حماية من أخطاء null في حالة عدم وجود العناصر في HTML
-  const uidEl = document.getElementById('bModalUserId');
-  const amtEl = document.getElementById('bModalAmount');
-  const reasonEl = document.getElementById('bModalReason');
-  const labelEl = document.getElementById('bModalReasonLabel');
-  const modal = document.getElementById('balanceModal');
-  const btn = document.getElementById('bModalBtn');
-
-  if(uidEl) uidEl.textContent = userId;
-  if(amtEl) amtEl.textContent = '$' + parseFloat(amount).toFixed(2);
-  if(reasonEl) { reasonEl.value = ''; reasonEl.placeholder = reasonPlaceholder; }
-  if(labelEl) labelEl.textContent = type === 'add' ? 'Reason (optional):' : 'Reason (required):';
+  document.getElementById('bModalUserId').textContent = userId;
+  document.getElementById('bModalAmount').textContent = '$' + parseFloat(amount).toFixed(2);
+  document.getElementById('bModalReason').value = '';
+  document.getElementById('bModalReasonLabel').textContent = type === 'add' ? 'Reason (optional):' : 'Reason (required):';
+  document.getElementById('bModalReason').placeholder = reasonPlaceholder;
   
-  if (modal) {
-    if(type === 'add') {
-      modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
-      if(btn) { btn.textContent = '✅ Add Balance'; btn.className = 'btn btn-success'; }
-    } else {
-      modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
-      if(btn) { btn.textContent = '⚠️ Deduct Balance'; btn.className = 'btn btn-danger'; }
-    }
-    modal.classList.add('active');
+  const btn = document.getElementById('bModalBtn');
+  const modal = document.getElementById('balanceModal');
+  
+  if (type === 'add') {
+    modal.querySelector('.modal-content').style.borderTopColor = '#22c55e';
+    btn.textContent = '✅ Add Balance';
+    btn.className = 'btn btn-success';
+  } else {
+    modal.querySelector('.modal-content').style.borderTopColor = '#ef4444';
+    btn.textContent = '⚠️ Deduct Balance';
+    btn.className = 'btn btn-danger';
   }
+  
+  modal.classList.add('active');
 }
 
 function closeBalanceModal() {
@@ -1280,7 +1277,7 @@ async function confirmBalanceAction() {
   const reason = document.getElementById('bModalReason').value.trim();
   const btn = document.getElementById('bModalBtn');
   
-  // ✅ التحقق من السبب للخصم (إلزامي) - الرسالة المطلوبة
+  // ⚠️ التحقق من السبب يحدث فقط عند الضغط على Confirm داخل المودال
   if (type === 'deduct' && (!reason || reason.length < 3)) {
     showAlert('❌ Fill all fields (Reason required)', 'error');
     return;
@@ -1309,15 +1306,10 @@ async function confirmBalanceAction() {
     if (data.success) {
       showAlert(data.message, 'success');
       closeBalanceModal();
-      
-      // تفريغ الحقول الأصلية
-      document.getElementById('addBalanceUserId').value = '';
-      document.getElementById('addBalanceAmount').value = '';
-      document.getElementById('addBalanceReason').value = '';
-      document.getElementById('deductBalanceUserId').value = '';
-      document.getElementById('deductBalanceAmount').value = '';
-      document.getElementById('deductBalanceReason').value = '';
-      
+      // تفريغ الحقول
+      ['addBalanceUserId','addBalanceAmount','addBalanceReason','deductBalanceUserId','deductBalanceAmount','deductBalanceReason'].forEach(id => {
+        const el = document.getElementById(id); if(el) el.value = '';
+      });
       loadDashboardStats();
     } else {
       showAlert(data.message || 'Failed', 'error');
