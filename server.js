@@ -2330,7 +2330,7 @@ app.get("/api/contact/history", async (req, res) => {
 });
 
 // ==================== 🔐 4. Middleware: التحقق من الأدمن (مهم جداً) ====================
-function verifyAdmin(req, res, next) {
+async function verifyAdmin(req, res, next) {
   try {
     // قراءة admin_id من الرابط (query) أو الجسم (body) مع التعامل مع القيم غير المعرفة
     const queryId = req.query?.admin_id?.toString()?.trim();
