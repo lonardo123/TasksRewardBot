@@ -546,6 +546,9 @@ const API = "https://perceptive-victory-production.up.railway.app";
 const REQUIRED_ADMIN_ID = "7171208519";
 const BOT_USERNAME = "TasksRewardBot";
 
+  // ⚙️ متغيرات عالمية لقسم السحوبات
+let pendingWithdrawal = null;
+let currentWithdrawalId = null;  // ← هذا السطر كان ناقصاً ويسبب توقف الزر بعد المرة الأولى!
 // ================= 🔐 ACCESS CONTROL =================
 function checkAdminAccess() {
   const url = window.location.href;
@@ -1006,55 +1009,108 @@ async function loadWithdrawals() {
 let pendingWithdrawal = null;
 
 function openWithdrawalModal(type, wdId, userId, amount) {
-  pendingWithdrawal = { type, wdId, userId, amount };
+  // ✅ التأكد من إغلاق أي مودال مفتوح مسبقاً
+  closeWithdrawalModal();
   
-  document.getElementById('wModalUserId').textContent = userId;
-  document.getElementById('wModalAmount').textContent = '$' + parseFloat(amount).toFixed(2);
-  document.getElementById('wModalReason').value = '';
+  // ✅ إنشاء كائن جديد تماماً (ليس مرجعاً)
+  pendingWithdrawal = { 
+    type: String(type), 
+    wdId: Number(wdId), 
+    userId: Number(userId), 
+    amount: Number(amount) 
+  };
+  
+  console.log('🪟 Opening modal for:', pendingWithdrawal);
+  
+  // ✅ تحديث عناصر المودال
+  const userIdEl = document.getElementById('wModalUserId');
+  const amountEl = document.getElementById('wModalAmount');
+  const reasonBox = document.getElementById('wModalReasonBox');
   const btn = document.getElementById('wModalBtn');
+  
+  if (userIdEl) userIdEl.textContent = userId;
+  if (amountEl) amountEl.textContent = '$' + parseFloat(amount).toFixed(2);
+  
+  const reasonInput = document.getElementById('wModalReason');
+  if (reasonInput) reasonInput.value = '';
   
   if (type === 'approve') {
     document.getElementById('wModalTitle').textContent = '✅ Approve Withdrawal';
-    document.getElementById('wModalReasonBox').style.display = 'none';
-    btn.textContent = '✅ Approve';
-    btn.className = 'btn btn-success';
-    btn.style.borderTopColor = '#22c55e';
+    if (reasonBox) reasonBox.style.display = 'none';
+    if (btn) {
+      btn.textContent = '✅ Approve';
+      btn.className = 'btn btn-success';
+      btn.onclick = () => confirmWithdrawalAction();
+    }
   } else {
     document.getElementById('wModalTitle').textContent = '❌ Reject Withdrawal';
-    document.getElementById('wModalReasonBox').style.display = 'block';
-    btn.textContent = '❌ Reject';
-    btn.className = 'btn btn-danger';
+    if (reasonBox) reasonBox.style.display = 'block';
+    if (btn) {
+      btn.textContent = '❌ Reject';
+      btn.className = 'btn btn-danger';
+      btn.onclick = () => confirmWithdrawalAction();
+    }
   }
   
-  document.getElementById('withdrawalModal').classList.add('active');
+  // ✅ عرض المودال
+  const modal = document.getElementById('withdrawalModal');
+  if (modal) modal.classList.add('active');
 }
 
 function closeWithdrawalModal() {
-  document.getElementById('withdrawalModal').classList.remove('active');
+  const modal = document.getElementById('withdrawalModal');
+  if (modal) modal.classList.remove('active');
+  
+  // ✅ إعادة تعيين المتغيرات بشكل كامل
   pendingWithdrawal = null;
+  currentWithdrawalId = null;
+  
+  // ✅ تفريغ حقول المودال
+  const reasonInput = document.getElementById('wModalReason');
+  if (reasonInput) reasonInput.value = '';
+  
+  // ✅ إعادة زر التأكيد لحالته الأصلية
+  const btn = document.getElementById('wModalBtn');
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = 'Confirm';
+  }
+  
+  console.log('🔄 Modal closed and reset');
 }
 
 async function confirmWithdrawalAction() {
-  if (!pendingWithdrawal) return;
+  // ✅ التأكد من وجود بيانات السحب الحالي
+  if (!pendingWithdrawal || !pendingWithdrawal.wdId) {
+    console.error('❌ No pending withdrawal data');
+    showAlert('⚠️ Error: No withdrawal selected', 'error');
+    return;
+  }
+  
   const { type, wdId, userId, amount } = pendingWithdrawal;
   const btn = document.getElementById('wModalBtn');
   const originalText = btn.textContent;
+  
+  // ✅ منع النقر المتكرر
+  if (btn.disabled) return;
   
   btn.disabled = true;
   btn.textContent = '⏳ Processing...';
   
   try {
     const action = type === 'approve' ? 'approve' : 'reject';
-    const url = `${API || ''}/api/admin/withdrawals/${wdId}/${action}`;
     
-    // ✅ إرسال admin_id في الجسم + في رابط الـ URL للتوافق مع verifyAdmin
+    // ✅ بناء الرابط مع admin_id لضمان التوافق
+    const baseUrl = `${API || ''}/api/admin/withdrawals/${wdId}/${action}`;
+    const fetchUrl = `${baseUrl}?admin_id=${REQUIRED_ADMIN_ID}`;
+    
+    // ✅ إرسال admin_id في الجسم أيضاً
     const body = { admin_id: REQUIRED_ADMIN_ID };
     if (type === 'reject') {
-      body.reason = document.getElementById('wModalReason').value?.trim() || 'Verification failed';
+      body.reason = document.getElementById('wModalReason')?.value?.trim() || 'Verification failed';
     }
     
-    // ✅ إضافة admin_id كـ query param أيضاً لضمان القبول من السيرفر
-    const fetchUrl = `${url}?admin_id=${REQUIRED_ADMIN_ID}`;
+    console.log(`📤 Sending ${action} request for withdrawal #${wdId}`);
     
     const res = await fetch(fetchUrl, {
       method: 'POST',
@@ -1063,32 +1119,44 @@ async function confirmWithdrawalAction() {
     });
     
     const data = await res.json();
+    console.log('📥 Server response:', data);
     
     if (data.success) {
+      // ✅ إغلاق المودال وإعادة تعيينه فوراً
       closeWithdrawalModal();
       showAlert(data.message, 'success');
       
-      // تحديث العنصر في الصفحة
+      // ✅ إزالة العنصر من القائمة فوراً (بدلاً من مجرد تغيير الشكل)
       const itemEl = document.getElementById(`withdrawal-${wdId}`);
       if (itemEl) {
-        itemEl.style.opacity = '0.6';
-        const badge = itemEl.querySelector('.status-badge');
-        if (badge) {
-          badge.className = `status-badge status-${type === 'approve' ? 'paid' : 'rejected'}`;
-          badge.textContent = type === 'approve' ? '✅ Paid' : '❌ Rejected';
-        }
-        itemEl.querySelector('.request-actions').innerHTML = 
-          `<span class="done-badge">${type === 'approve' ? '✅ Completed' : '❌ Refunded'}</span>`;
+        itemEl.style.transition = 'opacity 0.3s, transform 0.3s';
+        itemEl.style.opacity = '0';
+        itemEl.style.transform = 'translateX(20px)';
+        setTimeout(() => {
+          if (itemEl.parentNode) itemEl.parentNode.removeChild(itemEl);
+          updatePendingWithdrawalsCount(-1);
+        }, 300);
       }
-      updatePendingWithdrawalsCount(-1);
-      if (typeof loadDashboardStats === 'function') loadDashboardStats();
+      
+      // ✅ تحديث الإحصائيات
+      if (typeof loadDashboardStats === 'function') {
+        loadDashboardStats();
+      }
+      
+      // ✅ إعادة تحميل القائمة بعد ثانية لضمان التحديث الكامل
+      setTimeout(() => {
+        if (document.getElementById('withdrawalsSection')?.classList.contains('hidden') === false) {
+          loadWithdrawals();
+        }
+      }, 1000);
+      
     } else {
       showAlert(data.message || 'Operation failed', 'error');
       btn.disabled = false;
       btn.textContent = originalText;
     }
   } catch (err) {
-    console.error('❌ withdrawal action:', err);
+    console.error(`❌ ${type} action failed:`, err);
     showAlert('⚠️ Connection error: ' + err.message, 'error');
     btn.disabled = false;
     btn.textContent = originalText;
