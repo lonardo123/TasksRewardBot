@@ -496,6 +496,31 @@ tr:hover{background:#1e293b/50}
       <div id="messagesList"></div>
     </div>
 
+    <!-- 📬 مودال الرد على رسالة (بنمط الإيداع) -->
+<div id="replyMessageModal" class="modal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>📩 Reply to User #<span id="rModalUserId"></span></h3>
+      <button class="modal-close" onclick="closeReplyMessageModal()">&times;</button>
+    </div>
+    
+    <div style="background:#0f172a;padding:12px;border-radius:8px;margin:15px 0;">
+      <p style="margin:5px 0;color:#94a3b8;font-size:13px;">👤 <strong>User:</strong> <span id="rModalUsername" style="color:#fff;"></span></p>
+      <p style="margin:10px 0 5px;color:#94a3b8;font-size:13px;">💬 <strong>Original Message:</strong></p>
+      <p id="rModalOriginalMsg" style="color:#cbd5e1;font-size:14px;white-space:pre-wrap;background:#1e293b;padding:10px;border-radius:6px;"></p>
+    </div>
+    
+    <div class="input-group">
+      <label>Your Reply:</label>
+      <textarea id="rModalReply" rows="4" placeholder="Type your reply here..."></textarea>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+      <button class="btn btn-secondary" onclick="closeReplyMessageModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmSendReply()">📤 Send Reply</button>
+    </div>
+  </div>
+</div>
      <!-- Pending Proofs Section -->
     <div id="proofsSection" class="card hidden">
       <h3>📋 Pending Proofs Review</h3>
@@ -514,22 +539,6 @@ tr:hover{background:#1e293b/50}
       <div id="statsContent"></div>
     </div>
 
-  </div>
-</div>
-
-<!-- 💬 Reply Modal -->
-<div id="replyModal" class="modal">
-  <div class="modal-content">
-    <div class="modal-header">
-      <h3>📩 Reply to User #<span id="replyUserId"></span></h3>
-      <button class="modal-close" onclick="closeModal('replyModal')">&times;</button>
-    </div>
-    <div id="replyMessageContent" class="proof-content" style="margin-bottom:15px"></div>
-    <div class="input-group">
-      <label>Your Reply:</label>
-      <textarea id="replyText" rows="4" placeholder="Type your reply here..."></textarea>
-    </div>
-    <button class="btn btn-primary" onclick="sendReply()">📤 Send Reply</button>
   </div>
 </div>
 
@@ -1365,8 +1374,8 @@ async function loadMessages() {
         
         <div class="reply-box" style="margin-top:10px;">
           <button class="btn btn-primary btn-sm" onclick="openReplyMessageModal(${msg.id}, '${(msg.username || msg.user_id).replace(/'/g, "\\'")}', '${(msg.message || '').replace(/'/g, "\\'").replace(/\n/g, '\\n')}')">
-            📩 Reply Now
-          </button>
+  📩 Reply Now
+</button>
         </div>
       </div>
     `).join('');
@@ -1389,23 +1398,31 @@ let pendingReplyMsg = null;
 function openReplyMessageModal(msgId, username, originalMsg) {
   pendingReplyMsg = { msgId, username, originalMsg };
   
-  document.getElementById('rModalUserId').textContent = msgId;
-  document.getElementById('rModalUsername').textContent = '@' + username;
-  document.getElementById('rModalOriginalMsg').textContent = originalMsg || 'No content';
-  document.getElementById('rModalReply').value = '';
+  // ✅ حماية من أخطاء null
+  const uidEl = document.getElementById('rModalUserId');
+  const unameEl = document.getElementById('rModalUsername');
+  const origEl = document.getElementById('rModalOriginalMsg');
+  const replyEl = document.getElementById('rModalReply');
+  const modal = document.getElementById('replyMessageModal');
   
-  document.getElementById('replyMessageModal').classList.add('active');
+  if(uidEl) uidEl.textContent = msgId;
+  if(unameEl) unameEl.textContent = '@' + username;
+  if(origEl) origEl.textContent = originalMsg || 'No content';
+  if(replyEl) replyEl.value = '';
+  
+  if(modal) modal.classList.add('active');
 }
 
 function closeReplyMessageModal() {
-  document.getElementById('replyMessageModal').classList.remove('active');
+  const modal = document.getElementById('replyMessageModal');
+  if(modal) modal.classList.remove('active');
   pendingReplyMsg = null;
 }
 
 async function confirmSendReply() {
   if (!pendingReplyMsg) return;
   
-  const reply = document.getElementById('rModalReply').value.trim();
+  const reply = document.getElementById('rModalReply')?.value?.trim();
   const btn = document.querySelector('#replyMessageModal .btn-primary');
   
   if (!reply) {
@@ -1413,9 +1430,8 @@ async function confirmSendReply() {
     return;
   }
   
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ Sending...';
+  const originalText = btn?.textContent || '';
+  if(btn) { btn.disabled = true; btn.textContent = '⏳ Sending...'; }
   
   try {
     const res = await fetch(`${API}/api/admin/messages/${pendingReplyMsg.msgId}/reply`, {
@@ -1433,7 +1449,7 @@ async function confirmSendReply() {
       showAlert('✅ Reply sent successfully', 'success');
       closeReplyMessageModal();
       
-      // ✅ إزالة الرسالة من القائمة فوراً (لأنها أصبحت مُجاب عليها)
+      // ✅ إزالة الرسالة من القائمة فوراً
       const msgItem = document.getElementById(`msg-item-${pendingReplyMsg.msgId}`);
       if (msgItem) {
         msgItem.style.transition = 'all 0.3s ease';
@@ -1451,15 +1467,13 @@ async function confirmSendReply() {
       
       loadDashboardStats();
     } else {
-      showAlert('❌ ' + (data.message || 'Failed to send reply'), 'error');
-      btn.disabled = false;
-      btn.textContent = originalText;
+      showAlert('❌ ' + (data.message || 'Failed'), 'error');
+      if(btn) { btn.disabled = false; btn.textContent = originalText; }
     }
   } catch (err) {
     console.error('❌ confirmSendReply:', err);
     showAlert('⚠️ Connection error', 'error');
-    btn.disabled = false;
-    btn.textContent = originalText;
+    if(btn) { btn.disabled = false; btn.textContent = originalText; }
   }
 }
 
@@ -1467,7 +1481,6 @@ async function confirmSendReply() {
 document.getElementById('replyMessageModal')?.addEventListener('click', function(e) {
   if (e.target === this) closeReplyMessageModal();
 });
-
 // ================= PENDING PROOFS =================
 async function loadPendingProofs() {
   const list = document.getElementById('pendingProofsList');
