@@ -1709,18 +1709,26 @@ app.get("/user/dashboard", async (req, res) => {
         
         const telegramId = Number(idParam.trim());
         
-       const userQuery = await pool.query(
-  `UPDATE users 
-   SET last_login_at = now()
-   WHERE telegram_id = $1
-     AND last_login_at < now() - interval '24 hours'
-   RETURNING telegram_id, username, name, balance, payeer_wallet`,
+    // 1️⃣ جلب المستخدم أولاً
+const userQuery = await pool.query(
+  `SELECT telegram_id, username, name, balance, payeer_wallet 
+   FROM users 
+   WHERE telegram_id = $1`,
   [telegramId]
 );
-        
-        if(userQuery.rows.length === 0){
-            return res.json({success:false, message:"User not found"});
-        }
+
+if (userQuery.rows.length === 0) {
+  return res.json({ success: false, message: "User not found" });
+}
+
+// 2️⃣ تحديث وقت الدخول (بدون شرط 24 ساعة)
+await pool.query(
+  `UPDATE users 
+   SET last_login_at = now() 
+   WHERE telegram_id = $1
+     AND last_login_at < now() - interval '24 hours'`,
+  [telegramId]
+);
         
         const user = userQuery.rows[0];
         
