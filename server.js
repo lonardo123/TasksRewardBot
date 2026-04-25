@@ -2350,14 +2350,14 @@ async function verifyAdmin(req, res, next) {
     }
 
      // 🔥 تسجيل نشاط الأدمن داخل جدول users
-     const userQuery = await pool.query(
+    const userQuery = await pool.query(
   `UPDATE users 
    SET last_login_at = now()
    WHERE telegram_id = $1
      AND last_login_at < now() - interval '24 hours'
    RETURNING telegram_id, username, name, balance, payeer_wallet`,
-  [telegramId]
-      ); 
+  [adminId]
+);
     // ✅ تمرير الصلاحية للدالة التالية
     req.admin_id = adminId;
     next();
