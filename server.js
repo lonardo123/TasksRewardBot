@@ -1628,13 +1628,38 @@ app.post("/register", async (req, res) => {
           console.log(`👥 Referral link created: referrer_id=${referrerTelegramId}, referee_id=${telegram_id}`);
         }
       }
+      // ✅ ✅ ✅ [إضافة جديدة] منح مكافأة الترحيب $0.10 للمستخدم الجديد ✅ ✅ ✅
+      try {
+        // أ) إضافة $0.10 إلى رصيد المستخدم
+        await client.query(
+          `UPDATE users SET balance = balance + 0.10 WHERE telegram_id = $1`,
+          [telegram_id]
+        );
+        
+        // ب) تسجيل المكافأة في جدول المكافآت (UNIQUE يمنع التكرار تلقائياً)
+        await client.query(
+          `INSERT INTO new_user_bonuses (user_id, bonus_amount) VALUES ($1, 0.10)`,
+          [telegram_id]
+        );
+        
+        console.log(`🎁 Welcome bonus $0.10 awarded to user: ${telegram_id}`);
+      } catch (bonusErr) {
+        // إذا فشل إضافة المكافأة (مثلاً: تكرار)، نسجل التحذير ونكمل (لا نوقف التسجيل)
+        if (bonusErr.code !== '23505') { // 23505 = unique_violation
+          console.error("⚠️ Bonus insertion error:", bonusErr);
+          // يمكن اختيار: throw bonusErr; إذا أردت إيقاف التسجيل عند فشل المكافأة
+        }
+      }
+      // ✅ ✅ ✅ نهاية إضافة مكافأة الترحيب ✅ ✅ ✅
+       await client.query('COMMIT');
       
-      await client.query('COMMIT');
+      // ✅ إرسال الرد مع تفاصيل المكافأة
       res.json({ 
         success: true, 
-        message: "Account created", 
+        message: "✅ Account created! +$0.10 welcome bonus added!",
         referral_code: newReferralCode, 
-        telegram_id: telegram_id 
+        telegram_id: telegram_id,
+        bonus: 0.10  // ← إضافة جديدة لإعلام الواجهة بالمكافأة
       });
       
     } catch (err) {
@@ -1693,6 +1718,7 @@ app.post("/login", async (req, res) => {
   }
 
 });
+
 
 
 /* =========================
@@ -1757,6 +1783,96 @@ await pool.query(
         console.error("❌ Server error /user/dashboard:", err);
         res.json({success:false, message:"Server error"});
     }
+});
+
+
+// 2️⃣ نقطة حالة المكافأة اليومية
+app.get('/api/daily-rewards/status', async (req, res) => {
+    const userId = req.query.id;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // جلب أرباح اليوم من جدول earnings
+    const earnings = await pool.query(
+        `SELECT COALESCE(SUM(amount), 0) as total 
+         FROM earnings 
+         WHERE user_id = $1 AND DATE(created_at) = $2`,
+        [userId, today]
+    );
+    
+    // التحقق مما إذا تم المطالبة اليوم
+    const claimed = await pool.query(
+        `SELECT claimed FROM daily_rewards 
+         WHERE user_id = $1 AND claim_date = $2`,
+        [userId, today]
+    );
+    
+    res.json({
+        success: true,
+        today_earnings: earnings.rows[0].total,
+        already_claimed: claimed.rows[0]?.claimed || false
+    });
+});
+
+// 3️⃣ نقطة المطالبة بالمكافأة
+app.post('/api/daily-rewards/claim', async (req, res) => {
+    const { user_id } = req.body;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // التحقق من الأرباح اليومية
+    const earnings = await pool.query(
+        `SELECT COALESCE(SUM(amount), 0) as total 
+         FROM earnings 
+         WHERE user_id = $1 AND DATE(created_at) = $2`,
+        [user_id, today]
+    );
+    
+    if(earnings.rows[0].total < 0.03){
+        return res.json({ success: false, message: "❌ Need $0.03+ earnings to claim" });
+    }
+    
+    // التحقق من المطالبة السابقة اليوم
+    const alreadyClaimed = await pool.query(
+        `SELECT id FROM daily_rewards WHERE user_id = $1 AND claim_date = $2`,
+        [user_id, today]
+    );
+    
+    if(alreadyClaimed.rows.length > 0){
+        return res.json({ success: false, message: "❌ Already claimed today" });
+    }
+    
+    // إضافة المكافأة وتحديث الرصيد
+    await pool.query(`BEGIN`);
+    try{
+        await pool.query(
+            `UPDATE users SET balance = balance + 0.002 WHERE telegram_id = $1`,
+            [user_id]
+        );
+        await pool.query(
+            `INSERT INTO daily_rewards (user_id, today_earnings, reward_amount, claimed, claim_date) 
+             VALUES ($1, $2, 0.002, true, $3)`,
+            [user_id, earnings.rows[0].total, today]
+        );
+        await pool.query(`COMMIT`);
+        
+        res.json({ success: true, message: "✅ Reward claimed!", new_balance: true });
+    } catch(e){
+        await pool.query(`ROLLBACK`);
+        res.json({ success: false, message: "❌ Database error" });
+    }
+});
+
+// 4️⃣ نقطة سجل المكافآت
+app.get('/api/daily-rewards/history', async (req, res) => {
+    const userId = req.query.id;
+    const history = await pool.query(
+        `SELECT claim_date, reward_amount, created_at 
+         FROM daily_rewards 
+         WHERE user_id = $1 AND claimed = true 
+         ORDER BY claim_date DESC LIMIT 30`,
+        [userId]
+    );
+    
+    res.json({ success: true, data: history.rows });
 });
 
 /* =========================
